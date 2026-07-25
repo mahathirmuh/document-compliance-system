@@ -16,9 +16,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY --from=builder /wheels /wheels
-RUN pip install --no-cache-dir /wheels/* \
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir /wheels/* \
     && addgroup --system app \
-    && adduser --system --ingroup app app
+    && adduser --system --ingroup app app \
+    && mkdir -p /app/models/ocr /app/models/language
 
 COPY alembic.ini .
 COPY pytest.ini .

@@ -52,6 +52,12 @@ storage/documents/deleted/*
 storage/logs/*
 !storage/logs/.gitkeep
 
+# Local OCR and language models: keep layout, never commit model binaries
+models/ocr/*
+!models/ocr/.gitkeep
+models/language/*
+!models/language/.gitkeep
+
 # Local databases, logs, and temporary files
 *.db
 *.sqlite

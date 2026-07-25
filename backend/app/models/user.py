@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.document_file import DocumentFile
     from app.models.document_revision import DocumentRevision
+    from app.models.extraction_job import ExtractionJob
     from app.models.refresh_token import RefreshToken
     from app.models.upload_session import UploadSession
 
@@ -178,6 +179,12 @@ class User(Base):
         back_populates="user",
         foreign_keys="UploadSession.user_id",
         passive_deletes=True,
+    )
+    requested_extraction_jobs: Mapped[list[ExtractionJob]] = relationship(
+        back_populates="requester",
+        foreign_keys="ExtractionJob.requested_by",
+        passive_deletes=True,
+        order_by="ExtractionJob.requested_at",
     )
 
     @validates("email")

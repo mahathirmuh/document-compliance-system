@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Document Compliance API"
-    app_version: str = "0.5.0"
+    app_version: str = "0.7.0"
     environment: Literal["development", "test", "staging", "production"] = Field(
         default="development",
         validation_alias=AliasChoices("APP_ENV"),
@@ -132,6 +132,228 @@ class Settings(BaseSettings):
         ge=1.0,
         le=100_000.0,
     )
+    redis_host: str = Field(default="redis", min_length=1, max_length=255)
+    redis_port: int = Field(default=6379, ge=1, le=65_535)
+    redis_db: int = Field(default=0, ge=0, le=15)
+    celery_broker_url: str = "redis://redis:6379/0"
+    celery_result_backend: str = "redis://redis:6379/1"
+    extraction_queue_name: str = Field(
+        default="extraction",
+        min_length=1,
+        max_length=100,
+    )
+    extraction_max_file_size_mb: int = Field(default=50, ge=1, le=500)
+    extraction_task_time_limit_seconds: int = Field(
+        default=1800,
+        ge=60,
+        le=86_400,
+    )
+    extraction_task_soft_time_limit_seconds: int = Field(
+        default=1500,
+        ge=30,
+        le=86_399,
+    )
+    extraction_max_retries: int = Field(default=2, ge=0, le=10)
+    extraction_db_batch_size: int = Field(default=1000, ge=1, le=10_000)
+    pdf_max_pages: int = Field(default=5000, ge=1, le=100_000)
+    pdf_min_characters_per_page: int = Field(default=20, ge=0, le=100_000)
+    pdf_scanned_page_ratio_threshold: float = Field(
+        default=0.7,
+        gt=0.0,
+        le=1.0,
+    )
+    docx_max_paragraphs: int = Field(
+        default=500_000,
+        ge=1,
+        le=5_000_000,
+    )
+    docx_max_tables: int = Field(default=10_000, ge=1, le=100_000)
+    docx_max_table_cells: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=20_000_000,
+    )
+    xlsx_max_worksheets: int = Field(default=200, ge=1, le=10_000)
+    xlsx_max_rows_per_sheet: int = Field(
+        default=200_000,
+        ge=1,
+        le=1_048_576,
+    )
+    xlsx_max_cells_per_workbook: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=20_000_000,
+    )
+    xlsx_max_formulas: int = Field(
+        default=500_000,
+        ge=0,
+        le=10_000_000,
+    )
+    extraction_export_max_blocks: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=20_000_000,
+    )
+    extraction_search_max_results: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+    )
+    ocr_queue_name: str = Field(default="ocr", min_length=1, max_length=100)
+    language_queue_name: str = Field(
+        default="language",
+        min_length=1,
+        max_length=100,
+    )
+    ocr_worker_concurrency: int = Field(default=1, ge=1, le=8)
+    language_worker_concurrency: int = Field(default=2, ge=1, le=32)
+    ocr_provider: Literal["paddleocr"] = "paddleocr"
+    ocr_model_root: Path = Path("models/ocr")
+    ocr_render_dpi: int = Field(default=300, ge=72, le=600)
+    ocr_render_format: Literal["png"] = "png"
+    ocr_max_render_width: int = Field(default=6000, ge=256, le=20_000)
+    ocr_max_render_height: int = Field(default=6000, ge=256, le=20_000)
+    ocr_max_pages_per_job: int = Field(default=500, ge=1, le=10_000)
+    ocr_max_concurrent_jobs_per_user: int = Field(
+        default=3,
+        ge=1,
+        le=100,
+    )
+    ocr_task_time_limit_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86_400,
+    )
+    ocr_task_soft_time_limit_seconds: int = Field(
+        default=3300,
+        ge=30,
+        le=86_399,
+    )
+    ocr_max_retries: int = Field(default=1, ge=0, le=10)
+    ocr_low_confidence_threshold: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+    )
+    ocr_review_confidence_threshold: float = Field(
+        default=0.80,
+        ge=0.0,
+        le=1.0,
+    )
+    ocr_skip_pages_with_selectable_text: bool = True
+    ocr_selectable_text_min_characters: int = Field(
+        default=50,
+        ge=0,
+        le=100_000,
+    )
+    ocr_temp_image_retention_hours: int = Field(
+        default=2,
+        ge=1,
+        le=168,
+    )
+    ocr_default_preprocessing_profile: Literal[
+        "NONE",
+        "STANDARD",
+        "AGGRESSIVE",
+    ] = "STANDARD"
+    ocr_latin_model_name: str = Field(
+        default="latin_PP-OCRv5_mobile_rec",
+        min_length=1,
+        max_length=200,
+    )
+    ocr_chinese_model_name: str = Field(
+        default="PP-OCRv5_mobile_rec",
+        min_length=1,
+        max_length=200,
+    )
+    ocr_auto_multilingual_chinese_pass: bool = True
+    ocr_auto_multilingual_chinese_pass_confidence_threshold: float = Field(
+        default=0.65,
+        ge=0.0,
+        le=1.0,
+    )
+    ocr_auto_multilingual_chinese_pass_minimum_characters: int = Field(
+        default=20,
+        ge=0,
+        le=100_000,
+    )
+    language_model_path: Path = Path("models/language/lid.176.bin")
+    language_model_url: str = (
+        "https://dl.fbaipublicfiles.com/fasttext/"
+        "supervised-models/lid.176.bin"
+    )
+    language_model_sha256: str | None = None
+    language_min_characters: int = Field(default=4, ge=1, le=10_000)
+    language_min_alpha_characters: int = Field(
+        default=3,
+        ge=1,
+        le=10_000,
+    )
+    language_short_text_threshold: int = Field(
+        default=20,
+        ge=1,
+        le=100_000,
+    )
+    language_confidence_minimum: float = Field(
+        default=0.55,
+        ge=0.0,
+        le=1.0,
+    )
+    language_confidence_review_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+    )
+    language_han_character_ratio_threshold: float = Field(
+        default=0.20,
+        ge=0.0,
+        le=1.0,
+    )
+    language_mixed_secondary_score_threshold: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+    )
+    language_mixed_min_character_ratio: float = Field(
+        default=0.15,
+        ge=0.0,
+        le=1.0,
+    )
+    language_presence_min_blocks: int = Field(default=2, ge=1, le=100_000)
+    language_presence_min_characters: int = Field(
+        default=20,
+        ge=1,
+        le=10_000_000,
+    )
+    language_detection_db_batch_size: int = Field(
+        default=1000,
+        ge=1,
+        le=10_000,
+    )
+    language_detection_max_blocks: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=20_000_000,
+    )
+    language_export_max_blocks: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=20_000_000,
+    )
+    language_task_time_limit_seconds: int = Field(
+        default=1800,
+        ge=60,
+        le=86_400,
+    )
+    language_task_soft_time_limit_seconds: int = Field(
+        default=1500,
+        ge=30,
+        le=86_399,
+    )
+    language_max_retries: int = Field(default=1, ge=0, le=10)
+    auto_run_ocr_after_extraction: bool = False
+    auto_run_language_detection_after_extraction: bool = False
+    auto_run_language_detection_after_ocr: bool = False
 
     @field_validator("default_company_code")
     @classmethod
@@ -212,6 +434,19 @@ class Settings(BaseSettings):
             raise ValueError("The Phase 1 API prefix is fixed at '/api/v1'.")
         return normalized
 
+    @field_validator(
+        "celery_broker_url",
+        "celery_result_backend",
+    )
+    @classmethod
+    def validate_redis_url(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized.startswith(("redis://", "rediss://")):
+            raise ValueError(
+                "Celery Redis URLs must use redis:// or rediss://."
+            )
+        return normalized
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: SecretStr | None) -> SecretStr | None:
@@ -241,6 +476,46 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "POSTGRES_PASSWORD is required when DATABASE_URL is not set."
+            )
+        if (
+            self.extraction_task_soft_time_limit_seconds
+            >= self.extraction_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "EXTRACTION_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "EXTRACTION_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.ocr_task_soft_time_limit_seconds
+            >= self.ocr_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "OCR_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "OCR_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.language_task_soft_time_limit_seconds
+            >= self.language_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "LANGUAGE_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.ocr_low_confidence_threshold
+            > self.ocr_review_confidence_threshold
+        ):
+            raise ValueError(
+                "OCR_LOW_CONFIDENCE_THRESHOLD must not exceed "
+                "OCR_REVIEW_CONFIDENCE_THRESHOLD."
+            )
+        if (
+            self.language_confidence_minimum
+            > self.language_confidence_review_threshold
+        ):
+            raise ValueError(
+                "LANGUAGE_CONFIDENCE_MINIMUM must not exceed "
+                "LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD."
             )
         _ = self.cors_origin_list
         return self

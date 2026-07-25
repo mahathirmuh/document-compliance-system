@@ -18,14 +18,29 @@ services:
     networks:
       - compliance_network
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - compliance_network
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
+    environment: &backend_environment
       APP_NAME: ${APP_NAME:-Document Compliance API}
-      APP_VERSION: ${APP_VERSION:-0.5.0}
+      APP_VERSION: ${APP_VERSION:-0.7.0}
       APP_ENV: ${APP_ENV:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
@@ -67,6 +82,78 @@ services:
       ENABLE_FILE_QUARANTINE: ${ENABLE_FILE_QUARANTINE:-true}
       FILE_DOWNLOAD_CHUNK_SIZE_KB: ${FILE_DOWNLOAD_CHUNK_SIZE_KB:-1024}
       TEMP_FILE_RETENTION_HOURS: ${TEMP_FILE_RETENTION_HOURS:-24}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      EXTRACTION_QUEUE_NAME: ${EXTRACTION_QUEUE_NAME:-extraction}
+      EXTRACTION_MAX_FILE_SIZE_MB: ${EXTRACTION_MAX_FILE_SIZE_MB:-50}
+      EXTRACTION_TASK_TIME_LIMIT_SECONDS: ${EXTRACTION_TASK_TIME_LIMIT_SECONDS:-1800}
+      EXTRACTION_TASK_SOFT_TIME_LIMIT_SECONDS: ${EXTRACTION_TASK_SOFT_TIME_LIMIT_SECONDS:-1500}
+      EXTRACTION_MAX_RETRIES: ${EXTRACTION_MAX_RETRIES:-2}
+      EXTRACTION_DB_BATCH_SIZE: ${EXTRACTION_DB_BATCH_SIZE:-1000}
+      PDF_MAX_PAGES: ${PDF_MAX_PAGES:-5000}
+      PDF_MIN_CHARACTERS_PER_PAGE: ${PDF_MIN_CHARACTERS_PER_PAGE:-20}
+      PDF_SCANNED_PAGE_RATIO_THRESHOLD: ${PDF_SCANNED_PAGE_RATIO_THRESHOLD:-0.7}
+      DOCX_MAX_PARAGRAPHS: ${DOCX_MAX_PARAGRAPHS:-500000}
+      DOCX_MAX_TABLES: ${DOCX_MAX_TABLES:-10000}
+      DOCX_MAX_TABLE_CELLS: ${DOCX_MAX_TABLE_CELLS:-2000000}
+      XLSX_MAX_WORKSHEETS: ${XLSX_MAX_WORKSHEETS:-200}
+      XLSX_MAX_ROWS_PER_SHEET: ${XLSX_MAX_ROWS_PER_SHEET:-200000}
+      XLSX_MAX_CELLS_PER_WORKBOOK: ${XLSX_MAX_CELLS_PER_WORKBOOK:-2000000}
+      XLSX_MAX_FORMULAS: ${XLSX_MAX_FORMULAS:-500000}
+      EXTRACTION_EXPORT_MAX_BLOCKS: ${EXTRACTION_EXPORT_MAX_BLOCKS:-2000000}
+      EXTRACTION_SEARCH_MAX_RESULTS: ${EXTRACTION_SEARCH_MAX_RESULTS:-500}
+      OCR_QUEUE_NAME: ${OCR_QUEUE_NAME:-ocr}
+      LANGUAGE_QUEUE_NAME: ${LANGUAGE_QUEUE_NAME:-language}
+      OCR_WORKER_CONCURRENCY: ${OCR_WORKER_CONCURRENCY:-1}
+      LANGUAGE_WORKER_CONCURRENCY: ${LANGUAGE_WORKER_CONCURRENCY:-2}
+      OCR_PROVIDER: ${OCR_PROVIDER:-paddleocr}
+      OCR_MODEL_ROOT: ${OCR_MODEL_ROOT:-/app/models/ocr}
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: ${PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK:-True}
+      OCR_AUTO_MULTILINGUAL_CHINESE_PASS: ${OCR_AUTO_MULTILINGUAL_CHINESE_PASS:-true}
+      OCR_AUTO_MULTILINGUAL_CHINESE_PASS_CONFIDENCE_THRESHOLD: ${OCR_AUTO_MULTILINGUAL_CHINESE_PASS_CONFIDENCE_THRESHOLD:-0.65}
+      OCR_AUTO_MULTILINGUAL_CHINESE_PASS_MINIMUM_CHARACTERS: ${OCR_AUTO_MULTILINGUAL_CHINESE_PASS_MINIMUM_CHARACTERS:-20}
+      OCR_RENDER_DPI: ${OCR_RENDER_DPI:-300}
+      OCR_RENDER_FORMAT: ${OCR_RENDER_FORMAT:-png}
+      OCR_MAX_RENDER_WIDTH: ${OCR_MAX_RENDER_WIDTH:-6000}
+      OCR_MAX_RENDER_HEIGHT: ${OCR_MAX_RENDER_HEIGHT:-6000}
+      OCR_MAX_PAGES_PER_JOB: ${OCR_MAX_PAGES_PER_JOB:-500}
+      OCR_MAX_CONCURRENT_JOBS_PER_USER: ${OCR_MAX_CONCURRENT_JOBS_PER_USER:-3}
+      OCR_TASK_TIME_LIMIT_SECONDS: ${OCR_TASK_TIME_LIMIT_SECONDS:-3600}
+      OCR_TASK_SOFT_TIME_LIMIT_SECONDS: ${OCR_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      OCR_MAX_RETRIES: ${OCR_MAX_RETRIES:-1}
+      OCR_LOW_CONFIDENCE_THRESHOLD: ${OCR_LOW_CONFIDENCE_THRESHOLD:-0.60}
+      OCR_REVIEW_CONFIDENCE_THRESHOLD: ${OCR_REVIEW_CONFIDENCE_THRESHOLD:-0.80}
+      OCR_SKIP_PAGES_WITH_SELECTABLE_TEXT: ${OCR_SKIP_PAGES_WITH_SELECTABLE_TEXT:-true}
+      OCR_SELECTABLE_TEXT_MIN_CHARACTERS: ${OCR_SELECTABLE_TEXT_MIN_CHARACTERS:-50}
+      OCR_TEMP_IMAGE_RETENTION_HOURS: ${OCR_TEMP_IMAGE_RETENTION_HOURS:-2}
+      OCR_DEFAULT_PREPROCESSING_PROFILE: ${OCR_DEFAULT_PREPROCESSING_PROFILE:-STANDARD}
+      OCR_LATIN_MODEL_NAME: ${OCR_LATIN_MODEL_NAME:-latin_PP-OCRv5_mobile_rec}
+      OCR_CHINESE_MODEL_NAME: ${OCR_CHINESE_MODEL_NAME:-PP-OCRv5_mobile_rec}
+      LANGUAGE_MODEL_PATH: ${LANGUAGE_MODEL_PATH:-/app/models/language/lid.176.bin}
+      LANGUAGE_MODEL_URL: ${LANGUAGE_MODEL_URL:-https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin}
+      LANGUAGE_MODEL_SHA256: ${LANGUAGE_MODEL_SHA256:-}
+      LANGUAGE_MIN_CHARACTERS: ${LANGUAGE_MIN_CHARACTERS:-4}
+      LANGUAGE_MIN_ALPHA_CHARACTERS: ${LANGUAGE_MIN_ALPHA_CHARACTERS:-3}
+      LANGUAGE_SHORT_TEXT_THRESHOLD: ${LANGUAGE_SHORT_TEXT_THRESHOLD:-20}
+      LANGUAGE_CONFIDENCE_MINIMUM: ${LANGUAGE_CONFIDENCE_MINIMUM:-0.55}
+      LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD: ${LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD:-0.75}
+      LANGUAGE_HAN_CHARACTER_RATIO_THRESHOLD: ${LANGUAGE_HAN_CHARACTER_RATIO_THRESHOLD:-0.20}
+      LANGUAGE_MIXED_SECONDARY_SCORE_THRESHOLD: ${LANGUAGE_MIXED_SECONDARY_SCORE_THRESHOLD:-0.25}
+      LANGUAGE_MIXED_MIN_CHARACTER_RATIO: ${LANGUAGE_MIXED_MIN_CHARACTER_RATIO:-0.15}
+      LANGUAGE_PRESENCE_MIN_BLOCKS: ${LANGUAGE_PRESENCE_MIN_BLOCKS:-2}
+      LANGUAGE_PRESENCE_MIN_CHARACTERS: ${LANGUAGE_PRESENCE_MIN_CHARACTERS:-20}
+      LANGUAGE_DETECTION_DB_BATCH_SIZE: ${LANGUAGE_DETECTION_DB_BATCH_SIZE:-1000}
+      LANGUAGE_DETECTION_MAX_BLOCKS: ${LANGUAGE_DETECTION_MAX_BLOCKS:-2000000}
+      LANGUAGE_EXPORT_MAX_BLOCKS: ${LANGUAGE_EXPORT_MAX_BLOCKS:-2000000}
+      LANGUAGE_TASK_TIME_LIMIT_SECONDS: ${LANGUAGE_TASK_TIME_LIMIT_SECONDS:-1800}
+      LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS: ${LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS:-1500}
+      LANGUAGE_MAX_RETRIES: ${LANGUAGE_MAX_RETRIES:-1}
+      AUTO_RUN_OCR_AFTER_EXTRACTION: ${AUTO_RUN_OCR_AFTER_EXTRACTION:-false}
+      AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION:-false}
+      AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR:-false}
       DEFAULT_ADMIN_NAME: "${DEFAULT_ADMIN_NAME:-System Administrator}"
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
       DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:?Set DEFAULT_ADMIN_PASSWORD in .env}"
@@ -75,8 +162,11 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./storage:/app/storage
+      - ./models:/app/models:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test:
@@ -93,6 +183,126 @@ services:
     networks:
       - compliance_network
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${EXTRACTION_QUEUE_NAME:-extraction}",
+        "--concurrency=${EXTRACTION_WORKER_CONCURRENCY:-2}",
+        "--hostname=extraction@%h",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=extraction@$${HOSTNAME} --timeout=10 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    networks:
+      - compliance_network
+
+  worker-ocr:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${OCR_QUEUE_NAME:-ocr}",
+        "--concurrency=${OCR_WORKER_CONCURRENCY:-1}",
+        "--hostname=ocr@%h",
+        "--max-tasks-per-child=10",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=ocr@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
+    shm_size: "1gb"
+    networks:
+      - compliance_network
+
+  worker-language:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${LANGUAGE_QUEUE_NAME:-language}",
+        "--concurrency=${LANGUAGE_WORKER_CONCURRENCY:-2}",
+        "--hostname=language@%h",
+        "--max-tasks-per-child=100",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=language@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
   frontend:
     build:
       context: ./frontend
@@ -100,7 +310,7 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.5.0}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.7.0}
         VITE_DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
         VITE_DOCUMENT_MAX_FILE_SIZE_MB: ${DOCUMENT_MAX_FILE_SIZE_MB:-50}
         VITE_DOCUMENT_BATCH_MAX_FILES: ${DOCUMENT_BATCH_MAX_FILES:-50}
@@ -117,6 +327,8 @@ services:
 volumes:
   postgres_data:
     name: document_compliance_postgres_data
+  redis_data:
+    name: document_compliance_redis_data
 
 networks:
   compliance_network:

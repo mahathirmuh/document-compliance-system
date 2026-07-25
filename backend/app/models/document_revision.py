@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.document_file import DocumentFile
     from app.models.document_status import DocumentStatus
+    from app.models.extraction_job import ExtractionJob
+    from app.models.extraction_run import ExtractionRun
     from app.models.user import User
     from app.models.validation_rule import ValidationRule
 
@@ -192,6 +194,18 @@ class DocumentRevision(Base):
         foreign_keys="DocumentFile.document_revision_id",
         passive_deletes=True,
         order_by="DocumentFile.uploaded_at",
+    )
+    extraction_jobs: Mapped[list[ExtractionJob]] = relationship(
+        back_populates="revision",
+        foreign_keys="ExtractionJob.document_revision_id",
+        passive_deletes=True,
+        order_by="ExtractionJob.requested_at",
+    )
+    extraction_runs: Mapped[list[ExtractionRun]] = relationship(
+        back_populates="revision",
+        foreign_keys="ExtractionRun.document_revision_id",
+        passive_deletes=True,
+        order_by="ExtractionRun.created_at",
     )
     document_status: Mapped[DocumentStatus] = relationship(
         back_populates="document_revisions",

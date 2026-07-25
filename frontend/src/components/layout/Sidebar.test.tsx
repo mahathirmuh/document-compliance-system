@@ -41,6 +41,15 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Add Document' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Upload Document' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Batch Upload' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Extraction Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'OCR Queue' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Language Detection' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Extraction History' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'OCR History' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Upload History' })).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Archived Documents' }),
@@ -77,6 +86,12 @@ describe('Sidebar', () => {
     expect(
       screen.queryByRole('link', { name: 'Upload History' }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Extraction Queue' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Extraction History' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows each upload menu only for its dedicated permission', () => {
@@ -93,5 +108,38 @@ describe('Sidebar', () => {
     expect(
       screen.queryByRole('link', { name: 'Upload History' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows extraction menus only for their dedicated permissions', () => {
+    useAuthStore.getState().setAuth({
+      ...superAdminSession,
+      permissions: ['documents:view', 'documents:view_extraction_history'],
+    });
+    renderSidebar();
+
+    expect(
+      screen.queryByRole('link', { name: 'Extraction Queue' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Extraction History' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows OCR and language menus only for their dedicated permissions', () => {
+    useAuthStore.getState().setAuth({
+      ...superAdminSession,
+      permissions: [
+        'documents:view',
+        'documents:view_ocr_history',
+        'documents:view_language_results',
+      ],
+    });
+    renderSidebar();
+
+    expect(screen.queryByRole('link', { name: 'OCR Queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'OCR History' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Language Detection' }),
+    ).toBeInTheDocument();
   });
 });

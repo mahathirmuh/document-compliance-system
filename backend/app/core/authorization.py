@@ -36,6 +36,32 @@ class Permission(str, Enum):
     DOCUMENTS_DELETE_FILE = "documents:delete_file"
     DOCUMENTS_BATCH_UPLOAD = "documents:batch_upload"
     DOCUMENTS_VIEW_FILE_HISTORY = "documents:view_file_history"
+    DOCUMENTS_EXTRACT = "documents:extract"
+    DOCUMENTS_REEXTRACT = "documents:reextract"
+    DOCUMENTS_VIEW_EXTRACTED_CONTENT = (
+        "documents:view_extracted_content"
+    )
+    DOCUMENTS_EXPORT_EXTRACTED_CONTENT = (
+        "documents:export_extracted_content"
+    )
+    DOCUMENTS_VIEW_EXTRACTION_HISTORY = (
+        "documents:view_extraction_history"
+    )
+    DOCUMENTS_CANCEL_EXTRACTION = "documents:cancel_extraction"
+    DOCUMENTS_OCR = "documents:ocr"
+    DOCUMENTS_REOCR = "documents:reocr"
+    DOCUMENTS_VIEW_OCR_RESULTS = "documents:view_ocr_results"
+    DOCUMENTS_VIEW_OCR_HISTORY = "documents:view_ocr_history"
+    DOCUMENTS_CANCEL_OCR = "documents:cancel_ocr"
+    DOCUMENTS_DETECT_LANGUAGE = "documents:detect_language"
+    DOCUMENTS_REDETECT_LANGUAGE = "documents:redetect_language"
+    DOCUMENTS_VIEW_LANGUAGE_RESULTS = "documents:view_language_results"
+    DOCUMENTS_EXPORT_LANGUAGE_RESULTS = (
+        "documents:export_language_results"
+    )
+    DOCUMENTS_REVIEW_LANGUAGE_RESULT = (
+        "documents:review_language_result"
+    )
     DOCUMENTS_DELETE = "documents:delete"
     DOCUMENTS_VALIDATE = "documents:validate"
     DOCUMENTS_ASSIGN_REVIEWER = "documents:assign_reviewer"
@@ -117,6 +143,33 @@ class AuditAction(str, Enum):
     QUARANTINE_DOCUMENT_FILE = "QUARANTINE_DOCUMENT_FILE"
     DUPLICATE_FILE_DETECTED = "DUPLICATE_FILE_DETECTED"
     CLEANUP_EXPIRED_UPLOAD_SESSION = "CLEANUP_EXPIRED_UPLOAD_SESSION"
+    QUEUE_DOCUMENT_EXTRACTION = "QUEUE_DOCUMENT_EXTRACTION"
+    START_DOCUMENT_EXTRACTION = "START_DOCUMENT_EXTRACTION"
+    COMPLETE_DOCUMENT_EXTRACTION = "COMPLETE_DOCUMENT_EXTRACTION"
+    PARTIAL_DOCUMENT_EXTRACTION = "PARTIAL_DOCUMENT_EXTRACTION"
+    DOCUMENT_REQUIRES_OCR = "DOCUMENT_REQUIRES_OCR"
+    FAIL_DOCUMENT_EXTRACTION = "FAIL_DOCUMENT_EXTRACTION"
+    CANCEL_DOCUMENT_EXTRACTION = "CANCEL_DOCUMENT_EXTRACTION"
+    REEXTRACT_DOCUMENT = "REEXTRACT_DOCUMENT"
+    VIEW_EXTRACTED_CONTENT = "VIEW_EXTRACTED_CONTENT"
+    SEARCH_EXTRACTED_CONTENT = "SEARCH_EXTRACTED_CONTENT"
+    EXPORT_EXTRACTED_CONTENT = "EXPORT_EXTRACTED_CONTENT"
+    QUEUE_OCR = "QUEUE_OCR"
+    START_OCR = "START_OCR"
+    COMPLETE_OCR = "COMPLETE_OCR"
+    PARTIAL_OCR = "PARTIAL_OCR"
+    FAIL_OCR = "FAIL_OCR"
+    CANCEL_OCR = "CANCEL_OCR"
+    REOCR_DOCUMENT = "REOCR_DOCUMENT"
+    EXPORT_OCR_RESULT = "EXPORT_OCR_RESULT"
+    QUEUE_LANGUAGE_DETECTION = "QUEUE_LANGUAGE_DETECTION"
+    START_LANGUAGE_DETECTION = "START_LANGUAGE_DETECTION"
+    COMPLETE_LANGUAGE_DETECTION = "COMPLETE_LANGUAGE_DETECTION"
+    FAIL_LANGUAGE_DETECTION = "FAIL_LANGUAGE_DETECTION"
+    CANCEL_LANGUAGE_DETECTION = "CANCEL_LANGUAGE_DETECTION"
+    REDETECT_LANGUAGE = "REDETECT_LANGUAGE"
+    EXPORT_LANGUAGE_RESULT = "EXPORT_LANGUAGE_RESULT"
+    REVIEW_LANGUAGE_RESULT = "REVIEW_LANGUAGE_RESULT"
 
 ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
     MappingProxyType(
@@ -140,6 +193,22 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_DELETE_FILE,
                     Permission.DOCUMENTS_BATCH_UPLOAD,
                     Permission.DOCUMENTS_VIEW_FILE_HISTORY,
+                    Permission.DOCUMENTS_EXTRACT,
+                    Permission.DOCUMENTS_REEXTRACT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_EXPORT_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTION_HISTORY,
+                    Permission.DOCUMENTS_CANCEL_EXTRACTION,
+                    Permission.DOCUMENTS_OCR,
+                    Permission.DOCUMENTS_REOCR,
+                    Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+                    Permission.DOCUMENTS_VIEW_OCR_HISTORY,
+                    Permission.DOCUMENTS_CANCEL_OCR,
+                    Permission.DOCUMENTS_DETECT_LANGUAGE,
+                    Permission.DOCUMENTS_REDETECT_LANGUAGE,
+                    Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
+                    Permission.DOCUMENTS_EXPORT_LANGUAGE_RESULTS,
+                    Permission.DOCUMENTS_REVIEW_LANGUAGE_RESULT,
                     Permission.DOCUMENTS_VALIDATE,
                     Permission.DOCUMENTS_ASSIGN_REVIEWER,
                     Permission.FINDINGS_VIEW,
@@ -156,6 +225,12 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW,
                     Permission.DOCUMENTS_DOWNLOAD,
                     Permission.DOCUMENTS_VIEW_FILE_HISTORY,
+                    Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTION_HISTORY,
+                    Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+                    Permission.DOCUMENTS_VIEW_OCR_HISTORY,
+                    Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
+                    Permission.DOCUMENTS_REVIEW_LANGUAGE_RESULT,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_UPDATE,
                     Permission.FINDINGS_RESOLVE,
@@ -171,6 +246,14 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_UPLOAD,
                     Permission.DOCUMENTS_DOWNLOAD,
                     Permission.DOCUMENTS_VIEW_FILE_HISTORY,
+                    Permission.DOCUMENTS_EXTRACT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTION_HISTORY,
+                    Permission.DOCUMENTS_OCR,
+                    Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+                    Permission.DOCUMENTS_VIEW_OCR_HISTORY,
+                    Permission.DOCUMENTS_DETECT_LANGUAGE,
+                    Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.FINDINGS_VIEW,
                 }
             ),
@@ -182,6 +265,13 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_ALL_DEPARTMENTS,
                     Permission.DOCUMENTS_DOWNLOAD,
                     Permission.DOCUMENTS_VIEW_FILE_HISTORY,
+                    Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_EXPORT_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_VIEW_EXTRACTION_HISTORY,
+                    Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+                    Permission.DOCUMENTS_VIEW_OCR_HISTORY,
+                    Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
+                    Permission.DOCUMENTS_EXPORT_LANGUAGE_RESULTS,
                     Permission.FINDINGS_VIEW,
                     Permission.REPORTS_VIEW,
                     Permission.REPORTS_EXPORT,
@@ -193,6 +283,9 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DASHBOARD_VIEW,
                     Permission.DOCUMENTS_VIEW,
                     Permission.DOCUMENTS_DOWNLOAD,
+                    Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
+                    Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+                    Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                 }
             ),
         }

@@ -10,14 +10,32 @@ from app.api.v1.endpoints import (
     document_import,
     document_revisions,
     documents,
+    extraction_runs,
+    extractions,
     health,
+    language_detection,
     master_data,
     master_data_transfer,
+    ocr,
 )
 
 api_router = APIRouter()
 api_router.include_router(health.router, prefix="/health", tags=["Health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(
+    extractions.router,
+    prefix="/extractions",
+    tags=["Document Extraction"],
+)
+api_router.include_router(
+    extraction_runs.router,
+    tags=["Extracted Content"],
+)
+api_router.include_router(ocr.router, tags=["Document OCR"])
+api_router.include_router(
+    language_detection.router,
+    tags=["Language Detection"],
+)
 api_router.include_router(
     document_files.router,
     prefix="/document-files",

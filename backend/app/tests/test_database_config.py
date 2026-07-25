@@ -56,7 +56,7 @@ def test_phase_four_version_and_document_register_defaults() -> None:
         database_url="postgresql+asyncpg://user:password@localhost:5432/app",
     )
 
-    assert settings.app_version == "0.5.0"
+    assert settings.app_version == "0.7.0"
     assert settings.default_company_code == "MTI"
     assert settings.document_register_import_max_rows == 10_000
     assert settings.document_register_export_max_rows == 100_000
@@ -126,4 +126,110 @@ def test_api_prefix_is_fixed_for_phase_one() -> None:
         Settings(
             database_url="postgresql+asyncpg://user:password@localhost:5432/app",
             api_v1_prefix="/api/v2",
+        )
+
+
+def test_phase_seven_ocr_and_language_defaults_are_resource_bounded() -> None:
+    settings = Settings(
+        database_url="postgresql+asyncpg://user:password@localhost:5432/app",
+    )
+
+    assert settings.extraction_queue_name == "extraction"
+    assert settings.ocr_queue_name == "ocr"
+    assert settings.language_queue_name == "language"
+    assert settings.ocr_worker_concurrency == 1
+    assert settings.ocr_render_dpi == 300
+    assert settings.ocr_max_pages_per_job == 500
+    assert settings.ocr_low_confidence_threshold == 0.60
+    assert settings.ocr_review_confidence_threshold == 0.80
+    assert settings.ocr_auto_multilingual_chinese_pass is True
+    assert (
+        settings.ocr_auto_multilingual_chinese_pass_confidence_threshold
+        == 0.65
+    )
+    assert settings.ocr_auto_multilingual_chinese_pass_minimum_characters == 20
+    assert settings.language_confidence_minimum == 0.55
+    assert settings.language_confidence_review_threshold == 0.75
+    assert settings.language_presence_min_blocks == 2
+    assert settings.language_presence_min_characters == 20
+    assert settings.auto_run_ocr_after_extraction is False
+    assert settings.auto_run_language_detection_after_extraction is False
+    assert settings.auto_run_language_detection_after_ocr is False
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        (
+            {
+                "ocr_task_soft_time_limit_seconds": 3600,
+                "ocr_task_time_limit_seconds": 3600,
+            },
+            "OCR_TASK_SOFT_TIME_LIMIT_SECONDS",
+        ),
+        (
+            {
+                "language_task_soft_time_limit_seconds": 1800,
+                "language_task_time_limit_seconds": 1800,
+            },
+            "LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS",
+        ),
+        (
+            {
+                "ocr_low_confidence_threshold": 0.9,
+                "ocr_review_confidence_threshold": 0.8,
+            },
+            "OCR_LOW_CONFIDENCE_THRESHOLD",
+        ),
+        (
+            {
+                "language_confidence_minimum": 0.9,
+                "language_confidence_review_threshold": 0.8,
+            },
+            "LANGUAGE_CONFIDENCE_MINIMUM",
+        ),
+    ],
+)
+def test_phase_seven_settings_reject_inconsistent_thresholds(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        Settings(
+            database_url=(
+                "postgresql+asyncpg://user:password@localhost:5432/app"
+            ),
+            **overrides,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (
+            "ocr_auto_multilingual_chinese_pass_confidence_threshold",
+            -0.01,
+        ),
+        (
+            "ocr_auto_multilingual_chinese_pass_confidence_threshold",
+            1.01,
+        ),
+        (
+            "ocr_auto_multilingual_chinese_pass_minimum_characters",
+            -1,
+        ),
+        (
+            "ocr_auto_multilingual_chinese_pass_minimum_characters",
+            100_001,
+        ),
+    ],
+)
+def test_auto_multilingual_options_reject_unbounded_configuration(
+    field: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError, match=field):
+        Settings(
+            database_url="postgresql+asyncpg://user:password@localhost:5432/app",
+            **{field: value},
         )

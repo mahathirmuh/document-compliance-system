@@ -16,11 +16,37 @@ const routeTitles: Record<string, string> = {
   '/documents/new': 'Add Document',
   '/documents/upload': 'Upload Document',
   '/documents/batch-upload': 'Batch Upload',
+  '/documents/extraction-queue': 'Extraction Queue',
+  '/documents/ocr-queue': 'OCR Queue',
+  '/documents/ocr-history': 'OCR History',
+  '/documents/language-detection': 'Language Detection',
+  '/documents/extraction-history': 'Extraction History',
   '/documents/upload-history': 'Upload History',
   '/documents/archived': 'Archived Documents',
 };
 
 const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/ocr-results$/.test(pathname)) {
+    return 'OCR Results';
+  }
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/language-results$/.test(pathname)) {
+    return 'Language Results';
+  }
+  if (/^\/documents\/[^/]+\/ocr-results$/.test(pathname)) {
+    return 'OCR Results';
+  }
+  if (/^\/documents\/[^/]+\/language-results$/.test(pathname)) {
+    return 'Language Results';
+  }
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/extraction-history$/.test(pathname)) {
+    return 'Revision Extraction History';
+  }
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/extracted-content$/.test(pathname)) {
+    return 'Extracted Content';
+  }
+  if (/^\/documents\/[^/]+\/extracted-content$/.test(pathname)) {
+    return 'Extracted Content';
+  }
   if (/^\/documents\/[^/]+\/revisions\/[^/]+\/file$/.test(pathname)) {
     return 'Revision Physical File';
   }
@@ -55,6 +81,21 @@ export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
       return [{ label: 'Documents' }];
     }
     const fileMatch = /^\/documents\/([^/]+)\/revisions\/([^/]+)\/file$/.exec(pathname);
+    const extractionMatch =
+      /^\/documents\/([^/]+)\/revisions\/([^/]+)\/(extracted-content|extraction-history|ocr-results|language-results)$/.exec(
+        pathname,
+      );
+    if (extractionMatch) {
+      return [
+        { label: 'Documents', path: '/documents' },
+        { label: 'Document Details', path: `/documents/${extractionMatch[1]}` },
+        {
+          label: 'Revision Physical File',
+          path: `/documents/${extractionMatch[1]}/revisions/${extractionMatch[2]}/file`,
+        },
+        { label: currentTitle },
+      ];
+    }
     if (fileMatch) {
       return [
         { label: 'Documents', path: '/documents' },

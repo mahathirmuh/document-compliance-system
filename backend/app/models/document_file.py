@@ -32,6 +32,10 @@ from app.database.base import Base
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.document_revision import DocumentRevision
+    from app.models.extraction_job import ExtractionJob
+    from app.models.extraction_run import ExtractionRun
+    from app.models.language_detection_run import LanguageDetectionRun
+    from app.models.ocr_run import OCRRun
     from app.models.user import User
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -76,6 +80,18 @@ class DocumentFile(Base):
         Index("ix_document_files_file_status", "file_status"),
         Index("ix_document_files_is_current", "is_current"),
         Index("ix_document_files_uploaded_at", "uploaded_at"),
+        Index(
+            "ix_document_files_latest_extraction_run_id",
+            "latest_extraction_run_id",
+        ),
+        Index(
+            "ix_document_files_latest_ocr_run_id",
+            "latest_ocr_run_id",
+        ),
+        Index(
+            "ix_document_files_latest_language_detection_run_id",
+            "latest_language_detection_run_id",
+        ),
         Index(
             "uq_document_files_one_current_primary",
             "document_revision_id",
@@ -192,6 +208,42 @@ class DocumentFile(Base):
         JSON().with_variant(JSONB, "postgresql"),
         nullable=True,
     )
+    latest_extraction_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "extraction_runs.id",
+            name=(
+                "fk_document_files_latest_extraction_run_id_"
+                "extraction_runs"
+            ),
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
+    latest_ocr_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "ocr_runs.id",
+            name="fk_document_files_latest_ocr_run_id_ocr_runs",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
+    latest_language_detection_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "language_detection_runs.id",
+            name=(
+                "fk_document_files_latest_language_detection_run_id_"
+                "language_detection_runs"
+            ),
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -223,6 +275,32 @@ class DocumentFile(Base):
     replaced_by_file: Mapped[DocumentFile | None] = relationship(
         remote_side=[id],
         foreign_keys=[replaced_by_file_id],
+    )
+    extraction_jobs: Mapped[list[ExtractionJob]] = relationship(
+        back_populates="document_file",
+        foreign_keys="ExtractionJob.document_file_id",
+        passive_deletes=True,
+        order_by="ExtractionJob.requested_at",
+    )
+    extraction_runs: Mapped[list[ExtractionRun]] = relationship(
+        back_populates="document_file",
+        foreign_keys="ExtractionRun.document_file_id",
+        passive_deletes=True,
+        order_by="ExtractionRun.created_at",
+    )
+    latest_extraction_run: Mapped[ExtractionRun | None] = relationship(
+        foreign_keys=[latest_extraction_run_id],
+        post_update=True,
+    )
+    latest_ocr_run: Mapped[OCRRun | None] = relationship(
+        foreign_keys=[latest_ocr_run_id],
+        post_update=True,
+    )
+    latest_language_detection_run: Mapped[
+        LanguageDetectionRun | None
+    ] = relationship(
+        foreign_keys=[latest_language_detection_run_id],
+        post_update=True,
     )
 
     @validates("file_extension")

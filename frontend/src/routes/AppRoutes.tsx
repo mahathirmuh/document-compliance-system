@@ -92,6 +92,51 @@ const UploadHistoryPage = lazy(() =>
     default: module.UploadHistoryPage,
   })),
 );
+const ExtractionQueuePage = lazy(() =>
+  import('../pages/documents/ExtractionQueuePage').then((module) => ({
+    default: module.ExtractionQueuePage,
+  })),
+);
+const ExtractionHistoryPage = lazy(() =>
+  import('../pages/documents/ExtractionHistoryPage').then((module) => ({
+    default: module.ExtractionHistoryPage,
+  })),
+);
+const OCRQueuePage = lazy(() =>
+  import('../pages/documents/OCRQueuePage').then((module) => ({
+    default: module.OCRQueuePage,
+  })),
+);
+const OCRHistoryPage = lazy(() =>
+  import('../pages/documents/OCRHistoryPage').then((module) => ({
+    default: module.OCRHistoryPage,
+  })),
+);
+const OCRResultPage = lazy(() =>
+  import('../pages/documents/OCRResultPage').then((module) => ({
+    default: module.OCRResultPage,
+  })),
+);
+const LanguageDetectionPage = lazy(() =>
+  import('../pages/documents/LanguageDetectionPage').then((module) => ({
+    default: module.LanguageDetectionPage,
+  })),
+);
+const LanguageResultPage = lazy(() =>
+  import('../pages/documents/LanguageResultPage').then((module) => ({
+    default: module.LanguageResultPage,
+  })),
+);
+const ExtractedContentPage = lazy(() =>
+  import('../pages/documents/ExtractedContentPage').then((module) => ({
+    default: module.ExtractedContentPage,
+  })),
+);
+const DocumentExtractionHistoryPage = lazy(() =>
+  import('../pages/documents/DocumentExtractionHistoryPage').then((module) => ({
+    default: module.DocumentExtractionHistoryPage,
+  })),
+);
 const DocumentRevisionFilePage = lazy(() =>
   import('../pages/documents/DocumentRevisionFilePage').then((module) => ({
     default: module.DocumentRevisionFilePage,
@@ -182,6 +227,102 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="documents:view_file_history">
                   <UploadHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/extraction-queue"
+              element={
+                <PermissionGuard permission="documents:extract">
+                  <ExtractionQueuePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/extraction-history"
+              element={
+                <PermissionGuard permission="documents:view_extraction_history">
+                  <ExtractionHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/ocr-queue"
+              element={
+                <PermissionGuard permission="documents:ocr">
+                  <OCRQueuePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/ocr-history"
+              element={
+                <PermissionGuard permission="documents:view_ocr_history">
+                  <OCRHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/language-detection"
+              element={
+                <PermissionGuard permission="documents:view_language_results">
+                  <LanguageDetectionPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/ocr-results"
+              element={
+                <PermissionGuard permission="documents:view_ocr_results">
+                  <OCRResultPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/ocr-results"
+              element={
+                <PermissionGuard permission="documents:view_ocr_results">
+                  <OCRResultPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/language-results"
+              element={
+                <PermissionGuard permission="documents:view_language_results">
+                  <LanguageResultPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/language-results"
+              element={
+                <PermissionGuard permission="documents:view_language_results">
+                  <LanguageResultPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/extracted-content"
+              element={
+                <PermissionGuard permission="documents:view_extracted_content">
+                  <ExtractedContentPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/extracted-content"
+              element={
+                <PermissionGuard permission="documents:view_extracted_content">
+                  <ExtractedContentPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/extraction-history"
+              element={
+                <PermissionGuard permission="documents:view_extraction_history">
+                  <DocumentExtractionHistoryPage />
                 </PermissionGuard>
               }
             />

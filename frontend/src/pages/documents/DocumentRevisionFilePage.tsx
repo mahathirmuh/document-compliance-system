@@ -5,7 +5,9 @@ import { Link, useParams } from 'react-router';
 import { getApiErrorMessage } from '../../api/errors';
 import { DeleteDocumentFileDialog } from '../../components/documents/DeleteDocumentFileDialog';
 import { DocumentCodeField } from '../../components/documents/DocumentCodeField';
+import { DocumentExtractionSection } from '../../components/documents/DocumentExtractionSection';
 import { DocumentFileTable } from '../../components/documents/DocumentFileTable';
+import { DocumentIntelligenceSection } from '../../components/documents/DocumentIntelligenceSection';
 import { ReplaceDocumentFileDialog } from '../../components/documents/ReplaceDocumentFileDialog';
 import { RevisionBadge } from '../../components/documents/RevisionBadge';
 import { ConfirmationDialog } from '../../components/master-data/ConfirmationDialog';
@@ -33,6 +35,16 @@ export function DocumentRevisionFilePage() {
     (candidate) => candidate.id === revisionId,
   );
   const canHistory = hasPermission('documents:view_file_history');
+  const canUseExtraction =
+    hasPermission('documents:extract') ||
+    hasPermission('documents:view_extracted_content') ||
+    hasPermission('documents:view_extraction_history');
+  const canUseIntelligence =
+    hasPermission('documents:ocr') ||
+    hasPermission('documents:view_ocr_results') ||
+    hasPermission('documents:view_ocr_history') ||
+    hasPermission('documents:detect_language') ||
+    hasPermission('documents:view_language_results');
   const files = canHistory
     ? (filesQuery.data ?? [])
     : (filesQuery.data ?? []).filter(
@@ -186,17 +198,29 @@ export function DocumentRevisionFilePage() {
           )}
         </p>
       ) : (
-        <DocumentFileTable
-          files={files}
-          canDownload={hasPermission('documents:download')}
-          canReplace={canReplace}
-          canDelete={canDelete}
-          canRestore={canDelete}
-          documentArchived={archived}
-          onReplace={setReplaceTarget}
-          onDelete={setDeleteTarget}
-          onRestore={setRestoreTarget}
-        />
+        <>
+          <DocumentFileTable
+            files={files}
+            canDownload={hasPermission('documents:download')}
+            canReplace={canReplace}
+            canDelete={canDelete}
+            canRestore={canDelete}
+            documentArchived={archived}
+            onReplace={setReplaceTarget}
+            onDelete={setDeleteTarget}
+            onRestore={setRestoreTarget}
+          />
+          {canUseExtraction && (
+            <div className="mt-5">
+              <DocumentExtractionSection files={files} documentArchived={archived} />
+            </div>
+          )}
+          {canUseIntelligence && (
+            <div className="mt-5 border-t border-slate-200 pt-5">
+              <DocumentIntelligenceSection files={files} documentArchived={archived} />
+            </div>
+          )}
+        </>
       )}
       <ReplaceDocumentFileDialog
         file={replaceTarget}

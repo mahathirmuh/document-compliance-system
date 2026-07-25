@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { getApiErrorMessage } from '../../api/errors';
 import { ConfirmationDialog } from '../master-data/ConfirmationDialog';
 import { DeleteDocumentFileDialog } from './DeleteDocumentFileDialog';
+import { DocumentExtractionSection } from './DocumentExtractionSection';
 import { DocumentFileTable } from './DocumentFileTable';
 import { ReplaceDocumentFileDialog } from './ReplaceDocumentFileDialog';
 import {
@@ -25,6 +26,10 @@ export function DocumentFilesSection({ document }: { document: DocumentDetail })
   const canReplace = hasPermission('documents:replace_file');
   const canDelete = hasPermission('documents:delete_file');
   const canViewHistory = hasPermission('documents:view_file_history');
+  const canUseExtraction =
+    hasPermission('documents:extract') ||
+    hasPermission('documents:view_extracted_content') ||
+    hasPermission('documents:view_extraction_history');
   const [replaceTarget, setReplaceTarget] = useState<DocumentFileListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentFileListItem | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<DocumentFileListItem | null>(null);
@@ -182,6 +187,14 @@ export function DocumentFilesSection({ document }: { document: DocumentDetail })
         <p className="text-xs text-slate-500">
           Replaced and deleted versions require the file-history permission.
         </p>
+      )}
+      {canUseExtraction && (
+        <div className="border-t border-slate-200 pt-5">
+          <DocumentExtractionSection
+            files={files}
+            documentArchived={document.isArchived}
+          />
+        </div>
       )}
 
       <ReplaceDocumentFileDialog

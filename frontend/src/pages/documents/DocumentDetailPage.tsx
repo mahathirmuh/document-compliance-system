@@ -20,6 +20,7 @@ import { ArchivedBadge } from '../../components/documents/ArchivedBadge';
 import { DocumentCodeField } from '../../components/documents/DocumentCodeField';
 import { DocumentExportButton } from '../../components/documents/DocumentExportButton';
 import { DocumentFilesSection } from '../../components/documents/DocumentFilesSection';
+import { DocumentIntelligenceSection } from '../../components/documents/DocumentIntelligenceSection';
 import { DocumentRevisionManager } from '../../components/documents/DocumentRevisionManager';
 import { DocumentStatusBadge } from '../../components/documents/DocumentStatusBadge';
 import { DocumentSummaryCard } from '../../components/documents/DocumentSummaryCard';
@@ -27,13 +28,14 @@ import { RevisionBadge } from '../../components/documents/RevisionBadge';
 import { SharePointLink } from '../../components/documents/SharePointLink';
 import { ConfirmationDialog } from '../../components/master-data/ConfirmationDialog';
 import { useDocument } from '../../hooks/useDocument';
+import { useRevisionFiles } from '../../hooks/useDocumentFiles';
 import { useDocumentMutations } from '../../hooks/useDocumentMutations';
 import { useToast } from '../../providers/useToast';
 import { useAuthStore } from '../../store/authStore';
 import type { DocumentDetail } from '../../types/document';
 import { formatDate, formatDateTime } from '../../utils/formatters';
 
-type DetailTab = 'overview' | 'revisions' | 'files' | 'history';
+type DetailTab = 'overview' | 'revisions' | 'files' | 'intelligence' | 'history';
 
 export function DocumentDetailPage() {
   const { documentId = '' } = useParams();
@@ -48,11 +50,18 @@ export function DocumentDetailPage() {
   const canRestore = hasPermission('documents:restore');
   const canExport = hasPermission('documents:export');
   const canManageRevisions = hasPermission('documents:manage_revisions');
+  const canUseIntelligence =
+    hasPermission('documents:ocr') ||
+    hasPermission('documents:view_ocr_results') ||
+    hasPermission('documents:view_ocr_history') ||
+    hasPermission('documents:detect_language') ||
+    hasPermission('documents:view_language_results');
   const { showToast } = useToast();
   const requestedTab = searchParams.get('tab');
   const tab: DetailTab =
     requestedTab === 'revisions' ||
     requestedTab === 'files' ||
+    (requestedTab === 'intelligence' && canUseIntelligence) ||
     requestedTab === 'history'
       ? requestedTab
       : 'overview';
@@ -259,7 +268,15 @@ export function DocumentDetailPage() {
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex overflow-x-auto border-b border-slate-200 px-4 sm:px-6">
-          {(['overview', 'revisions', 'files', 'history'] as const).map((candidate) => (
+          {(
+            [
+              'overview',
+              'revisions',
+              'files',
+              ...(canUseIntelligence ? (['intelligence'] as const) : []),
+              'history',
+            ] as const
+          ).map((candidate) => (
             <button
               key={candidate}
               type="button"
@@ -284,6 +301,9 @@ export function DocumentDetailPage() {
             <DocumentRevisionManager document={document} compact />
           )}
           {tab === 'files' && <DocumentFilesSection document={document} />}
+          {tab === 'intelligence' && (
+            <CurrentDocumentIntelligence document={document} />
+          )}
           {tab === 'history' && <DocumentActivitySummary document={document} />}
         </div>
       </section>
@@ -305,6 +325,51 @@ export function DocumentDetailPage() {
         onConfirm={() => void restore()}
       />
     </div>
+  );
+}
+
+function CurrentDocumentIntelligence({ document }: { document: DocumentDetail }) {
+  const revisionId = document.currentRevision?.id ?? null;
+  const filesQuery = useRevisionFiles(document.id, revisionId);
+  const files = (filesQuery.data ?? []).filter(
+    (file) => file.isCurrent && file.fileStatus === 'AVAILABLE',
+  );
+
+  if (!revisionId) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Create a revision and upload its physical file before running content
+        intelligence.
+      </p>
+    );
+  }
+  if (filesQuery.isLoading) {
+    return (
+      <div
+        aria-label="Loading content intelligence"
+        className="h-56 animate-pulse rounded-2xl bg-slate-100"
+      />
+    );
+  }
+  if (filesQuery.error) {
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        {getApiErrorMessage(
+          filesQuery.error,
+          'The current physical file could not be loaded.',
+        )}
+      </p>
+    );
+  }
+  if (files.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Upload a current physical file before running OCR or language detection.
+      </p>
+    );
+  }
+  return (
+    <DocumentIntelligenceSection files={files} documentArchived={document.isArchived} />
   );
 }
 
