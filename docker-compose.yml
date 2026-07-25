@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-document_compliance}
+      POSTGRES_USER: ${POSTGRES_USER:-document_compliance}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - compliance_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME:-Document Compliance API}
+      APP_VERSION: ${APP_VERSION:-0.4.0}
+      APP_ENV: ${APP_ENV:-development}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
+      BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-document_compliance}
+      POSTGRES_USER: ${POSTGRES_USER:-document_compliance}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      DATABASE_ECHO: ${DATABASE_ECHO:-false}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}"
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      MAX_LOGIN_ATTEMPTS: ${MAX_LOGIN_ATTEMPTS:-5}
+      ACCOUNT_LOCK_MINUTES: ${ACCOUNT_LOCK_MINUTES:-15}
+      MASTER_DATA_IMPORT_MAX_ROWS: ${MASTER_DATA_IMPORT_MAX_ROWS:-5000}
+      MASTER_DATA_EXPORT_MAX_ROWS: ${MASTER_DATA_EXPORT_MAX_ROWS:-50000}
+      DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
+      DOCUMENT_REGISTER_IMPORT_MAX_ROWS: ${DOCUMENT_REGISTER_IMPORT_MAX_ROWS:-10000}
+      DOCUMENT_REGISTER_EXPORT_MAX_ROWS: ${DOCUMENT_REGISTER_EXPORT_MAX_ROWS:-100000}
+      DOCUMENT_IMPORT_MAX_FILE_SIZE_MB: ${DOCUMENT_IMPORT_MAX_FILE_SIZE_MB:-25}
+      DOCUMENT_NUMBER_MAX_LENGTH: ${DOCUMENT_NUMBER_MAX_LENGTH:-50}
+      DOCUMENT_TITLE_MAX_LENGTH: ${DOCUMENT_TITLE_MAX_LENGTH:-500}
+      ARCHIVE_REASON_MAX_LENGTH: ${ARCHIVE_REASON_MAX_LENGTH:-1000}
+      DEFAULT_ADMIN_NAME: "${DEFAULT_ADMIN_NAME:-System Administrator}"
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
+      DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:?Set DEFAULT_ADMIN_PASSWORD in .env}"
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+      STORAGE_ROOT: /app/storage
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os, urllib.request; prefix = os.environ.get('API_V1_PREFIX', '/api/v1').rstrip('/'); urllib.request.urlopen(f'http://localhost:8000{prefix}/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - compliance_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.4.0}
+        VITE_DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - compliance_network
+
+volumes:
+  postgres_data:
+    name: document_compliance_postgres_data
+
+networks:
+  compliance_network:
+    name: document_compliance_network

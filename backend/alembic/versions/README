@@ -1,0 +1,2 @@
+Alembic revision files are generated here as database models are introduced.
+Phase 1 defines no domain tables, so no schema revision is required yet.
