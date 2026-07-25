@@ -27,6 +27,7 @@ from app.database.base import Base
 
 if TYPE_CHECKING:
     from app.models.document import Document
+    from app.models.document_file import DocumentFile
     from app.models.document_status import DocumentStatus
     from app.models.user import User
     from app.models.validation_rule import ValidationRule
@@ -185,6 +186,12 @@ class DocumentRevision(Base):
     document: Mapped[Document] = relationship(
         back_populates="revisions",
         foreign_keys=[document_id],
+    )
+    files: Mapped[list[DocumentFile]] = relationship(
+        back_populates="revision",
+        foreign_keys="DocumentFile.document_revision_id",
+        passive_deletes=True,
+        order_by="DocumentFile.uploaded_at",
     )
     document_status: Mapped[DocumentStatus] = relationship(
         back_populates="document_revisions",

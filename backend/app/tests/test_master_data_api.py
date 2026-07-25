@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
-from httpx import AsyncClient
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 

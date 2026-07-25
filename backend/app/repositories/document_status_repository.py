@@ -1,8 +1,10 @@
 """Document-status persistence operations."""
 
+from typing import Any, ClassVar
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.models.document_status import DocumentStatus
 from app.repositories.master_data_base import BaseMasterDataRepository
@@ -10,7 +12,9 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class DocumentStatusRepository(BaseMasterDataRepository[DocumentStatus]):
     model = DocumentStatus
-    sortable_columns = {
+    sortable_columns: ClassVar[
+        dict[str, InstrumentedAttribute[Any]]
+    ] = {
         "code": DocumentStatus.code,
         "name": DocumentStatus.name,
         "displayOrder": DocumentStatus.display_order,
@@ -34,4 +38,3 @@ class DocumentStatusRepository(BaseMasterDataRepository[DocumentStatus]):
         if for_update:
             statement = statement.with_for_update()
         return (await self.session.execute(statement)).scalar_one_or_none()
-

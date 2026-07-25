@@ -1,38 +1,44 @@
 # Document Compliance & Multilingual Validation System
 
-Version 0.4.0 completes Phase 4 of the foundation for a Document Control
-application that registers document metadata and revisions and will later
-validate Indonesian, English, and Mandarin content. It is intentionally not a
-full Document Management System.
+Version 0.5.0 completes Phase 5 of the foundation for a Document Control
+application that registers document metadata and revisions, stores their
+private physical files, and will later validate Indonesian, English, and
+Mandarin content. It is intentionally not a full Document Management System.
 
 Phase 1 established the React, FastAPI, async SQLAlchemy, Alembic, PostgreSQL,
 and Docker foundation. Phase 2 added authentication, authorization, and the
 protected application shell. Phase 3 added audited Master Data management and
-XLSX import/export. Phase 4 adds the department-scoped Document Register,
-revision history, archive/restore, and audited register import/export.
+XLSX import/export. Phase 4 added the department-scoped Document Register,
+revision history, archive/restore, and audited register import/export. Phase 5
+adds secure PDF, DOCX, and XLSX upload, automatic register identification,
+private storage, file history, and controlled download.
 
-## Phase 4 scope
+## Phase 5 scope
 
 Implemented in this phase:
 
-- Separate Document identity and Document Revision persistence
-- Automatic base/full document-code generation and revision normalization
-- PDF, DOCX, and XLSX filename metadata parsing without uploading the file
-- Department-scoped list, detail, create, update, search, filters, sorting, and
-  pagination
-- Transactional revision creation, current-revision selection, and superseding
-- Archive and restore without hard deletion
-- Permission-aware bulk archive, restore, and current-revision status updates
-- XLSX template, validation preview, confirmed register import, and filtered
-  export
-- SharePoint URL metadata without Microsoft Graph synchronization
-- Audit records for document, revision, import/export, and bulk operations
+- Two-stage single and batch uploads: temporary preview, identification, and
+  explicit confirmation
+- Streaming size enforcement, filename sanitisation, MIME/extension/signature
+  consistency checks, bounded OOXML inspection, and SHA-256 duplicate detection
+- Automatic matching to an existing revision, a new revision, or a new
+  document, with manual correction before confirmation
+- Provider-neutral storage with a private local provider and opaque relative
+  object keys
+- Department-scoped attachment, metadata/history, authenticated download,
+  replacement, soft delete, and explicit restore
+- Expiring upload sessions plus an idempotent cleanup command for temporary
+  objects
+- Permission-aware frontend upload, batch, history, document-file, and revision
+  file views
+- Audit records for upload previews/confirmation, duplicate/quarantine events,
+  downloads, replacement, deletion/restoration, and cleanup
 
-All Phase 1 health, Phase 2 authentication, and Phase 3 Master Data behavior
-remains available. Physical document upload, content extraction, OCR, language
-detection/validation, findings, preview, processing queues, full review and
-approval workflows, and SharePoint API synchronization remain intentionally
-unimplemented.
+All Phase 1 health, Phase 2 authentication, Phase 3 Master Data, and Phase 4
+Document Register behavior remains available. Content extraction, OCR,
+language detection/validation, findings, file-content preview, processing
+queues, full review and approval workflows, antivirus claims, and SharePoint
+API synchronization remain intentionally unimplemented.
 
 ## Architecture
 
@@ -48,20 +54,21 @@ or nginx (container port 80, published as 5173)
 FastAPI (port 8000)
   |-- JWT authentication and backend role guards
   |-- Master Data services and audited XLSX import/export
-  |-- Document Register and Revision services
+  |-- Document Register, Revision, and Physical File services
+  |-- Signature, OOXML safety, SHA-256, and identification services
   |-- Endpoint -> Service -> Repository -> Database
   |
   v
 PostgreSQL 16 (internal container port 5432)
 
-FastAPI ----> ./storage (persistent bind mount)
+FastAPI ----> ./storage/documents (private persistent bind mount)
 ```
 
 The frontend may hide navigation by role, but this is only a usability layer.
 The backend remains the source of truth for every protected operation.
 
-Phase 4 stores document and revision metadata in PostgreSQL. It does not accept
-or store operational document binaries.
+PostgreSQL stores file metadata and upload-session state; binaries remain in
+private provider storage and are never served as public static files.
 
 ## Technology stack
 
@@ -121,6 +128,23 @@ set. `DEPARTMENT_USER` receives view/create/update but remains locked to the
 department on the user profile. `AUDITOR` receives read-only view/export across
 departments. `REVIEWER` and `VIEWER` receive scoped read-only access. Every API
 operation enforces these rules again even when the frontend hides a control.
+
+Physical-file authorization extends the same centralized mapping:
+
+| Permission                    | Capability                                      |
+| ----------------------------- | ----------------------------------------------- |
+| `documents:upload`            | Preview and confirm a single physical file      |
+| `documents:download`          | Download an accessible available/current file   |
+| `documents:replace_file`      | Replace a current file while retaining history  |
+| `documents:delete_file`       | Soft-delete and explicitly restore a file       |
+| `documents:batch_upload`      | Preview and confirm multi-file batches           |
+| `documents:view_file_history` | View replaced/deleted file metadata and history  |
+
+`SUPER_ADMIN` and `DOCUMENT_CONTROLLER` receive all six.
+`DEPARTMENT_USER` receives upload, download, and scoped history.
+`REVIEWER` receives scoped download/history; `AUDITOR` receives
+cross-department download/history; and `VIEWER` receives scoped current-file
+download only.
 
 ## Access and refresh token strategy
 
@@ -188,8 +212,8 @@ password.
 | Variable                            | Example/default              | Purpose                                            |
 | ----------------------------------- | ---------------------------- | -------------------------------------------------- |
 | `APP_NAME`                          | `Document Compliance API`    | Backend service name                               |
-| `APP_VERSION`                       | `0.4.0`                      | Backend version                                    |
-| `VITE_APP_VERSION`                  | `0.4.0`                      | Frontend version                                   |
+| `APP_VERSION`                       | `0.5.0`                      | Backend version                                    |
+| `VITE_APP_VERSION`                  | `0.5.0`                      | Frontend version                                   |
 | `APP_ENV`                           | `development`                | Backend runtime environment                        |
 | `APP_TIMEZONE`                      | `Asia/Makassar`              | IANA timezone used for export timestamps           |
 | `BACKEND_DEBUG`                     | `false`                      | Backend debug mode                                 |
@@ -199,6 +223,9 @@ password.
 | `VITE_API_BASE_URL`                 | `/api/v1`                    | Browser-facing API base path                       |
 | `VITE_API_URL`                      | `/api/v1`                    | Phase 2 API URL; falls back to `VITE_API_BASE_URL` |
 | `VITE_DEV_API_PROXY_TARGET`         | `http://localhost:8000`      | Local Vite proxy target                            |
+| `VITE_DOCUMENT_MAX_FILE_SIZE_MB`    | `50`                         | Client-side single-file validation limit           |
+| `VITE_DOCUMENT_BATCH_MAX_FILES`     | `50`                         | Client-side batch file-count limit                  |
+| `VITE_DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB` | `500`                    | Client-side aggregate batch limit                   |
 | `POSTGRES_DB`                       | `document_compliance`        | PostgreSQL database                                |
 | `POSTGRES_USER`                     | `document_compliance`        | PostgreSQL user                                    |
 | `POSTGRES_PASSWORD`                 | replace-required placeholder | Database password                                  |
@@ -215,9 +242,21 @@ password.
 | `DEFAULT_ADMIN_NAME`                | `System Administrator`       | Seeded administrator name                          |
 | `DEFAULT_ADMIN_EMAIL`               | `admin@example.com`          | Seeded administrator login email                   |
 | `DEFAULT_ADMIN_PASSWORD`            | replace-required placeholder | Seeded administrator password                      |
-| `STORAGE_ROOT`                      | `storage`                    | Host-run storage root                              |
-| `MAX_FILE_SIZE_MB`                  | `50`                         | Future configurable upload limit                   |
-| `ALLOWED_FILE_EXTENSIONS`           | `.pdf,.docx,.xlsx`           | Future upload allowlist                            |
+| `STORAGE_PROVIDER`                  | `local`                      | Private storage provider                           |
+| `STORAGE_ROOT`                      | `./storage`                  | Host-run private storage root                      |
+| `STORAGE_DOCUMENTS_PREFIX`          | `documents/originals`        | Confirmed physical files                           |
+| `STORAGE_TEMP_PREFIX`               | `documents/temporary`        | Unconfirmed upload objects                         |
+| `STORAGE_QUARANTINE_PREFIX`         | `documents/quarantine`       | Invalid security-validation objects                |
+| `STORAGE_DELETED_PREFIX`            | `documents/deleted`          | Soft-deleted physical files                        |
+| `DOCUMENT_MAX_FILE_SIZE_MB`         | `50`                         | Maximum physical file size                         |
+| `DOCUMENT_BATCH_MAX_FILES`          | `50`                         | Maximum files per batch                            |
+| `DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB`  | `500`                        | Maximum aggregate batch size                       |
+| `ALLOWED_DOCUMENT_EXTENSIONS`       | `.pdf,.docx,.xlsx`           | Exact physical-file extension allowlist            |
+| `ENABLE_FILE_SIGNATURE_VALIDATION`  | `true`                       | Verify PDF/OOXML signatures and structures         |
+| `ENABLE_DUPLICATE_FILE_HASH_CHECK`  | `true`                       | Compare streaming SHA-256 hashes                   |
+| `ENABLE_FILE_QUARANTINE`            | `true`                       | Retain rejected security-validation objects        |
+| `FILE_DOWNLOAD_CHUNK_SIZE_KB`       | `1024`                       | Backend download streaming chunk size              |
+| `TEMP_FILE_RETENTION_HOURS`         | `24`                         | Upload-session and temporary-object retention      |
 | `MASTER_DATA_IMPORT_MAX_ROWS`       | `5000`                       | Maximum data rows accepted by one XLSX import      |
 | `MASTER_DATA_EXPORT_MAX_ROWS`       | `50000`                      | Maximum rows emitted by one Master Data export     |
 | `DEFAULT_COMPANY_CODE`              | `MTI`                        | Default company component for document codes       |
@@ -234,7 +273,7 @@ spaces.
 
 ## Running with Docker
 
-After configuring `.env`, build and start the Phase 4 stack:
+After configuring `.env`, build and start the Phase 5 stack:
 
 ```bash
 docker compose up --build -d
@@ -257,6 +296,9 @@ Useful URLs:
 - Document Register: <http://localhost:5173/documents>
 - Add Document: <http://localhost:5173/documents/new>
 - Archived Documents: <http://localhost:5173/documents/archived>
+- Single Upload: <http://localhost:5173/documents/upload>
+- Batch Upload: <http://localhost:5173/documents/batch-upload>
+- Upload History: <http://localhost:5173/documents/upload-history>
 - Backend root: <http://localhost:8000>
 - Health endpoint: <http://localhost:8000/api/v1/health>
 - Swagger UI: <http://localhost:8000/docs>
@@ -291,7 +333,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 This direct-run workflow expects PostgreSQL at the configured `DATABASE_HOST`
-and `DATABASE_PORT`. On macOS or Linux, activate the environment with:
+and `DATABASE_PORT`. Because relative paths follow the process working
+directory, the default `STORAGE_ROOT=./storage` resolves to `backend/storage`
+when these commands are run from `backend`. Set it to `../storage` if the
+repository-root storage tree should also be used for direct host development.
+On macOS or Linux, activate the environment with:
 
 ```bash
 source .venv/bin/activate
@@ -315,15 +361,24 @@ migration adds `departments`, `sections`, `document_types`,
 `document_statuses`, and `validation_rules`, then connects the existing
 `users.department_id` field. The Phase 4 migration adds `documents` and
 `document_revisions`, including the staged circular current-revision foreign
-key, uniqueness constraints, lookup indexes, and Phase 4 audit actions. Apply
-all pending migrations from `backend`:
+key, uniqueness constraints, lookup indexes, and Phase 4 audit actions. The
+Phase 5 migration adds `document_files`, `upload_sessions`, and
+`upload_session_items`, a partial unique index for one current primary file per
+revision, file/upload enums, foreign keys, indexes, and Phase 5 audit actions.
+Apply all pending migrations from `backend`:
 
 ```bash
 alembic upgrade head
 alembic current
 ```
 
-To roll back only Phase 4 while retaining Phase 3 Master Data:
+To roll back only Phase 5 while retaining the Phase 4 Document Register:
+
+```bash
+alembic downgrade 20260725_0003
+```
+
+To additionally roll back Phase 4 while retaining Phase 3 Master Data:
 
 ```bash
 alembic downgrade 20260725_0002
@@ -699,18 +754,165 @@ full codes in real time, and uses React Hook Form plus Zod. Detail and revision
 screens use live API data; archived records remain readable but are read-only
 until restored.
 
+## Physical document upload and identification
+
+Phase 5 uses a two-stage workflow. The first request streams the file into the
+temporary prefix, validates its metadata and bytes, calculates SHA-256, parses
+the filename with the Phase 4 code parser, and returns a persisted preview
+session. No `DocumentFile` is created at this stage. Confirmation rechecks
+session ownership, expiry, permissions, department scope, target state,
+duplicate policy, and the stored bytes before moving the object and committing
+the database transaction.
+
+Identification may propose:
+
+- attach to an existing revision without a current file;
+- add a new revision to an existing document;
+- create a document and its initial revision;
+- replace a current file, with a mandatory reason; or
+- manual review/skip when the filename is incomplete or ambiguous.
+
+The server reuses the Phase 4 document and revision services. Their normal API
+behavior remains commit-on-success; the upload workflow uses their
+backward-compatible transaction mode so document, revision, file metadata, and
+audit records can be committed together. A failed database operation removes
+the moved final object, while a failed move prevents the database commit.
+
+Exact duplicates on the same revision are rejected. Matches elsewhere produce
+a warning, with cross-department details withheld from users outside that
+scope. One revision has at most one current primary physical file. Replacing a
+file retains the former object and metadata as `REPLACED`.
+
+## Private storage and lifecycle
+
+`BaseStorage` separates document workflows from the configured provider.
+Phase 5 supplies `LocalStorage`; object keys use normalized POSIX-style relative
+paths with UUID components, and every filesystem operation proves that its
+resolved target remains beneath `STORAGE_ROOT`. Absolute paths, drive paths,
+traversal components, control characters, unsafe archive entries, and
+colliding destinations are rejected.
+
+The local layout is:
+
+```text
+storage/
+  documents/
+    originals/
+    temporary/
+    quarantine/
+    deleted/
+  logs/
+```
+
+These directories are bind-mounted into the backend container and ignored by
+Git except for their placeholders. They are not copied into either runtime
+image. Confirmed files are served only by authenticated, permission-checked
+streaming endpoints; there is no public storage URL.
+
+Delete is a soft-delete: metadata changes to `DELETED` and the object moves to
+the deleted prefix. Restore is explicit and conflicts if another current file
+exists unless an authorized caller deliberately replaces it. The previous
+file is never silently restored. Invalid signature/OOXML security checks may
+move an object to quarantine, but Phase 5 does not claim antivirus scanning.
+
+## Physical file API
+
+All routes are beneath `/api/v1`:
+
+```text
+POST /document-files/upload
+POST /document-files/upload/{sessionId}/confirm
+POST /document-files/upload/{sessionId}/cancel
+POST /document-files/batch-upload
+POST /document-files/batch-upload/{sessionId}/confirm
+
+GET  /document-files/history
+GET  /document-files/{fileId}
+GET  /document-files/{fileId}/download
+POST /document-files/{fileId}/replace
+POST /document-files/{fileId}/delete
+POST /document-files/{fileId}/restore
+
+GET  /documents/{documentId}/files
+GET  /documents/{documentId}/revisions/{revisionId}/files
+GET  /documents/{documentId}/revisions/{revisionId}/download
+```
+
+Upload and management permissions are independent:
+`documents:upload`, `documents:download`, `documents:replace_file`,
+`documents:delete_file`, `documents:batch_upload`, and
+`documents:view_file_history`. Backend guards and department scope remain
+authoritative even when the frontend hides a control.
+
+Downloads stream in configured chunks and return `Content-Type`,
+`Content-Length`, safe `Content-Disposition`,
+`X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: default-src 'none'`, and
+`Cache-Control: private, no-store`. API schemas never expose `storage_key` or a
+server filesystem path.
+
+## Batch upload and temporary cleanup
+
+Batch preview accepts at most `DOCUMENT_BATCH_MAX_FILES` and
+`DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB`. Each file is validated independently and
+confirmation uses a transaction per item, so an invalid or failed item does
+not erase successful items. The response reports committed, skipped, failed,
+created-document, created-revision, attached-file, and replaced-file counts.
+
+Upload sessions expire after `TEMP_FILE_RETENTION_HOURS`. Run the idempotent
+cleanup manually, from cron, or from a scheduled task:
+
+```bash
+cd backend
+python -m scripts.cleanup_temporary_uploads
+```
+
+With Compose:
+
+```bash
+docker compose exec backend python -m scripts.cleanup_temporary_uploads
+```
+
+The command locks and expires eligible sessions, removes their temporary
+objects, leaves active sessions untouched, writes an audit summary, and is safe
+to run repeatedly. Phase 5 intentionally does not add an in-process scheduler.
+
+## Physical upload frontend
+
+Permission-protected routes are:
+
+- `/documents/upload`
+- `/documents/batch-upload`
+- `/documents/upload-history`
+- `/documents/:documentId/revisions/:revisionId/file`
+
+The single flow provides an accessible dropzone, client-side Zod validation,
+Axios progress, identification preview, action/metadata correction, duplicate
+warnings, expiry handling, and a final result. The batch page provides
+per-file previews/actions and result filtering. Document detail and revision
+views expose live file history, download, replace, delete, and restore controls
+only for the relevant permissions.
+
 ## Supported file formats
 
-The product specification supports only:
+Operational physical upload supports only:
 
 - PDF (`.pdf`, `application/pdf`)
 - DOCX (`.docx`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
 - XLSX (`.xlsx`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`)
 
-Phase 4 recognizes these extensions only while parsing a filename string. It
-accepts XLSX for Master Data or Document Register import/export, but it does not
-upload or extract operational PDF, DOCX, or XLSX content. Physical upload,
-extraction, and language validation remain future work.
+Extension, declared MIME, and detected signature/structure must agree. PDF must
+begin with `%PDF-`. DOCX and XLSX must be readable, non-encrypted OOXML ZIP
+archives with their required content-type and document/workbook entries.
+Archive entry count, aggregate expanded size, per-entry and aggregate
+compression ratio, duplicate paths, traversal paths, symbolic links, and CRC
+integrity are checked without extraction.
+
+PPTX, legacy Office formats, images, mismatched extensions/MIME, fake PDFs,
+corrupt OOXML, oversized files, and ZIP-bomb-like archives are rejected. The
+frontend allowlist is only an early usability check; the backend performs every
+authoritative validation. Content extraction and language validation remain
+future work.
 
 ## Quality checks
 
@@ -736,6 +938,29 @@ Compose:
 ```bash
 docker compose --env-file .env.example config
 ```
+
+## Phase 5 operational limitations
+
+- Confirmation persists the session transition, each selected file, and the
+  final session summary in separate transactions. An infrastructure crash
+  after a file commit but before finalization can leave a valid file attached
+  while the upload session still reports `UPLOADING`; there is no automatic
+  session-finalization reconciler yet.
+- Preview rollback performs a best-effort storage delete. If both the database
+  write and that compensating delete fail, the object has no persisted retry
+  marker; provider inventory/orphan scanning is deferred.
+- Duplicate detection is rechecked at confirmation, but concurrent confirms
+  for a previously unseen hash on different documents are not serialized with
+  a database advisory lock.
+- The restore UI does not yet offer the backend's explicit
+  `replaceCurrent=true` conflict path, and the Uploaded By filter is populated
+  from uploaders visible on the current history result page.
+- The database has separate document and revision foreign keys. Their
+  cross-field consistency is enforced by locked service validation rather than
+  a composite database constraint.
+- The bundled nginx limit is 550 MB. Keep it aligned if backend batch limits
+  are raised, and ensure the container user can write the storage bind mount on
+  Linux deployments.
 
 ## Troubleshooting
 
@@ -792,9 +1017,10 @@ Use `UPSERT` only when existing records are intentionally being updated.
 docker compose up --build -d frontend backend
 ```
 
-Phase 4 is complete only when the Phase 1-3 regression suite, migration and
-both seeds, health and authentication checks, Master Data workflows, Document
-Register CRUD and revisions, scoped XLSX import/export, frontend
-lint/tests/build, and Docker smoke checks all pass. Physical document upload,
-content extraction, and language validation remain intentionally outside this
-release.
+Phase 5 is complete only when the Phase 1-4 regression suite, migration chain
+and both seeds, health and authentication checks, Master Data and Document
+Register workflows, secure PDF/DOCX/XLSX upload, identification, batch upload,
+download, replace, soft delete/restore, cleanup, frontend lint/tests/build, and
+Docker smoke checks all pass. Content extraction, OCR, language detection and
+validation, findings, compliance scoring, full review/approval workflows, and
+SharePoint synchronization remain intentionally outside this release.

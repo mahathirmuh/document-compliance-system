@@ -4,7 +4,7 @@ from io import BytesIO
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +12,7 @@ from app.api.dependencies.auth import (
     get_request_metadata,
     require_permissions,
 )
-from app.core.authorization import Permission
-from app.core.authorization import has_permission
+from app.core.authorization import Permission, has_permission
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AuthorizationError
 from app.database.session import get_db_session
@@ -31,8 +30,6 @@ from app.services.master_data.import_export_service import (
     XLSX_CONTENT_TYPE,
     MasterDataImportExportService,
 )
-
-from fastapi import APIRouter
 
 router = APIRouter()
 

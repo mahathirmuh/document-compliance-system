@@ -1,6 +1,9 @@
 """Department persistence operations."""
 
+from typing import Any, ClassVar
+
 from sqlalchemy import func, select
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.models.department import Department
 from app.models.section import Section
@@ -9,7 +12,9 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class DepartmentRepository(BaseMasterDataRepository[Department]):
     model = Department
-    sortable_columns = {
+    sortable_columns: ClassVar[
+        dict[str, InstrumentedAttribute[Any]]
+    ] = {
         "code": Department.code,
         "name": Department.name,
         "isActive": Department.is_active,
@@ -26,4 +31,3 @@ class DepartmentRepository(BaseMasterDataRepository[Department]):
             )
         )
         return int(value or 0)
-

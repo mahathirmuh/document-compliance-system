@@ -2,6 +2,7 @@
 
 import json
 from functools import lru_cache
+from pathlib import Path, PurePosixPath
 from typing import Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Document Compliance API"
-    app_version: str = "0.4.0"
+    app_version: str = "0.5.0"
     environment: Literal["development", "test", "staging", "production"] = Field(
         default="development",
         validation_alias=AliasChoices("APP_ENV"),
@@ -89,6 +90,48 @@ class Settings(BaseSettings):
         default="Asia/Makassar",
         validation_alias=AliasChoices("APP_TIMEZONE"),
     )
+    storage_provider: Literal["local"] = "local"
+    storage_root: Path = Path("storage")
+    storage_documents_prefix: str = "documents/originals"
+    storage_temp_prefix: str = "documents/temporary"
+    storage_quarantine_prefix: str = "documents/quarantine"
+    storage_deleted_prefix: str = "documents/deleted"
+    document_max_file_size_mb: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices(
+            "DOCUMENT_MAX_FILE_SIZE_MB",
+            "MAX_FILE_SIZE_MB",
+        ),
+    )
+    document_batch_max_files: int = Field(default=50, ge=1, le=500)
+    document_batch_max_total_size_mb: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+    )
+    allowed_document_extensions: str = ".pdf,.docx,.xlsx"
+    enable_file_signature_validation: bool = True
+    enable_duplicate_file_hash_check: bool = True
+    enable_file_quarantine: bool = True
+    file_download_chunk_size_kb: int = Field(
+        default=1024,
+        ge=64,
+        le=16_384,
+    )
+    temp_file_retention_hours: int = Field(default=24, ge=1, le=720)
+    ooxml_max_entries: int = Field(default=10_000, ge=10, le=100_000)
+    ooxml_max_uncompressed_size_mb: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+    )
+    ooxml_max_compression_ratio: float = Field(
+        default=1000.0,
+        ge=1.0,
+        le=100_000.0,
+    )
 
     @field_validator("default_company_code")
     @classmethod
@@ -115,6 +158,50 @@ class Settings(BaseSettings):
                 "APP_TIMEZONE must be a valid IANA timezone name."
             ) from exc
         return normalized
+
+    @field_validator(
+        "storage_documents_prefix",
+        "storage_temp_prefix",
+        "storage_quarantine_prefix",
+        "storage_deleted_prefix",
+    )
+    @classmethod
+    def validate_storage_prefix(cls, value: str) -> str:
+        """Require normalized relative keys below the configured root."""
+        normalized = value.strip().replace("\\", "/").strip("/")
+        path = PurePosixPath(normalized)
+        if (
+            not normalized
+            or path.is_absolute()
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or ":" in normalized
+            or "\x00" in normalized
+        ):
+            raise ValueError(
+                "Storage prefixes must be safe relative POSIX paths."
+            )
+        return path.as_posix()
+
+    @field_validator("allowed_document_extensions")
+    @classmethod
+    def validate_allowed_document_extensions(cls, value: str) -> str:
+        """Only allow a non-empty subset of the Phase 5 format whitelist."""
+        supported = {".pdf", ".docx", ".xlsx"}
+        normalized = {
+            extension.strip().lower()
+            for extension in value.split(",")
+            if extension.strip()
+        }
+        normalized = {
+            extension if extension.startswith(".") else f".{extension}"
+            for extension in normalized
+        }
+        if not normalized or not normalized.issubset(supported):
+            raise ValueError(
+                "ALLOWED_DOCUMENT_EXTENSIONS may contain only "
+                ".pdf, .docx, and .xlsx."
+            )
+        return ",".join(sorted(normalized))
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -212,6 +299,49 @@ class Settings(BaseSettings):
                     "Each CORS origin must be '*', an http URL, or an https URL."
                 )
         return normalized
+
+    @property
+    def allowed_document_extension_set(self) -> frozenset[str]:
+        """Return the configured extension whitelist with leading dots."""
+        return frozenset(self.allowed_document_extensions.split(","))
+
+    @property
+    def document_max_file_size_bytes(self) -> int:
+        return self.document_max_file_size_mb * 1024 * 1024
+
+    @property
+    def document_batch_max_total_size_bytes(self) -> int:
+        return self.document_batch_max_total_size_mb * 1024 * 1024
+
+    @property
+    def document_single_upload_request_limit_bytes(self) -> int:
+        """Allow bounded multipart framing beyond one configured file."""
+        return self.document_max_file_size_bytes + (2 * 1024 * 1024)
+
+    @property
+    def document_batch_upload_request_limit_bytes(self) -> int:
+        """Allow bounded multipart framing for the configured batch count."""
+        overhead = max(
+            2 * 1024 * 1024,
+            self.document_batch_max_files * 64 * 1024,
+        )
+        return self.document_batch_max_total_size_bytes + overhead
+
+    @property
+    def request_body_max_size_bytes(self) -> int:
+        """Global ceiling for routes without a stricter upload limit."""
+        return max(
+            self.document_single_upload_request_limit_bytes,
+            self.document_batch_upload_request_limit_bytes,
+        )
+
+    @property
+    def file_download_chunk_size_bytes(self) -> int:
+        return self.file_download_chunk_size_kb * 1024
+
+    @property
+    def ooxml_max_uncompressed_size_bytes(self) -> int:
+        return self.ooxml_max_uncompressed_size_mb * 1024 * 1024
 
 
 @lru_cache

@@ -77,6 +77,26 @@ const ArchivedDocumentsPage = lazy(() =>
     default: module.ArchivedDocumentsPage,
   })),
 );
+const UploadDocumentPage = lazy(() =>
+  import('../pages/documents/UploadDocumentPage').then((module) => ({
+    default: module.UploadDocumentPage,
+  })),
+);
+const BatchUploadPage = lazy(() =>
+  import('../pages/documents/BatchUploadPage').then((module) => ({
+    default: module.BatchUploadPage,
+  })),
+);
+const UploadHistoryPage = lazy(() =>
+  import('../pages/documents/UploadHistoryPage').then((module) => ({
+    default: module.UploadHistoryPage,
+  })),
+);
+const DocumentRevisionFilePage = lazy(() =>
+  import('../pages/documents/DocumentRevisionFilePage').then((module) => ({
+    default: module.DocumentRevisionFilePage,
+  })),
+);
 const DocumentDetailPage = lazy(() =>
   import('../pages/documents/DocumentDetailPage').then((module) => ({
     default: module.DocumentDetailPage,
@@ -138,6 +158,38 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="documents:view">
                   <ArchivedDocumentsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/upload"
+              element={
+                <PermissionGuard permission="documents:upload">
+                  <UploadDocumentPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/batch-upload"
+              element={
+                <PermissionGuard permission="documents:batch_upload">
+                  <BatchUploadPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/upload-history"
+              element={
+                <PermissionGuard permission="documents:view_file_history">
+                  <UploadHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/file"
+              element={
+                <PermissionGuard permission="documents:view">
+                  <DocumentRevisionFilePage />
                 </PermissionGuard>
               }
             />

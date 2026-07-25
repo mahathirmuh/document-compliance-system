@@ -1,7 +1,9 @@
 """Document-type persistence operations."""
 
+from typing import Any, ClassVar
+
 from sqlalchemy import Select, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.document_type import DocumentType
 from app.repositories.master_data_base import BaseMasterDataRepository
@@ -9,7 +11,9 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class DocumentTypeRepository(BaseMasterDataRepository[DocumentType]):
     model = DocumentType
-    sortable_columns = {
+    sortable_columns: ClassVar[
+        dict[str, InstrumentedAttribute[Any]]
+    ] = {
         "code": DocumentType.code,
         "name": DocumentType.name,
         "category": DocumentType.category,
@@ -35,4 +39,3 @@ class DocumentTypeRepository(BaseMasterDataRepository[DocumentType]):
         if category is not None:
             statement = statement.where(DocumentType.category == category)
         return await super().list_page(statement=statement, **kwargs)
-

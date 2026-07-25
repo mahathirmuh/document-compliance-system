@@ -175,7 +175,8 @@ def _integer(value: Any, *, default: int | None = None) -> int:
             return default
         raise ValueError("An integer value is required.")
     if isinstance(value, bool):
-        raise ValueError("Boolean is not a valid integer.")
+        # Import coercion consistently reports client data errors as values.
+        raise ValueError("Boolean is not a valid integer.")  # noqa: TRY004
     numeric = int(value)
     if isinstance(value, float) and value != numeric:
         raise ValueError("Integer value must not contain decimals.")
@@ -467,7 +468,7 @@ class MasterDataImportExportService:
                 and row.payload is not None
                 and getattr(row.payload, "is_initial", False)
             ):
-                code = str(getattr(row.payload, "code"))
+                code = str(row.payload.code)
                 if initial_claimed is not None and initial_claimed != code:
                     row.status = ImportRowStatus.INVALID
                     row.errors.append(
@@ -792,7 +793,7 @@ class MasterDataImportExportService:
         payload: BaseModel,
         context: dict[str, Any],
     ) -> str | tuple[str, str]:
-        code = str(getattr(payload, "code"))
+        code = str(payload.code)
         if entity_type is ImportEntityType.SECTIONS:
             return str(context["departmentCode"]), code
         return code
@@ -805,10 +806,10 @@ class MasterDataImportExportService:
         *,
         for_update: bool,
     ) -> Any | None:
-        code = str(getattr(payload, "code"))
+        code = str(payload.code)
         if entity_type is ImportEntityType.SECTIONS:
             statement = select(Section).where(
-                Section.department_id == getattr(payload, "department_id"),
+                Section.department_id == payload.department_id,
                 Section.code == code,
             )
             if for_update:
@@ -836,7 +837,7 @@ class MasterDataImportExportService:
         errors: list[str] = []
         if (
             entity_type is ImportEntityType.DOCUMENT_STATUSES
-            and getattr(payload, "is_initial")
+            and payload.is_initial
         ):
             initial = await self.document_statuses.get_initial(
                 exclude_id=(
@@ -848,10 +849,10 @@ class MasterDataImportExportService:
                 errors.append("Another initial document status already exists.")
         if (
             entity_type is ImportEntityType.VALIDATION_RULES
-            and getattr(payload, "is_default")
+            and payload.is_default
         ):
             default = await self.validation_rules.get_default(
-                getattr(payload, "document_type_id"),
+                payload.document_type_id,
                 exclude_id=(
                     existing.id if isinstance(existing, ValidationRule) else None
                 ),
@@ -891,9 +892,11 @@ class MasterDataImportExportService:
             ],
             warnings=(
                 [
-                    "Duplicate rows are skipped in CREATE_ONLY mode and "
-                    "updated in UPSERT mode when they already exist in the "
-                    "database."
+                    (
+                        "Duplicate rows are skipped in CREATE_ONLY mode and "
+                        "updated in UPSERT mode when they already exist in "
+                        "the database."
+                    )
                 ]
                 if any(
                     row.status is ImportRowStatus.DUPLICATE for row in rows

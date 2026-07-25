@@ -1,9 +1,10 @@
 """Validation-rule persistence operations."""
 
+from typing import Any, ClassVar
 from uuid import UUID
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.validation_rule import ValidationRule
 from app.repositories.master_data_base import BaseMasterDataRepository
@@ -11,7 +12,9 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class ValidationRuleRepository(BaseMasterDataRepository[ValidationRule]):
     model = ValidationRule
-    sortable_columns = {
+    sortable_columns: ClassVar[
+        dict[str, InstrumentedAttribute[Any]]
+    ] = {
         "code": ValidationRule.code,
         "name": ValidationRule.name,
         "documentTypeId": ValidationRule.document_type_id,
@@ -69,4 +72,3 @@ class ValidationRuleRepository(BaseMasterDataRepository[ValidationRule]):
                 ValidationRule.is_default.is_(is_default)
             )
         return await super().list_page(statement=statement, **kwargs)
-

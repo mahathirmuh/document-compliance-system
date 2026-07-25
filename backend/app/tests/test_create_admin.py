@@ -1,8 +1,8 @@
 """Default administrator bootstrap tests."""
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-import pytest
 
 from app.core.authorization import UserRole
 from app.models.user import User

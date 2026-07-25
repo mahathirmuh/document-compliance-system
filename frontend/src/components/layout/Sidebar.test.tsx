@@ -39,6 +39,9 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Documents' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Document Register' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Add Document' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Upload Document' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Batch Upload' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Upload History' })).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Archived Documents' }),
     ).toBeInTheDocument();
@@ -63,7 +66,32 @@ describe('Sidebar', () => {
       screen.getByRole('link', { name: 'Archived Documents' }),
     ).toBeInTheDocument();
     expect(
+      screen.queryByRole('link', { name: 'Upload Document' }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByRole('link', { name: 'Add Document' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Batch Upload' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Upload History' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows each upload menu only for its dedicated permission', () => {
+    useAuthStore.getState().setAuth({
+      ...superAdminSession,
+      permissions: ['documents:view', 'documents:upload'],
+    });
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'Upload Document' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Batch Upload' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Upload History' }),
     ).not.toBeInTheDocument();
   });
 });

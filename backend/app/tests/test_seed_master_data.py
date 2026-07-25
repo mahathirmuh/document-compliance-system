@@ -1,8 +1,8 @@
 """Idempotent Phase 3 master-data seed tests."""
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-import pytest
 
 from app.models.department import Department
 from app.models.document_status import DocumentStatus

@@ -1,0 +1,68 @@
+import type { DocumentFileListItem } from '../types/documentFile';
+import type { UploadSessionItem } from '../types/documentUpload';
+
+export const physicalFileFixture: DocumentFileListItem = {
+  id: '11111111-1111-4111-8111-111111111111',
+  documentId: '22222222-2222-4222-8222-222222222222',
+  documentRevisionId: '33333333-3333-4333-8333-333333333333',
+  originalFilename: 'MTI-HRM-POL-001_Rev.000.pdf',
+  sanitizedFilename: 'MTI-HRM-POL-001_Rev.000.pdf',
+  fileExtension: 'pdf',
+  mimeType: 'application/pdf',
+  detectedMimeType: 'application/pdf',
+  fileSize: 1_250,
+  sha256Hash: 'a'.repeat(64),
+  storageProvider: 'local',
+  fileStatus: 'AVAILABLE',
+  isPrimary: true,
+  isCurrent: true,
+  uploadedBy: {
+    id: '44444444-4444-4444-8444-444444444444',
+    name: 'Document Controller',
+  },
+  uploadedAt: '2026-07-25T10:00:00+08:00',
+  replacedAt: null,
+  replacedByFileId: null,
+  deletedAt: null,
+  deletionReason: null,
+  baseDocumentCode: 'MTI-HRM-POL-001',
+  documentTitle: 'Worker Policy',
+  revisionCode: 'Rev.000',
+  fullDocumentCode: 'MTI-HRM-POL-001_Rev.000',
+};
+
+export const uploadItemFixture: UploadSessionItem = {
+  uploadItemId: '55555555-5555-4555-8555-555555555555',
+  originalFilename: 'MTI-HRM-POL-001_Rev.000.pdf',
+  sanitizedFilename: 'MTI-HRM-POL-001_Rev.000.pdf',
+  fileExtension: 'pdf',
+  mimeType: 'application/pdf',
+  detectedMimeType: 'application/pdf',
+  fileSize: 1_250,
+  sha256Hash: 'b'.repeat(64),
+  identificationStatus: 'IDENTIFIED',
+  proposedAction: 'ATTACH_TO_EXISTING_REVISION',
+  parsedMetadata: {
+    companyCode: 'MTI',
+    departmentCode: 'HRM',
+    sectionCode: null,
+    documentTypeCode: 'POL',
+    documentNumber: '001',
+    revisionCode: 'Rev.000',
+    baseDocumentCode: 'MTI-HRM-POL-001',
+    fullDocumentCode: 'MTI-HRM-POL-001_Rev.000',
+  },
+  matchedDocument: {
+    id: physicalFileFixture.documentId,
+    baseDocumentCode: 'MTI-HRM-POL-001',
+    title: 'Worker Policy',
+  },
+  matchedRevision: {
+    id: physicalFileFixture.documentRevisionId,
+    revisionCode: 'Rev.000',
+    fullDocumentCode: 'MTI-HRM-POL-001_Rev.000',
+  },
+  warnings: [],
+  errors: [],
+  status: 'READY',
+};

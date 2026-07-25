@@ -19,6 +19,7 @@ import { ArchiveDocumentDialog } from '../../components/documents/ArchiveDocumen
 import { ArchivedBadge } from '../../components/documents/ArchivedBadge';
 import { DocumentCodeField } from '../../components/documents/DocumentCodeField';
 import { DocumentExportButton } from '../../components/documents/DocumentExportButton';
+import { DocumentFilesSection } from '../../components/documents/DocumentFilesSection';
 import { DocumentRevisionManager } from '../../components/documents/DocumentRevisionManager';
 import { DocumentStatusBadge } from '../../components/documents/DocumentStatusBadge';
 import { DocumentSummaryCard } from '../../components/documents/DocumentSummaryCard';
@@ -32,7 +33,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { DocumentDetail } from '../../types/document';
 import { formatDate, formatDateTime } from '../../utils/formatters';
 
-type DetailTab = 'overview' | 'revisions' | 'history';
+type DetailTab = 'overview' | 'revisions' | 'files' | 'history';
 
 export function DocumentDetailPage() {
   const { documentId = '' } = useParams();
@@ -50,7 +51,9 @@ export function DocumentDetailPage() {
   const { showToast } = useToast();
   const requestedTab = searchParams.get('tab');
   const tab: DetailTab =
-    requestedTab === 'revisions' || requestedTab === 'history'
+    requestedTab === 'revisions' ||
+    requestedTab === 'files' ||
+    requestedTab === 'history'
       ? requestedTab
       : 'overview';
 
@@ -256,7 +259,7 @@ export function DocumentDetailPage() {
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex overflow-x-auto border-b border-slate-200 px-4 sm:px-6">
-          {(['overview', 'revisions', 'history'] as const).map((candidate) => (
+          {(['overview', 'revisions', 'files', 'history'] as const).map((candidate) => (
             <button
               key={candidate}
               type="button"
@@ -280,6 +283,7 @@ export function DocumentDetailPage() {
           {tab === 'revisions' && (
             <DocumentRevisionManager document={document} compact />
           )}
+          {tab === 'files' && <DocumentFilesSection document={document} />}
           {tab === 'history' && <DocumentActivitySummary document={document} />}
         </div>
       </section>

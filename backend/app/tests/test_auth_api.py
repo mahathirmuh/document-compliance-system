@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
-from httpx import AsyncClient
 import pytest
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -71,6 +71,7 @@ async def test_login_success_returns_camel_case_contract_and_audit(
     }
     assert payload["data"]["permissions"] == [
         "dashboard:view",
+        "documents:download",
         "documents:view",
     ]
     assert "passwordHash" not in str(payload)

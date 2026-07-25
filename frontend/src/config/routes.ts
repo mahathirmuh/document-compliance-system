@@ -14,10 +14,16 @@ const routeTitles: Record<string, string> = {
   '/master-data/validation-rules': 'Validation Rules',
   '/documents': 'Document Register',
   '/documents/new': 'Add Document',
+  '/documents/upload': 'Upload Document',
+  '/documents/batch-upload': 'Batch Upload',
+  '/documents/upload-history': 'Upload History',
   '/documents/archived': 'Archived Documents',
 };
 
 const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/file$/.test(pathname)) {
+    return 'Revision Physical File';
+  }
   if (/^\/documents\/[^/]+\/edit$/.test(pathname)) {
     return 'Edit Document';
   }
@@ -47,6 +53,18 @@ export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
     const currentTitle = getRouteTitle(pathname);
     if (pathname === '/documents') {
       return [{ label: 'Documents' }];
+    }
+    const fileMatch = /^\/documents\/([^/]+)\/revisions\/([^/]+)\/file$/.exec(pathname);
+    if (fileMatch) {
+      return [
+        { label: 'Documents', path: '/documents' },
+        { label: 'Document Details', path: `/documents/${fileMatch[1]}` },
+        {
+          label: 'Revision Management',
+          path: `/documents/${fileMatch[1]}/revisions`,
+        },
+        { label: currentTitle },
+      ];
     }
     const detailMatch = /^\/documents\/([^/]+)(?:\/(edit|revisions))?$/.exec(pathname);
     if (detailMatch && detailMatch[2]) {

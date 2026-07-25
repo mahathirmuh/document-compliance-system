@@ -79,6 +79,8 @@ class DocumentRevisionService(DocumentServiceBase):
         self,
         document_id: UUID,
         payload: DocumentRevisionCreate,
+        *,
+        commit: bool = True,
     ) -> DocumentRevisionResponse:
         document = await self._document(document_id, for_update=True)
         if document.is_archived:
@@ -149,7 +151,8 @@ class DocumentRevisionService(DocumentServiceBase):
                 description=f"Created revision {full_code}.",
                 new_values=self._audit_values(document, revision),
             )
-            await self.session.commit()
+            if commit:
+                await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
             raise document_conflict(

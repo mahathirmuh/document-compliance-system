@@ -70,6 +70,26 @@ class DocumentRevisionRepository:
             statement = statement.with_for_update()
         return (await self.session.execute(statement)).scalar_one_or_none()
 
+    async def get_by_full_code(
+        self,
+        full_document_code: str,
+        *,
+        for_update: bool = False,
+    ) -> DocumentRevision | None:
+        """Resolve one live revision by its globally unique full code."""
+        statement = (
+            select(DocumentRevision)
+            .options(*self._options())
+            .where(
+                DocumentRevision.full_document_code
+                == full_document_code.strip(),
+                DocumentRevision.deleted_at.is_(None),
+            )
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
     async def list_by_document_codes(
         self,
         keys: Sequence[tuple[UUID, str]],

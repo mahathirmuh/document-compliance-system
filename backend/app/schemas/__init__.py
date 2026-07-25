@@ -1,7 +1,5 @@
 """Pydantic request and response schemas."""
 
-from app.schemas.common import ApiResponse, ErrorDetail, PaginationData
-from app.schemas.health import HealthData
 from app.schemas.auth import (
     CurrentUserResponse,
     LoginRequest,
@@ -9,6 +7,8 @@ from app.schemas.auth import (
     TokenRefreshRequest,
     TokenResponse,
 )
+from app.schemas.common import ApiResponse, ErrorDetail, PaginationData
+from app.schemas.health import HealthData
 from app.schemas.user import UserResponse
 
 __all__ = [

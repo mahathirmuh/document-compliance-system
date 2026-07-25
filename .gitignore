@@ -41,13 +41,23 @@ storage/reports/*
 !storage/reports/.gitkeep
 storage/temporary/*
 !storage/temporary/.gitkeep
+storage/documents/originals/*
+!storage/documents/originals/.gitkeep
+storage/documents/temporary/*
+!storage/documents/temporary/.gitkeep
+storage/documents/quarantine/*
+!storage/documents/quarantine/.gitkeep
+storage/documents/deleted/*
+!storage/documents/deleted/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
 
 # Local databases, logs, and temporary files
 *.db
 *.sqlite
 *.sqlite3
 *.log
-logs/
+/logs/
 tmp/
 temp/
 
@@ -63,4 +73,3 @@ Desktop.ini
 # Docker overrides and local tooling
 docker-compose.override.yml
 .docker/
-

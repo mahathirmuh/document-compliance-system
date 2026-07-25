@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ToastProvider } from '../../providers/ToastProvider';
+import { physicalFileFixture } from '../../test/documentFileFixtures';
 import type { DocumentRevisionListItem } from '../../types/documentRevision';
 import { RevisionFormDialog } from './RevisionFormDialog';
 import { RevisionTable } from './RevisionTable';
@@ -85,6 +87,58 @@ describe('RevisionTable permissions', () => {
     expect(screen.getAllByText('Edit')).toHaveLength(2);
     expect(screen.getByText('Set Current')).toBeInTheDocument();
     expect(screen.getAllByText('Supersede')).toHaveLength(2);
+  });
+
+  it('shows file indicators but hides download without its permission', () => {
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <RevisionTable
+            revisions={revisions}
+            files={[
+              {
+                ...physicalFileFixture,
+                documentRevisionId: revisions[0]!.id,
+              },
+            ]}
+            documentId={physicalFileFixture.documentId}
+            canManage={false}
+            canDownloadFile={false}
+            onView={vi.fn()}
+            onEdit={vi.fn()}
+            onSetCurrent={vi.fn()}
+            onSupersede={vi.fn()}
+          />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText('pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+  });
+
+  it('blocks upload controls for archived document revisions', () => {
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <RevisionTable
+            revisions={revisions}
+            documentId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+            canManage={false}
+            canUploadFile
+            documentArchived
+            onView={vi.fn()}
+            onEdit={vi.fn()}
+            onSetCurrent={vi.fn()}
+            onSupersede={vi.fn()}
+          />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Upload' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Files' })).toHaveLength(2);
   });
 });
 

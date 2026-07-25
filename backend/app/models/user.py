@@ -26,8 +26,10 @@ if TYPE_CHECKING:
     from app.models.audit_log import AuditLog
     from app.models.department import Department
     from app.models.document import Document
+    from app.models.document_file import DocumentFile
     from app.models.document_revision import DocumentRevision
     from app.models.refresh_token import RefreshToken
+    from app.models.upload_session import UploadSession
 
 
 def _enum_values(enum_class: type[UserRole]) -> list[str]:
@@ -160,6 +162,21 @@ class User(Base):
     updated_document_revisions: Mapped[list[DocumentRevision]] = relationship(
         back_populates="updater",
         foreign_keys="DocumentRevision.updated_by",
+        passive_deletes=True,
+    )
+    uploaded_document_files: Mapped[list[DocumentFile]] = relationship(
+        back_populates="uploader",
+        foreign_keys="DocumentFile.uploaded_by",
+        passive_deletes=True,
+    )
+    deleted_document_files: Mapped[list[DocumentFile]] = relationship(
+        back_populates="deleter",
+        foreign_keys="DocumentFile.deleted_by",
+        passive_deletes=True,
+    )
+    upload_sessions: Mapped[list[UploadSession]] = relationship(
+        back_populates="user",
+        foreign_keys="UploadSession.user_id",
         passive_deletes=True,
     )
 

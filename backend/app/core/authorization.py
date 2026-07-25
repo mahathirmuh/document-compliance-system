@@ -1,8 +1,9 @@
 """Canonical roles, permissions, and auditable action names."""
 
+from collections.abc import Mapping
 from enum import Enum
 from types import MappingProxyType
-from typing import Final, Mapping
+from typing import Final
 
 
 class UserRole(str, Enum):
@@ -29,6 +30,12 @@ class Permission(str, Enum):
     DOCUMENTS_IMPORT = "documents:import"
     DOCUMENTS_VIEW_ALL_DEPARTMENTS = "documents:view_all_departments"
     DOCUMENTS_MANAGE_REVISIONS = "documents:manage_revisions"
+    DOCUMENTS_UPLOAD = "documents:upload"
+    DOCUMENTS_DOWNLOAD = "documents:download"
+    DOCUMENTS_REPLACE_FILE = "documents:replace_file"
+    DOCUMENTS_DELETE_FILE = "documents:delete_file"
+    DOCUMENTS_BATCH_UPLOAD = "documents:batch_upload"
+    DOCUMENTS_VIEW_FILE_HISTORY = "documents:view_file_history"
     DOCUMENTS_DELETE = "documents:delete"
     DOCUMENTS_VALIDATE = "documents:validate"
     DOCUMENTS_ASSIGN_REVIEWER = "documents:assign_reviewer"
@@ -95,6 +102,21 @@ class AuditAction(str, Enum):
     BULK_ARCHIVE_DOCUMENTS = "BULK_ARCHIVE_DOCUMENTS"
     BULK_RESTORE_DOCUMENTS = "BULK_RESTORE_DOCUMENTS"
     BULK_UPDATE_DOCUMENT_STATUS = "BULK_UPDATE_DOCUMENT_STATUS"
+    UPLOAD_FILE_PREVIEW = "UPLOAD_FILE_PREVIEW"
+    CONFIRM_FILE_UPLOAD = "CONFIRM_FILE_UPLOAD"
+    CANCEL_FILE_UPLOAD = "CANCEL_FILE_UPLOAD"
+    BATCH_UPLOAD_PREVIEW = "BATCH_UPLOAD_PREVIEW"
+    CONFIRM_BATCH_UPLOAD = "CONFIRM_BATCH_UPLOAD"
+    ATTACH_FILE_TO_REVISION = "ATTACH_FILE_TO_REVISION"
+    CREATE_DOCUMENT_FROM_UPLOAD = "CREATE_DOCUMENT_FROM_UPLOAD"
+    CREATE_REVISION_FROM_UPLOAD = "CREATE_REVISION_FROM_UPLOAD"
+    REPLACE_DOCUMENT_FILE = "REPLACE_DOCUMENT_FILE"
+    DELETE_DOCUMENT_FILE = "DELETE_DOCUMENT_FILE"
+    RESTORE_DOCUMENT_FILE = "RESTORE_DOCUMENT_FILE"
+    DOWNLOAD_DOCUMENT_FILE = "DOWNLOAD_DOCUMENT_FILE"
+    QUARANTINE_DOCUMENT_FILE = "QUARANTINE_DOCUMENT_FILE"
+    DUPLICATE_FILE_DETECTED = "DUPLICATE_FILE_DETECTED"
+    CLEANUP_EXPIRED_UPLOAD_SESSION = "CLEANUP_EXPIRED_UPLOAD_SESSION"
 
 ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
     MappingProxyType(
@@ -112,6 +134,12 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_IMPORT,
                     Permission.DOCUMENTS_VIEW_ALL_DEPARTMENTS,
                     Permission.DOCUMENTS_MANAGE_REVISIONS,
+                    Permission.DOCUMENTS_UPLOAD,
+                    Permission.DOCUMENTS_DOWNLOAD,
+                    Permission.DOCUMENTS_REPLACE_FILE,
+                    Permission.DOCUMENTS_DELETE_FILE,
+                    Permission.DOCUMENTS_BATCH_UPLOAD,
+                    Permission.DOCUMENTS_VIEW_FILE_HISTORY,
                     Permission.DOCUMENTS_VALIDATE,
                     Permission.DOCUMENTS_ASSIGN_REVIEWER,
                     Permission.FINDINGS_VIEW,
@@ -126,6 +154,8 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                 {
                     Permission.DASHBOARD_VIEW,
                     Permission.DOCUMENTS_VIEW,
+                    Permission.DOCUMENTS_DOWNLOAD,
+                    Permission.DOCUMENTS_VIEW_FILE_HISTORY,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_UPDATE,
                     Permission.FINDINGS_RESOLVE,
@@ -138,6 +168,9 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW,
                     Permission.DOCUMENTS_CREATE,
                     Permission.DOCUMENTS_UPDATE,
+                    Permission.DOCUMENTS_UPLOAD,
+                    Permission.DOCUMENTS_DOWNLOAD,
+                    Permission.DOCUMENTS_VIEW_FILE_HISTORY,
                     Permission.FINDINGS_VIEW,
                 }
             ),
@@ -147,6 +180,8 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW,
                     Permission.DOCUMENTS_EXPORT,
                     Permission.DOCUMENTS_VIEW_ALL_DEPARTMENTS,
+                    Permission.DOCUMENTS_DOWNLOAD,
+                    Permission.DOCUMENTS_VIEW_FILE_HISTORY,
                     Permission.FINDINGS_VIEW,
                     Permission.REPORTS_VIEW,
                     Permission.REPORTS_EXPORT,
@@ -157,6 +192,7 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                 {
                     Permission.DASHBOARD_VIEW,
                     Permission.DOCUMENTS_VIEW,
+                    Permission.DOCUMENTS_DOWNLOAD,
                 }
             ),
         }

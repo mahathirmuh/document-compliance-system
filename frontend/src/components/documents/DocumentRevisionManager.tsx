@@ -4,10 +4,15 @@ import { useState } from 'react';
 import { RevisionDetailsDialog } from './RevisionDetailsDialog';
 import { RevisionFormDialog } from './RevisionFormDialog';
 import { RevisionTable } from './RevisionTable';
+import { ReplaceDocumentFileDialog } from './ReplaceDocumentFileDialog';
 import { SetCurrentRevisionDialog } from './SetCurrentRevisionDialog';
 import { SupersedeRevisionDialog } from './SupersedeRevisionDialog';
 import { getApiErrorMessage } from '../../api/errors';
 import { useDocumentFormOptions } from '../../hooks/useDocumentFormOptions';
+import {
+  useDocumentFileMutations,
+  useDocumentFiles,
+} from '../../hooks/useDocumentFiles';
 import {
   useDocumentRevisionMutations,
   useDocumentRevisions,
@@ -15,6 +20,7 @@ import {
 import { useToast } from '../../providers/useToast';
 import { useAuthStore } from '../../store/authStore';
 import type { DocumentDetail } from '../../types/document';
+import type { DocumentFileListItem } from '../../types/documentFile';
 import type {
   DocumentRevisionCreate,
   DocumentRevisionListItem,
@@ -43,11 +49,18 @@ export function DocumentRevisionManager({
   );
   const [supersedeTarget, setSupersedeTarget] =
     useState<DocumentRevisionListItem | null>(null);
-  const canManage =
-    useAuthStore((state) => state.hasPermission('documents:manage_revisions')) &&
-    !document.isArchived;
+  const [replaceFileTarget, setReplaceFileTarget] =
+    useState<DocumentFileListItem | null>(null);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const canManage = hasPermission('documents:manage_revisions') && !document.isArchived;
+  const canUploadFile = hasPermission('documents:upload') && !document.isArchived;
+  const canDownloadFile = hasPermission('documents:download');
+  const canReplaceFile =
+    hasPermission('documents:replace_file') && !document.isArchived;
   const query = useDocumentRevisions(document.id);
+  const filesQuery = useDocumentFiles(document.id);
   const mutations = useDocumentRevisionMutations(document.id);
+  const fileMutations = useDocumentFileMutations();
   const formOptions = useDocumentFormOptions(canManage);
   const { showToast } = useToast();
   const revisions = query.data ?? document.revisions;
@@ -130,6 +143,32 @@ export function DocumentRevisionManager({
     }
   };
 
+  const replaceFile = async (
+    file: File,
+    reason: string,
+    onProgress: (progress: number) => void,
+  ): Promise<void> => {
+    if (!replaceFileTarget) {
+      return;
+    }
+    try {
+      await fileMutations.replace.mutateAsync({
+        fileId: replaceFileTarget.id,
+        file,
+        reason,
+        onProgress,
+      });
+      showToast({ tone: 'success', title: 'Physical file replaced' });
+      setReplaceFileTarget(null);
+    } catch (error: unknown) {
+      showToast({
+        tone: 'error',
+        title: 'File could not be replaced',
+        message: getApiErrorMessage(error, 'The previous file remains current.'),
+      });
+    }
+  };
+
   return (
     <section className={compact ? 'space-y-4' : 'space-y-5'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -160,6 +199,14 @@ export function DocumentRevisionManager({
           className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
         >
           {getApiErrorMessage(query.error, 'Revisions could not be loaded.')}
+        </p>
+      )}
+      {filesQuery.error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+        >
+          File indicators could not be loaded. Revision metadata remains available.
         </p>
       )}
       {canManage && formOptions.error && (
@@ -193,6 +240,13 @@ export function DocumentRevisionManager({
         }}
         onSetCurrent={setCurrentTarget}
         onSupersede={setSupersedeTarget}
+        documentId={document.id}
+        files={filesQuery.data ?? []}
+        canUploadFile={canUploadFile}
+        canDownloadFile={canDownloadFile}
+        canReplaceFile={canReplaceFile}
+        documentArchived={document.isArchived}
+        onReplaceFile={setReplaceFileTarget}
       />
       <RevisionDetailsDialog
         documentId={document.id}
@@ -223,6 +277,19 @@ export function DocumentRevisionManager({
         isPending={mutations.supersede.isPending}
         onClose={() => setSupersedeTarget(null)}
         onConfirm={supersede}
+      />
+      <ReplaceDocumentFileDialog
+        file={replaceFileTarget}
+        revisionStatus={
+          replaceFileTarget
+            ? (revisions.find(
+                (revision) => revision.id === replaceFileTarget.documentRevisionId,
+              )?.status.code ?? null)
+            : null
+        }
+        isPending={fileMutations.replace.isPending}
+        onClose={() => setReplaceFileTarget(null)}
+        onConfirm={replaceFile}
       />
     </section>
   );

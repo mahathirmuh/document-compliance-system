@@ -2,13 +2,16 @@ import {
   Archive,
   Building2,
   Database,
+  FileClock,
   FilePlus2,
+  FileUp,
   Files,
   FileType2,
   Layers3,
   LayoutDashboard,
   ShieldCheck,
   Workflow,
+  PackageOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -47,6 +50,24 @@ export const navigationItems: readonly NavigationItem[] = [
         path: '/documents/new',
         icon: FilePlus2,
         permission: 'documents:create',
+      },
+      {
+        label: 'Upload Document',
+        path: '/documents/upload',
+        icon: FileUp,
+        permission: 'documents:upload',
+      },
+      {
+        label: 'Batch Upload',
+        path: '/documents/batch-upload',
+        icon: PackageOpen,
+        permission: 'documents:batch_upload',
+      },
+      {
+        label: 'Upload History',
+        path: '/documents/upload-history',
+        icon: FileClock,
+        permission: 'documents:view_file_history',
       },
       {
         label: 'Archived Documents',

@@ -23,6 +23,7 @@ from app.database.base import Base
 
 if TYPE_CHECKING:
     from app.models.department import Department
+    from app.models.document_file import DocumentFile
     from app.models.document_revision import DocumentRevision
     from app.models.document_type import DocumentType
     from app.models.section import Section
@@ -162,6 +163,12 @@ class Document(Base):
         passive_deletes=True,
         order_by="DocumentRevision.created_at",
     )
+    files: Mapped[list[DocumentFile]] = relationship(
+        back_populates="document",
+        foreign_keys="DocumentFile.document_id",
+        passive_deletes=True,
+        order_by="DocumentFile.uploaded_at",
+    )
     current_revision: Mapped[DocumentRevision | None] = relationship(
         foreign_keys=[current_revision_id],
         post_update=True,
@@ -198,4 +205,3 @@ class Document(Base):
         value: str | None,
     ) -> str | None:
         return value.strip() or None if value is not None else None
-

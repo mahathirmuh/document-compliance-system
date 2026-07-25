@@ -113,7 +113,12 @@ class DocumentService(DocumentServiceBase):
         assert isinstance(response, DocumentDetailResponse)
         return response
 
-    async def create(self, payload: DocumentCreate) -> DocumentDetailResponse:
+    async def create(
+        self,
+        payload: DocumentCreate,
+        *,
+        commit: bool = True,
+    ) -> DocumentDetailResponse:
         (
             department,
             section,
@@ -198,7 +203,8 @@ class DocumentService(DocumentServiceBase):
                         ),
                     },
                 )
-            await self.session.commit()
+            if commit:
+                await self.session.commit()
         except IntegrityError as exc:
             await self.session.rollback()
             raise document_conflict(

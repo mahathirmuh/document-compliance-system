@@ -39,7 +39,7 @@ describe('application authorization routes', () => {
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'healthy',
       service: 'document-compliance-api',
-      version: '0.4.0',
+      version: '0.5.0',
     });
     useAuthStore.getState().setAuth(superAdminSession);
 
@@ -85,7 +85,13 @@ describe('application authorization routes', () => {
     ).toBeInTheDocument();
   });
 
-  it.each(['/documents/new', '/documents/document-id/edit'])(
+  it.each([
+    '/documents/new',
+    '/documents/document-id/edit',
+    '/documents/upload',
+    '/documents/batch-upload',
+    '/documents/upload-history',
+  ])(
     'blocks protected document mutation route %s without its permission',
     async (route) => {
       useAuthStore.getState().setAuth({

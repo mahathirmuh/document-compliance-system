@@ -5,6 +5,8 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     document_export,
+    document_file_links,
+    document_files,
     document_import,
     document_revisions,
     documents,
@@ -16,6 +18,11 @@ from app.api.v1.endpoints import (
 api_router = APIRouter()
 api_router.include_router(health.router, prefix="/health", tags=["Health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(
+    document_files.router,
+    prefix="/document-files",
+    tags=["Document Files"],
+)
 api_router.include_router(
     document_import.router,
     prefix="/documents",
@@ -35,6 +42,11 @@ api_router.include_router(
     document_revisions.router,
     prefix="/documents",
     tags=["Document Revisions"],
+)
+api_router.include_router(
+    document_file_links.router,
+    prefix="/documents",
+    tags=["Document Files"],
 )
 api_router.include_router(
     master_data.router,

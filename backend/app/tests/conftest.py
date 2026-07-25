@@ -6,7 +6,7 @@ os.environ["DATABASE_URL"] = (
     "postgresql+asyncpg://test_user:test_password@localhost:5432/test_compliance"
 )
 os.environ["APP_ENV"] = "test"
-os.environ["APP_VERSION"] = "0.4.0"
+os.environ["APP_VERSION"] = "0.5.0"
 os.environ["MASTER_DATA_IMPORT_MAX_ROWS"] = "5000"
 os.environ["MASTER_DATA_EXPORT_MAX_ROWS"] = "50000"
 os.environ["DEFAULT_COMPANY_CODE"] = "MTI"
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import StaticPool
 
-import app.models  # noqa: F401
+import app.models
 from app.api.dependencies.auth import get_password_service, get_token_service
 from app.core.authorization import UserRole
 from app.core.config import get_settings

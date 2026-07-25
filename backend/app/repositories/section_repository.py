@@ -1,9 +1,10 @@
 """Section persistence operations."""
 
+from typing import Any, ClassVar
 from uuid import UUID
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.section import Section
 from app.repositories.master_data_base import BaseMasterDataRepository
@@ -11,7 +12,9 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class SectionRepository(BaseMasterDataRepository[Section]):
     model = Section
-    sortable_columns = {
+    sortable_columns: ClassVar[
+        dict[str, InstrumentedAttribute[Any]]
+    ] = {
         "code": Section.code,
         "name": Section.name,
         "departmentId": Section.department_id,
@@ -72,4 +75,3 @@ class SectionRepository(BaseMasterDataRepository[Section]):
             limit=limit,
             statement=statement,
         )
-
