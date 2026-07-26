@@ -64,6 +64,7 @@ export function FileIdentificationPreview({ item }: { item: UploadSessionItem })
     ['Section', parsed?.sectionCode],
     ['Document Type', parsed?.documentTypeCode],
     ['Document Number', parsed?.documentNumber],
+    ['Document Title', parsed?.title],
     ['Revision', parsed?.revisionCode],
     ['Base Document Code', parsed?.baseDocumentCode],
     ['Full Document Code', parsed?.fullDocumentCode],

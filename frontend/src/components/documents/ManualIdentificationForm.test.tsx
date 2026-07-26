@@ -147,6 +147,56 @@ describe('ManualIdentificationForm', () => {
     );
   });
 
+  it('prefills and submits a title parsed from the filename', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const title =
+      'Demin Plant - Reducing Reagent Mixing & Dosing 脱盐水-还原剂药剂配制 (4706)';
+    render(
+      <ManualIdentificationForm
+        item={{
+          ...uploadItemFixture,
+          identificationStatus: 'IDENTIFIED',
+          proposedAction: 'CREATE_DOCUMENT_AND_REVISION',
+          matchedDocument: null,
+          matchedRevision: null,
+          parsedMetadata: {
+            companyCode: 'MTI',
+            departmentCode: 'HRM',
+            sectionCode: 'IER',
+            documentTypeCode: 'SOP',
+            documentNumber: '900',
+            title,
+            revisionCode: 'Rev.000',
+            baseDocumentCode: 'MTI-HRM-IER-SOP-900',
+            fullDocumentCode: 'MTI-HRM-IER-SOP-900_Rev.000',
+          },
+        }}
+        initialAction="CREATE_DOCUMENT_AND_REVISION"
+        isSubmitting={false}
+        onBack={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(await screen.findByRole('textbox', { name: /Document Title/ })).toHaveValue(
+      title,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Upload' }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'CREATE_DOCUMENT_AND_REVISION',
+          metadata: expect.objectContaining({
+            title,
+            documentNumber: '900',
+            revisionCode: 'Rev.000',
+          }),
+        }),
+      ),
+    );
+  });
+
   it('submits an existing revision attachment with scoped target IDs', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(

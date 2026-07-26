@@ -598,6 +598,7 @@ class DocumentService(DocumentServiceBase):
             section=master_reference(section),
             document_type=document_type_ref,
             document_number=candidate.document_number,
+            document_title=candidate.document_title,
             base_document_code=candidate.base_document_code,
             revision_code=candidate.revision_code,
             full_document_code=candidate.full_document_code,

@@ -141,6 +141,7 @@ export interface DocumentParseResponse {
   section: DocumentReference | null;
   documentType: DocumentReference;
   documentNumber: string;
+  documentTitle?: string | null;
   baseDocumentCode: string;
   revisionCode: string | null;
   fullDocumentCode: string | null;

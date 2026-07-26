@@ -154,6 +154,7 @@ class FileIdentificationService(DocumentServiceBase):
             ),
             document_type_code=parsed.document_type.code,
             document_number=parsed.document_number,
+            title=parsed.document_title,
             revision_code=parsed.revision_code,
             base_document_code=parsed.base_document_code,
             full_document_code=parsed.full_document_code,
@@ -278,7 +279,11 @@ class FileIdentificationService(DocumentServiceBase):
             parsed_metadata=metadata,
             warnings=[
                 *parsed.warnings,
-                "Enter a document title before confirming.",
+                *(
+                    ["Enter a document title before confirming."]
+                    if metadata.title is None
+                    else []
+                ),
             ],
         )
 
@@ -334,6 +339,7 @@ class FileIdentificationService(DocumentServiceBase):
                 section_code=best.section_code,
                 document_type_code=best.document_type_code,
                 document_number=best.document_number,
+                title=best.document_title,
                 revision_code=best.revision_code,
                 base_document_code=best.base_document_code,
                 full_document_code=best.full_document_code,
@@ -414,6 +420,7 @@ class FileIdentificationService(DocumentServiceBase):
             ),
             document_type_code=document.document_type.code,
             document_number=document.document_number,
+            title=document.title,
             revision_code=revision.revision_code,
             base_document_code=document.base_document_code,
             full_document_code=revision.full_document_code,

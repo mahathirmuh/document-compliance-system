@@ -219,6 +219,75 @@ def test_parse_document_filename_supports_required_extensions(
     assert parsed.full_document_code == "MTI-HRM-IER-SOP-001_Rev.003"
 
 
+def test_parse_document_filename_extracts_multilingual_title_suffix(
+    service: DocumentCodeService,
+) -> None:
+    title = (
+        "Demin Plant - Reducing Reagent Mixing & Dosing "
+        "脱盐水-还原剂药剂配制 (4706)"
+    )
+    parsed = service.parse_document_filename(
+        f"MTI-ACP-APM-SOP-001_Rev. 000 - {title}.pdf",
+        has_section=True,
+    )
+
+    assert parsed.company_code == "MTI"
+    assert parsed.department_code == "ACP"
+    assert parsed.section_code == "APM"
+    assert parsed.document_type_code == "SOP"
+    assert parsed.document_number == "001"
+    assert parsed.revision_code == "Rev.000"
+    assert parsed.document_title == title
+    assert parsed.base_document_code == "MTI-ACP-APM-SOP-001"
+    assert parsed.full_document_code == "MTI-ACP-APM-SOP-001_Rev.000"
+
+
+def test_filename_title_can_contain_later_revision_markers(
+    service: DocumentCodeService,
+) -> None:
+    parsed = service.parse_document_filename(
+        (
+            "MTI-HRM-IER-SOP-001_Rev.B-2 - "
+            "Title _Rev.999 - attachment.docx.pdf"
+        ),
+        has_section=True,
+    )
+
+    assert parsed.document_number == "001"
+    assert parsed.revision_code == "Rev.B-2"
+    assert parsed.document_title == (
+        "Title _Rev.999 - attachment.docx"
+    )
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "MTI-HRM-IER-SOP-001_Rev.000-Title.pdf",
+        "MTI-HRM-IER-SOP-001_Rev.000 -Title.pdf",
+        "MTI-HRM-IER-SOP-001_Rev.000- Title.pdf",
+        "MTI-HRM-IER-SOP-001_Rev.1A - Title.pdf",
+    ],
+)
+def test_filename_title_requires_an_unambiguous_separator_and_revision(
+    service: DocumentCodeService,
+    filename: str,
+) -> None:
+    with pytest.raises(DocumentCodeError):
+        service.parse_document_filename(filename, has_section=True)
+
+
+def test_filename_title_respects_document_title_limit(
+    service: DocumentCodeService,
+) -> None:
+    with pytest.raises(DocumentCodeError, match="at most 500"):
+        service.parse_document_filename(
+            "MTI-HRM-IER-SOP-001_Rev.000 - "
+            f"{'A' * 501}.pdf",
+            has_section=True,
+        )
+
+
 def test_parse_document_code_accepts_bare_full_code(
     service: DocumentCodeService,
 ) -> None:

@@ -21,6 +21,7 @@ class ParsedDocumentMetadata(ApiSchema):
     section_code: str | None = None
     document_type_code: str | None = None
     document_number: str | None = None
+    title: str | None = Field(default=None, max_length=500)
     revision_code: str | None = None
     base_document_code: str | None = None
     full_document_code: str | None = None

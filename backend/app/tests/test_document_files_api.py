@@ -755,13 +755,32 @@ async def test_create_document_and_add_revision_from_upload(
         token_service,
         suffix="create-from-file",
     )
+    title = (
+        "Demin Plant - Reducing Reagent Mixing & Dosing "
+        "脱盐水-还原剂药剂配制 (4706)"
+    )
+    original_filename = (
+        "MTI-HRM-IER-SOP-900_Rev. 000 - "
+        f"{title}.pdf"
+    )
     preview = await _preview_pdf(
         api_client,
         headers,
-        filename="MTI-HRM-IER-SOP-900_Rev.000.pdf",
+        filename=original_filename,
     )
     item = preview["items"][0]
+    assert item["identificationStatus"] == "IDENTIFIED"
     assert item["proposedAction"] == "CREATE_DOCUMENT_AND_REVISION"
+    assert item["originalFilename"] == original_filename
+    assert item["sanitizedFilename"] != original_filename
+    assert "脱盐水" not in item["sanitizedFilename"]
+    assert item["parsedMetadata"]["documentNumber"] == "900"
+    assert item["parsedMetadata"]["revisionCode"] == "Rev.000"
+    assert item["parsedMetadata"]["title"] == title
+    assert item["parsedMetadata"]["fullDocumentCode"] == (
+        "MTI-HRM-IER-SOP-900_Rev.000"
+    )
+    assert "Enter a document title before confirming." not in item["warnings"]
     created = await api_client.post(
         (
             "/api/v1/document-files/upload/"
@@ -779,7 +798,7 @@ async def test_create_document_and_add_revision_from_upload(
                         "sectionId": str(master["section"].id),
                         "documentTypeId": str(master["document_type"].id),
                         "documentNumber": "900",
-                        "title": "Created from physical file",
+                        "title": item["parsedMetadata"]["title"],
                         "revisionCode": "Rev.000",
                         "documentStatusId": str(master["initial"].id),
                     },
@@ -836,6 +855,8 @@ async def test_create_document_and_add_revision_from_upload(
             await session.scalar(select(func.count(DocumentFile.id))) or 0
         )
         assert (documents, revisions, files) == (1, 2, 2)
+        title_in_register = await session.scalar(select(Document.title))
+        assert title_in_register == title
 
 
 @pytest.mark.asyncio

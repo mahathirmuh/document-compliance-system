@@ -50,4 +50,26 @@ describe('FileIdentificationPreview', () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it('shows the document title parsed from a filename', () => {
+    const title =
+      'Demin Plant - Reducing Reagent Mixing & Dosing 脱盐水-还原剂药剂配制 (4706)';
+    render(
+      <FileIdentificationPreview
+        item={{
+          ...uploadItemFixture,
+          matchedDocument: null,
+          matchedRevision: null,
+          proposedAction: 'CREATE_DOCUMENT_AND_REVISION',
+          parsedMetadata: {
+            ...uploadItemFixture.parsedMetadata,
+            title,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Document Title')).toBeInTheDocument();
+    expect(screen.getByText(title)).toBeInTheDocument();
+  });
 });

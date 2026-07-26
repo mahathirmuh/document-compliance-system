@@ -137,6 +137,7 @@ class DocumentParseResponse(ApiSchema):
     section: MasterDataReference | None
     document_type: MasterDataReference
     document_number: str
+    document_title: str | None = None
     base_document_code: str
     revision_code: str | None
     full_document_code: str | None

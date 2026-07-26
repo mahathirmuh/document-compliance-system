@@ -10,7 +10,9 @@ COMPONENT_PATTERN = re.compile(r"^[A-Z0-9_]+$")
 DOCUMENT_TYPE_COMPONENT_PATTERN = re.compile(r"^[A-Z0-9_-]+$")
 DOCUMENT_NUMBER_PATTERN = re.compile(r"^[A-Z0-9._-]+$")
 REVISION_VALUE_PATTERN = re.compile(r"^[A-Z][A-Z0-9.-]*$")
+FILENAME_TITLE_SEPARATOR_PATTERN = re.compile(r"[ \t]+-[ \t]+")
 SUPPORTED_EXTENSIONS = frozenset({"pdf", "docx", "xlsx"})
+MAX_FILENAME_DOCUMENT_TITLE_LENGTH = 500
 
 
 class DocumentCodeError(ValueError):
@@ -28,6 +30,7 @@ class ParsedDocumentCode:
     document_number: str
     revision_code: str | None
     file_extension: str | None
+    document_title: str | None
     base_document_code: str
     full_document_code: str | None
 
@@ -205,6 +208,41 @@ class DocumentCodeService:
         number = int(normalized)
         return number if number <= 2_147_483_647 else None
 
+    @classmethod
+    def _split_filename_title_suffix(
+        cls,
+        value: str,
+    ) -> tuple[str, str | None]:
+        """Split ``<code-and-revision> - <title>`` without weakening codes."""
+
+        candidate = value.strip()
+        separator = FILENAME_TITLE_SEPARATOR_PATTERN.search(candidate)
+        if separator is None:
+            return candidate, None
+        code_and_revision = candidate[: separator.start()].rstrip()
+        revision_match = re.fullmatch(
+            r"(.+)_(REV(?:\.)?.+)",
+            code_and_revision,
+            flags=re.IGNORECASE,
+        )
+        if revision_match is None:
+            return candidate, None
+        try:
+            cls.normalize_revision_code(revision_match.group(2))
+        except DocumentCodeError:
+            return candidate, None
+        title = candidate[separator.end() :].strip()
+        if not title:
+            raise DocumentCodeError(
+                "documentTitle after the revision cannot be empty."
+            )
+        if len(title) > MAX_FILENAME_DOCUMENT_TITLE_LENGTH:
+            raise DocumentCodeError(
+                "documentTitle parsed from the filename must contain at "
+                f"most {MAX_FILENAME_DOCUMENT_TITLE_LENGTH} characters."
+            )
+        return code_and_revision, title
+
     def parse_document_filename(
         self,
         value: str,
@@ -222,10 +260,16 @@ class DocumentCodeService:
             raise DocumentCodeError(
                 f'File extension "{extension}" is not supported.'
             )
+        document_code, document_title = (
+            self._split_filename_title_suffix(
+                candidate[: -len(suffix)]
+            )
+        )
         return self._parse(
-            candidate[: -len(suffix)],
+            document_code,
             file_extension=extension,
             has_section=has_section,
+            document_title=document_title,
         )
 
     def parse_document_code(
@@ -267,9 +311,13 @@ class DocumentCodeService:
         candidate = value.strip()
         suffix = PurePath(candidate).suffix.lower()
         extension: str | None = None
+        document_title: str | None = None
         if suffix.removeprefix(".") in SUPPORTED_EXTENSIONS:
             candidate = PurePath(candidate).name[: -len(suffix)]
             extension = suffix.removeprefix(".")
+            candidate, document_title = (
+                self._split_filename_title_suffix(candidate)
+            )
         elif (
             suffix
             and suffix.removeprefix(".").isalpha()
@@ -303,6 +351,7 @@ class DocumentCodeService:
                     file_extension=extension,
                     has_section=has_section,
                     document_type_segments=segments,
+                    document_title=document_title,
                 )
             except DocumentCodeError as exc:
                 errors.append(exc)
@@ -322,6 +371,7 @@ class DocumentCodeService:
         file_extension: str | None,
         has_section: bool | None,
         document_type_segments: int = 1,
+        document_title: str | None = None,
     ) -> ParsedDocumentCode:
         normalized = candidate.strip().upper()
         revision_code: str | None = None
@@ -406,6 +456,7 @@ class DocumentCodeService:
             document_number=number,
             revision_code=revision_code,
             file_extension=file_extension,
+            document_title=document_title,
             base_document_code=generated_base,
             full_document_code=full_code,
         )

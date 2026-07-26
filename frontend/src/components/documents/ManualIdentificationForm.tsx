@@ -268,6 +268,7 @@ export function ManualIdentificationForm({
       revisionId: item.matchedRevision?.id ?? '',
       companyCode: item.parsedMetadata?.companyCode ?? '',
       documentNumber: item.parsedMetadata?.documentNumber ?? '',
+      title: item.parsedMetadata?.title ?? '',
       revisionCode: item.parsedMetadata?.revisionCode ?? '',
     });
     setDocumentSearch(item.matchedDocument?.baseDocumentCode ?? '');

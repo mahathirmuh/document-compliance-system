@@ -1189,8 +1189,12 @@ class DocumentUploadService(DocumentServiceBase):
                     "Upload malware scan completed with a warning.",
                     extra={"event": "malware_scan_warning"},
                 )
+            # Metadata validation has already rejected paths and control
+            # characters. Keep the original value here so a multilingual
+            # human-readable title can be parsed without affecting the
+            # sanitized storage key.
             outcome = await self.identification.identify(
-                filename=validation.sanitized_filename,
+                filename=original_filename,
                 sha256_hash=validation.sha256_hash,
                 file_size=validation.file_size,
                 document_id=document_id,

@@ -499,7 +499,14 @@ Format nama file yang membantu identifikasi otomatis:
 ```text
 MTI-HRM-IER-POL-001_Rev.000.pdf
 MTI-HRM-IER-SOP-001_Rev.000.docx
+MTI-HRM-IER-SOP-001_Rev. 000 - Demin Plant - Judul 中文.pdf
 ```
+
+Suffix judul opsional setelah separator ` - ` ikut dipakai untuk mengisi
+**Document Title**. Judul boleh mengandung spasi, simbol yang aman, dan
+Unicode; bagian
+kode/revisi tetap dinormalisasi menjadi bentuk canonical seperti
+`MTI-HRM-IER-SOP-001_Rev.000`.
 
 Pada contoh tersebut, section `IER` harus sudah dibuat di department `HRM`.
 Nama yang tidak sesuai masih dapat diproses melalui identifikasi manual.

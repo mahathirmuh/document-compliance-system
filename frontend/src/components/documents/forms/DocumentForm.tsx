@@ -306,6 +306,9 @@ export function DocumentForm({
     }
     setValue('documentTypeId', parsed.documentType.id, { shouldValidate: true });
     setValue('documentNumber', parsed.documentNumber, { shouldValidate: true });
+    if (parsed.documentTitle) {
+      setValue('title', parsed.documentTitle, { shouldValidate: true });
+    }
     if (parsed.revisionCode) {
       setValue('createInitialRevision', true);
       setValue('revisionCode', parsed.revisionCode, { shouldValidate: true });

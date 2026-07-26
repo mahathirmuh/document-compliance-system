@@ -39,6 +39,7 @@ export interface ParsedDocumentMetadata {
   sectionCode?: string | null;
   documentTypeCode?: string | null;
   documentNumber?: string | null;
+  title?: string | null;
   revisionCode?: string | null;
   baseDocumentCode?: string | null;
   fullDocumentCode?: string | null;

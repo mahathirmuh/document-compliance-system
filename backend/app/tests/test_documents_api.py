@@ -612,6 +612,29 @@ async def test_parse_code_resolves_master_data_and_rejects_ambiguity(
         assert data["documentNumber"] == number
         assert data["revisionCode"] == "Rev.003"
 
+    title = (
+        "Demin Plant - Reducing Reagent Mixing & Dosing "
+        "脱盐水-还原剂药剂配制 (4706)"
+    )
+    titled = await api_client.post(
+        "/api/v1/documents/parse-code",
+        headers=headers,
+        json={
+            "value": (
+                "MTI-HRM-IER-SOP-001_Rev. 000 - "
+                f"{title}.pdf"
+            )
+        },
+    )
+    assert titled.status_code == 200, titled.text
+    titled_data = titled.json()["data"]
+    assert titled_data["documentTitle"] == title
+    assert titled_data["documentNumber"] == "001"
+    assert titled_data["revisionCode"] == "Rev.000"
+    assert titled_data["fullDocumentCode"] == (
+        "MTI-HRM-IER-SOP-001_Rev.000"
+    )
+
     hyphenated = await api_client.post(
         "/api/v1/documents/parse-code",
         headers=headers,
