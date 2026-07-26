@@ -1,7 +1,7 @@
 """Authenticated extraction queue and job lifecycle endpoints."""
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -141,7 +141,7 @@ async def list_extractions(
     return ApiResponse(
         success=True,
         message="Extraction jobs retrieved successfully.",
-        data=data,
+        data=cast(ExtractionJobListResponse, data),
         errors=None,
     )
 

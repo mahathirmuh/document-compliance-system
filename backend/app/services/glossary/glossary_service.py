@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,8 @@ from app.core.authorization import AuditAction
 from app.core.exceptions import AuthorizationError
 from app.models.glossary_enums import (
     GlossaryExceptionType,
+    GlossaryLanguageCode,
+    GlossaryMatchType,
     GlossaryVariantType,
 )
 from app.models.glossary_exception import GlossaryException
@@ -159,9 +161,9 @@ class GlossaryService(GlossaryServiceBase):
         return GlossaryTermListResponse(
             items=[self.term_response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, term_id: UUID) -> GlossaryTermResponse:
@@ -315,10 +317,19 @@ class GlossaryService(GlossaryServiceBase):
             raise glossary_not_found("Glossary translation")
         old = self.translation_response(item)
         values = payload.model_dump(by_alias=False, exclude_unset=True)
-        language = values.get("language_code", item.language_code)
-        text = values.get("term_text", item.term_text)
-        preferred = values.get("is_preferred", item.is_preferred)
-        forbidden = values.get("is_forbidden", item.is_forbidden)
+        language = cast(
+            GlossaryLanguageCode,
+            values.get("language_code", item.language_code),
+        )
+        text = cast(str, values.get("term_text", item.term_text))
+        preferred = cast(
+            bool,
+            values.get("is_preferred", item.is_preferred),
+        )
+        forbidden = cast(
+            bool,
+            values.get("is_forbidden", item.is_forbidden),
+        )
         if preferred and forbidden:
             raise glossary_error(
                 "A translation cannot be preferred and forbidden.",
@@ -512,14 +523,16 @@ class GlossaryService(GlossaryServiceBase):
                     glossary_variant_id=item.glossary_variant_id,
                     term_code=item.term_code,
                     concept_name=item.concept_name,
-                    language_code=item.language_code,
+                    language_code=GlossaryLanguageCode(
+                        item.language_code
+                    ),
                     matched_text=item.matched_text,
                     normalised_matched_text=(
                         item.normalised_matched_text
                     ),
                     start_offset=item.start_offset,
                     end_offset=item.end_offset,
-                    match_type=item.match_type,
+                    match_type=GlossaryMatchType(item.match_type),
                     is_preferred=item.is_preferred,
                     is_forbidden=item.is_forbidden,
                     is_allowed_variant=item.is_allowed_variant,
@@ -635,7 +648,7 @@ class GlossaryService(GlossaryServiceBase):
     async def _validate_translation_conflicts(
         self,
         term: GlossaryTerm,
-        language_code: object,
+        language_code: GlossaryLanguageCode,
         normalized: str,
         *,
         is_preferred: bool,

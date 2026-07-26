@@ -8,6 +8,8 @@ from uuid import UUID
 from sqlalchemy import false, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.document_file import DocumentFile, DocumentFileStatus
@@ -21,7 +23,7 @@ class DocumentFileRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(DocumentFile.document),
             joinedload(DocumentFile.revision).joinedload(
@@ -238,7 +240,7 @@ class DocumentFileRepository:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[DocumentFile], int]:
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         if document_id is not None:
             predicates.append(DocumentFile.document_id == document_id)
         if revision_id is not None:

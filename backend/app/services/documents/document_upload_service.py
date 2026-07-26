@@ -484,15 +484,15 @@ class DocumentUploadService(DocumentServiceBase):
                 else UploadSessionStatus.FAILED
             )
         )
-        upload_session = await self.sessions.get_by_id(
+        refreshed_session = await self.sessions.get_by_id(
             session_id,
             user_id=self.user_id,
             for_update=True,
             with_items=False,
         )
-        assert upload_session is not None
+        assert refreshed_session is not None
         await self.sessions.mark_committed(
-            upload_session,
+            refreshed_session,
             status=final_status,
             committed_at=utc_now(),
         )
@@ -503,13 +503,13 @@ class DocumentUploadService(DocumentServiceBase):
                 else AuditAction.CONFIRM_FILE_UPLOAD
             ),
             entity_type="upload_session",
-            entity_id=upload_session.id,
+            entity_id=refreshed_session.id,
             description=(
                 f"Confirmed upload session with {committed} committed, "
                 f"{skipped} skipped, and {failed} failed items."
             ),
             new_values={
-                "sessionId": str(upload_session.id),
+                "sessionId": str(refreshed_session.id),
                 "status": final_status.value,
                 "committed": committed,
                 "skipped": skipped,
@@ -519,7 +519,7 @@ class DocumentUploadService(DocumentServiceBase):
         await self.session.commit()
         if batch:
             return BatchUploadResult(
-                session_id=upload_session.id,
+                session_id=refreshed_session.id,
                 status=final_status.value,
                 total=len(results),
                 committed=committed,
@@ -530,10 +530,10 @@ class DocumentUploadService(DocumentServiceBase):
                 files_attached=counters["files_attached"],
                 files_replaced=counters["files_replaced"],
                 items=results,
-                committed_at=upload_session.committed_at,
+                committed_at=refreshed_session.committed_at,
             )
         return UploadConfirmationResult(
-            session_id=upload_session.id,
+            session_id=refreshed_session.id,
             status=final_status.value,
             items=results,
         )

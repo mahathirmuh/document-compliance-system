@@ -7,7 +7,7 @@ from dataclasses import asdict, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -56,7 +56,7 @@ def float_value(value: object, default: float = 0.0) -> float:
     if value is None:
         return default
     try:
-        return float(value)
+        return float(cast(Any, value))
     except (TypeError, ValueError):
         return default
 
@@ -65,7 +65,7 @@ def int_value(value: object, default: int = 0) -> int:
     if value is None:
         return default
     try:
-        return int(value)
+        return int(cast(Any, value))
     except (TypeError, ValueError):
         return default
 

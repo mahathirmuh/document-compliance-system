@@ -60,6 +60,7 @@ class TranslationGroupService:
         tables: Sequence[object] | None = None,
         sections: Sequence[object] | None = None,
     ) -> list[TranslationGroupData]:
+        rule: object
         if isinstance(context_or_blocks, Sequence) and not isinstance(
             context_or_blocks,
             (str, bytes, bytearray),

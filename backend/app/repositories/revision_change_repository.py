@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.revision_change import (
     RevisionChange,
@@ -40,7 +41,7 @@ class RevisionChangeRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[RevisionChange], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             RevisionChange.revision_comparison_id == comparison_id
         ]
         if change_types:

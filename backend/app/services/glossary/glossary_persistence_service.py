@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,13 +36,14 @@ from app.repositories.validation_finding_repository import (
 from app.services.compliance.findings.finding_deduplication_service import (
     FindingDeduplicationService,
 )
-from app.services.glossary.contracts import GlossaryValidationResult
+from app.services.glossary.contracts import (
+    GlossaryFindingSignal,
+    GlossaryValidationResult,
+)
 from app.utils.datetime import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-    from app.services.glossary.contracts import GlossaryFindingSignal
 
 
 class GlossaryPersistenceService:
@@ -112,9 +113,12 @@ class GlossaryPersistenceService:
             )
             for item in result.findings
         ]
-        linked = self.deduplication.link_repeated(
-            self.deduplication.deduplicate(current_signals),
-            previous_findings,
+        linked = cast(
+            list[GlossaryFindingSignal],
+            self.deduplication.link_repeated(
+                self.deduplication.deduplicate(current_signals),
+                previous_findings,
+            ),
         )
         finding_rows = [
             self._finding_row(run, item)

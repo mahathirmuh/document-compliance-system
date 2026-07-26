@@ -287,7 +287,7 @@ async def get_revision_section_changes(
 ) -> ApiResponse[RevisionSectionChangesResponse]:
     result = await RevisionComparisonQueryService(
         session, settings, user, metadata
-    ).sections(comparison_id)
+    ).section_changes(comparison_id)
     return ApiResponse(
         success=True,
         message="Revision section changes retrieved successfully.",

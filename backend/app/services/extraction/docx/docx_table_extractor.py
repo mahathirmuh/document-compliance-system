@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import JsonValue
+
 from app.schemas.extraction import (
     ExtractedBlockData,
     ExtractedBlockType,
@@ -99,7 +101,7 @@ def extract_docx_table(
         text = "\n".join(paragraph_text(item) for item in cell.paragraphs)
         normalised_text = normalize_text(text)
         coordinate = f"R{row_index}C{column_index}"
-        cell_metadata = {
+        cell_metadata: dict[str, JsonValue] = {
             "tableIndex": table_index,
             "rowIndex": row_index,
             "columnIndex": column_index,

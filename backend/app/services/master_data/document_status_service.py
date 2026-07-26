@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -87,9 +88,9 @@ class DocumentStatusService(MasterDataServiceBase):
         return DocumentStatusListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, entity_id: UUID) -> DocumentStatusResponse:
@@ -98,7 +99,9 @@ class DocumentStatusService(MasterDataServiceBase):
             raise not_found(self.entity_name)
         return self.response(entity)
 
-    async def options(self, *, active_only: bool = True) -> list[MasterDataOption]:
+    async def options(
+        self, *, active_only: bool = True
+    ) -> builtins.list[MasterDataOption]:
         entities = await self.repository.options(active_only=active_only)
         return [
             MasterDataOption.model_validate(entity) for entity in entities

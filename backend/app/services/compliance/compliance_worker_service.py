@@ -6,11 +6,13 @@ import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select, update
 from sqlalchemy import text as sql_text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -234,11 +236,13 @@ class ComplianceWorkerService:
                     progress=15,
                     stage="Detecting canonical sections",
                 )
+                active_job = job
+                current_job_id = active_job.id
 
                 async def cancellation_requested() -> bool:
                     status = await session.scalar(
                         select(ComplianceJob.status)
-                        .where(ComplianceJob.id == job.id)
+                        .where(ComplianceJob.id == current_job_id)
                         .execution_options(populate_existing=True)
                     )
                     return status is ComplianceJobStatus.CANCEL_REQUESTED
@@ -247,7 +251,7 @@ class ComplianceWorkerService:
                     status = ComplianceJobStatus(stage)
                     await self._set_progress(
                         session,
-                        job,
+                        active_job,
                         status=status,
                         progress=progress,
                         stage=stage.replace("_", " ").title(),
@@ -791,7 +795,7 @@ class ComplianceWorkerService:
         )
         await session.commit()
         await session.refresh(job)
-        if result.rowcount != 1:
+        if cast(CursorResult[Any], result).rowcount != 1:
             if job.status is ComplianceJobStatus.CANCEL_REQUESTED:
                 raise CompliancePipelineCancelled(
                     "Compliance validation was cancelled."

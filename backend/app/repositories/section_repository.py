@@ -1,20 +1,21 @@
 """Section persistence operations."""
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Unpack
 from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.section import Section
-from app.repositories.master_data_base import BaseMasterDataRepository
+from app.repositories.master_data_base import (
+    BaseMasterDataRepository,
+    MasterDataListPageFilters,
+)
 
 
 class SectionRepository(BaseMasterDataRepository[Section]):
     model = Section
-    sortable_columns: ClassVar[
-        dict[str, InstrumentedAttribute[Any]]
-    ] = {
+    sortable_columns: ClassVar[dict[str, InstrumentedAttribute[Any]]] = {
         "code": Section.code,
         "name": Section.name,
         "departmentId": Section.department_id,
@@ -49,9 +50,10 @@ class SectionRepository(BaseMasterDataRepository[Section]):
         self,
         *,
         department_id: UUID | None = None,
-        **kwargs: object,
+        statement: Select[tuple[Section]] | None = None,
+        **kwargs: Unpack[MasterDataListPageFilters],
     ) -> tuple[list[Section], int]:
-        statement = self.base_statement()
+        statement = statement if statement is not None else self.base_statement()
         if department_id is not None:
             statement = statement.where(
                 Section.department_id == department_id
@@ -64,8 +66,9 @@ class SectionRepository(BaseMasterDataRepository[Section]):
         department_id: UUID | None = None,
         active_only: bool = True,
         limit: int = 1000,
+        statement: Select[tuple[Section]] | None = None,
     ) -> list[Section]:
-        statement = self.base_statement()
+        statement = statement if statement is not None else self.base_statement()
         if department_id is not None:
             statement = statement.where(
                 Section.department_id == department_id

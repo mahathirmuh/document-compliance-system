@@ -317,6 +317,7 @@ class SharePointFileStatusResponse(ApiSchema):
     remote_drive_id: str | None = None
     remote_item_id: str | None = None
     remote_path: str | None = None
+    remote_web_url: str | None = None
     remote_etag: str | None = None
     remote_version_id: str | None = None
     remote_last_modified_at: datetime | None = None

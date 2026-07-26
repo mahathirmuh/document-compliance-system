@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from pathlib import Path
+from typing import cast
 from zipfile import BadZipFile, ZipFile
 
 from docx import Document
@@ -61,7 +62,7 @@ class DOCXExtractor(BaseDocumentExtractor):
             "bodyParagraphCount": len(document.paragraphs),
             "bodyTableCount": len(document.tables),
             "coreProperties": _core_properties(document),
-            "warnings": package_warnings,
+            "warnings": cast(JsonValue, package_warnings),
             **package_metadata,
         }
 
@@ -234,7 +235,7 @@ class DOCXExtractor(BaseDocumentExtractor):
     @staticmethod
     def _open_document(file_path: Path):
         try:
-            return Document(file_path)
+            return Document(str(file_path))
         except (BadZipFile, PackageNotFoundError, KeyError, ValueError) as exc:
             raise ExtractionError(
                 "DOCX_CORRUPT",

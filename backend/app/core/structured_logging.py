@@ -33,7 +33,7 @@ class JsonLogFormatter(logging.Formatter):
         ):
             if hasattr(record, field):
                 payload[field] = redact_sensitive(getattr(record, field))
-        if record.exc_info:
+        if record.exc_info and record.exc_info[0] is not None:
             payload["exceptionType"] = record.exc_info[0].__name__
         return json.dumps(
             redact_sensitive(payload),

@@ -406,9 +406,9 @@ async def list_sharepoint_sync_items(
             for item in items
         ],
         page=page,
-        page_size=page_size,
-        total_items=total,
-        total_pages=(total + page_size - 1) // page_size if total else 0,
+        pageSize=page_size,
+        totalItems=total,
+        totalPages=(total + page_size - 1) // page_size if total else 0,
     )
     return ApiResponse(
         success=True,

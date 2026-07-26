@@ -367,24 +367,24 @@ class GlossaryExportService(GlossaryServiceBase):
                             variant.is_active,
                         ),
                     )
-        for item in exceptions:
+        for exception in exceptions:
             GlossaryExportService._append(
                 sheets["Exceptions"],
                 (
-                    item.term.term_code,
-                    item.scope_type,
-                    item.department_id,
-                    item.document_id,
-                    item.document_revision_id,
-                    item.document_file_id,
-                    item.section_definition_id,
-                    item.language_code,
-                    item.exception_type,
-                    item.reason,
-                    item.effective_from,
-                    item.effective_to,
-                    item.is_active,
-                    item.approved_by,
+                    exception.term.term_code,
+                    exception.scope_type,
+                    exception.department_id,
+                    exception.document_id,
+                    exception.document_revision_id,
+                    exception.document_file_id,
+                    exception.section_definition_id,
+                    exception.language_code,
+                    exception.exception_type,
+                    exception.reason,
+                    exception.effective_from,
+                    exception.effective_to,
+                    exception.is_active,
+                    exception.approved_by,
                 ),
             )
         for sheet in sheets.values():

@@ -1,7 +1,8 @@
 """Physical document upload, history, and secure file endpoints."""
 
 from datetime import date
-from typing import Annotated, Literal
+from collections.abc import AsyncIterable
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
@@ -329,7 +330,7 @@ async def download_document_file(
         session, settings, user, metadata
     ).prepare_download(file_id)
     return StreamingResponse(
-        download.body,
+        cast(AsyncIterable[bytes], download.body),
         media_type=download.media_type,
         headers={
             "Content-Length": str(download.content_length),

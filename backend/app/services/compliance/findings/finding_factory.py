@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from typing import Any, cast
+from uuid import UUID
 
 from app.schemas.compliance_internal import FindingDraft
 from app.services.compliance._compat import (
@@ -366,23 +368,38 @@ class FindingFactory:
             status=string_value(
                 location.pop("status", FindingStatus.OPEN),
             ).upper(),
-            container_id=location.pop("container_id", None),
-            detected_section_id=location.pop("detected_section_id", None),
+            container_id=cast(
+                UUID | None,
+                location.pop("container_id", None),
+            ),
+            detected_section_id=cast(
+                UUID | None,
+                location.pop("detected_section_id", None),
+            ),
             detected_section_code=self._optional_string(
                 location.pop(
                     "detected_section_code",
                     location.pop("section_code", None),
                 ),
             ),
-            translation_group_id=location.pop(
-                "translation_group_id",
-                None,
+            translation_group_id=cast(
+                UUID | None,
+                location.pop(
+                    "translation_group_id",
+                    None,
+                ),
             ),
             translation_group_signature=self._optional_string(
                 location.pop("translation_group_signature", None),
             ),
-            extracted_block_id=location.pop("extracted_block_id", None),
-            ocr_block_id=location.pop("ocr_block_id", None),
+            extracted_block_id=cast(
+                UUID | None,
+                location.pop("extracted_block_id", None),
+            ),
+            ocr_block_id=cast(
+                UUID | None,
+                location.pop("ocr_block_id", None),
+            ),
             page_number=self._optional_int(
                 location.pop("page_number", None),
             ),
@@ -430,7 +447,7 @@ class FindingFactory:
             description=description,
             recommendation=recommendation,
             is_system_generated=False,
-            **location,
+            **cast(dict[str, Any], location),
         )
 
     def with_severity(
@@ -470,7 +487,7 @@ class FindingFactory:
     def _optional_int(value: object) -> int | None:
         if value is None:
             return None
-        return int(value)
+        return int(cast(Any, value))
 
     @staticmethod
     def _bounded_optional(value: object, maximum: int) -> str | None:

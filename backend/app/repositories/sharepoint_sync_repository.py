@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -413,7 +413,7 @@ class SharePointSyncRepository:
         )
         scope_filter = cls._profile_document_scope_filter(profile)
         if scope_filter is None and profile.scope_type is not FolderMappingScope.GLOBAL:
-            return statement.where(False)
+            return statement.where(false())
         if scope_filter is not None:
             statement = statement.where(scope_filter)
         return statement

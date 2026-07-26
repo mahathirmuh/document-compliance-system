@@ -5,14 +5,17 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.authorization import AuditAction
 from app.core.config import Settings
+from app.models.ocr_page_result import OCRPageResult
 from app.models.user import User
 from app.repositories.ocr_block_repository import OCRBlockRepository
 from app.repositories.ocr_page_result_repository import (
@@ -145,7 +148,7 @@ class OCRExportService:
         self,
         path: Path,
         run_payload: dict[str, object],
-        pages: list[object],
+        pages: Sequence[OCRPageResult],
     ) -> None:
         with path.open("w", encoding="utf-8", newline="\n") as output:
             output.write('{"run":')
@@ -153,10 +156,6 @@ class OCRExportService:
             output.write(',"pages":[')
             first = True
             for page in pages:
-                from app.models.ocr_page_result import OCRPageResult
-
-                if not isinstance(page, OCRPageResult):
-                    raise TypeError("Expected an OCRPageResult model.")
                 if not first:
                     output.write(",")
                 output.write('{"page":')
@@ -198,14 +197,10 @@ class OCRExportService:
     @staticmethod
     def _write_text(
         path: Path,
-        pages: list[object],
+        pages: Sequence[OCRPageResult],
     ) -> None:
-        from app.models.ocr_page_result import OCRPageResult
-
         with path.open("w", encoding="utf-8", newline="\n") as output:
             for index, page in enumerate(pages):
-                if not isinstance(page, OCRPageResult):
-                    raise TypeError("Expected an OCRPageResult model.")
                 if index:
                     output.write("\n")
                 output.write(f"[OCR PAGE {page.page_number}]\n")
@@ -213,7 +208,7 @@ class OCRExportService:
                 output.write("\n")
 
 
-def _write_json_value(output: object, payload: object) -> None:
+def _write_json_value(output: TextIO, payload: object) -> None:
     json.dump(
         payload,
         output,

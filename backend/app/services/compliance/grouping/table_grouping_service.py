@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import cast
 
 from app.schemas.compliance_internal import TranslationGroupData
 from app.services.compliance._compat import (
@@ -66,7 +67,9 @@ class TableGroupingService:
         table: object,
         expected_languages: Sequence[str] = ("id", "en", "zh"),
     ) -> TableLayout:
-        cells = list(read(table, "cells", []) or [])
+        cells = list(
+            cast(Iterable[object], read(table, "cells", []) or []),
+        )
         expected = tuple(language.casefold() for language in expected_languages)
         if not cells:
             return TableLayout(layout="UNKNOWN_LAYOUT")
@@ -216,7 +219,9 @@ class TableGroupingService:
         ignore_formula_only: bool,
         ignore_numeric_only: bool,
     ) -> list[TranslationGroupData]:
-        cells = list(read(table, "cells", []) or [])
+        cells = list(
+            cast(Iterable[object], read(table, "cells", []) or []),
+        )
         mapped_columns = set(layout.language_columns.values())
         if not mapped_columns:
             return []
@@ -305,7 +310,9 @@ class TableGroupingService:
         ignore_formula_only: bool,
         ignore_numeric_only: bool,
     ) -> list[TranslationGroupData]:
-        cells = list(read(table, "cells", []) or [])
+        cells = list(
+            cast(Iterable[object], read(table, "cells", []) or []),
+        )
         mapped_rows = set(layout.language_rows.values())
         by_position = {
             (self._row(cell), self._column(cell)): cell for cell in cells

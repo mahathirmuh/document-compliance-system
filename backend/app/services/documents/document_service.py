@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+import builtins
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -55,6 +56,8 @@ from app.services.documents.document_code_service import (
 )
 from app.utils.datetime import utc_now
 
+BulkDocumentOperation = Literal["archive", "restore", "update-status"]
+
 
 class DocumentService(DocumentServiceBase):
     """Own atomic document-register identity workflows."""
@@ -95,9 +98,9 @@ class DocumentService(DocumentServiceBase):
         return DocumentListResponse(
             items=[document_list_item(item) for item in items],
             page=filters.page,
-            page_size=filters.page_size,
-            total_items=total,
-            total_pages=(
+            pageSize=filters.page_size,
+            totalItems=total,
+            totalPages=(
                 (total + filters.page_size - 1) // filters.page_size
                 if total
                 else 0
@@ -532,8 +535,8 @@ class DocumentService(DocumentServiceBase):
         return response
 
     async def parse_code(self, value: str) -> DocumentParseResponse:
-        candidates: list[ParsedDocumentCode] = []
-        errors: list[str] = []
+        candidates: builtins.list[ParsedDocumentCode] = []
+        errors: builtins.list[str] = []
         for has_section in (True, False):
             try:
                 parsed_candidates = self.codes.parse_document_code_candidates(
@@ -547,13 +550,13 @@ class DocumentService(DocumentServiceBase):
                 if candidate not in candidates:
                     candidates.append(candidate)
 
-        resolved: list[
+        resolved: builtins.list[
             tuple[
                 ParsedDocumentCode,
                 Any,
                 Section | None,
                 DocumentType,
-                list[str],
+                builtins.list[str],
             ]
         ] = []
         for candidate in candidates:
@@ -636,8 +639,8 @@ class DocumentService(DocumentServiceBase):
     async def _bulk(
         self,
         *,
-        operation: str,
-        document_ids: list[UUID],
+        operation: BulkDocumentOperation,
+        document_ids: builtins.list[UUID],
         reason: str | None,
         document_status_id: UUID | None = None,
     ) -> BulkDocumentResult:
@@ -654,9 +657,9 @@ class DocumentService(DocumentServiceBase):
             if operation == "update-status"
             else None
         )
-        results: list[BulkDocumentItemResult] = []
-        changed: list[str] = []
-        item_changes: list[dict[str, Any]] = []
+        results: builtins.list[BulkDocumentItemResult] = []
+        changed: builtins.list[str] = []
+        item_changes: builtins.list[dict[str, Any]] = []
         for document_id in sorted(
             dict.fromkeys(document_ids),
             key=str,
@@ -680,6 +683,8 @@ class DocumentService(DocumentServiceBase):
                 revision_id = (
                     str(revision.id) if revision is not None else None
                 )
+                old_values: dict[str, Any]
+                new_values: dict[str, Any]
                 if operation == "archive":
                     if document.is_archived:
                         raise document_error("Document is already archived.")
@@ -959,7 +964,12 @@ class DocumentService(DocumentServiceBase):
     async def _resolve_parsed_candidate(
         self,
         candidate: ParsedDocumentCode,
-    ) -> tuple[Any, Section | None, DocumentType, list[str]]:
+    ) -> tuple[
+        Any,
+        Section | None,
+        DocumentType,
+        builtins.list[str],
+    ]:
         department = await self.departments.get_by_code(
             candidate.department_code
         )
@@ -1010,7 +1020,7 @@ class DocumentService(DocumentServiceBase):
                 f'Document Type "{document_type.code}" does not use a section.',
                 field="value",
             )
-        warnings: list[str] = []
+        warnings: builtins.list[str] = []
         existing = await self.documents.get_by_base_code(
             candidate.base_document_code
         )

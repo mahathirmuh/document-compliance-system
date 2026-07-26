@@ -206,10 +206,11 @@ class CompliancePipeline:
         stage = ""
         for validator in self.validators:
             await self._check_cancelled(cancellation_check)
+            validator_code = validator.code
             next_stage, progress = self._run_stage(
                 COMPLIANCE_VALIDATION_FAILED,
                 _VALIDATION_FAILED_MESSAGE,
-                lambda code=validator.code: self._validator_progress(code),
+                lambda: self._validator_progress(validator_code),
             )
             if next_stage != stage:
                 stage = next_stage
@@ -223,10 +224,11 @@ class CompliancePipeline:
                 _VALIDATION_FAILED_MESSAGE,
                 validator.validate(evaluated_context),
             )
+            current_findings = validator_result.findings
             validator_findings = self._run_stage(
                 COMPLIANCE_VALIDATION_FAILED,
                 _VALIDATION_FAILED_MESSAGE,
-                lambda findings=validator_result.findings: tuple(findings),
+                lambda: tuple(current_findings),
             )
             results.append(validator_result)
             generated_findings.extend(validator_findings)
@@ -399,7 +401,7 @@ class CompliancePipeline:
         context: ComplianceValidationContext,
     ) -> list[object]:
         prerequisites = context.prerequisites
-        findings = []
+        findings: list[object] = []
         if bool_value(
             first(
                 prerequisites,

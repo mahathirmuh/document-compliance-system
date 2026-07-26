@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -292,6 +292,6 @@ def _optional_string(value: object) -> str | None:
 
 def _optional_float(value: object) -> float | None:
     try:
-        return float(value) if value is not None else None
+        return float(cast(Any, value)) if value is not None else None
     except (TypeError, ValueError):
         return None

@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +54,7 @@ from app.schemas.compliance_internal import (
     ComplianceValidationContext,
     FindingDraft,
     TranslationGroupMemberData,
+    ValidatorResult,
 )
 from app.services.compliance._compat import enum_value, json_safe, mapping
 from app.services.compliance.contracts import CompliancePipelineResult
@@ -149,13 +151,14 @@ class CompliancePersistenceService:
             for code in context.rule.required_sections
             if code not in detected_section_codes
         ]
+        finding_drafts = cast(Sequence[FindingDraft], result.findings)
         severity_counts = Counter(
             FindingSeverity(str(finding.severity))
-            for finding in result.findings
+            for finding in finding_drafts
         )
         open_findings = sum(
             FindingStatus(str(finding.status)) in _OPEN_FINDING_STATUSES
-            for finding in result.findings
+            for finding in finding_drafts
         )
         metrics = self._run_metrics(result)
         run = ComplianceRun(
@@ -215,7 +218,7 @@ class CompliancePersistenceService:
         persisted_findings = await self._persist_findings(
             run,
             job,
-            result.findings,
+            finding_drafts,
             section_by_code,
             group_by_index,
         )
@@ -255,7 +258,11 @@ class CompliancePersistenceService:
     ) -> list[str]:
         """Use the validator's evidence thresholds for retained presence."""
 
-        for validator in result.validator_results:
+        validator_results = cast(
+            Sequence[ValidatorResult],
+            result.validator_results,
+        )
+        for validator in validator_results:
             if (
                 enum_value(validator.validator_code).upper()
                 != "LANGUAGE_PRESENCE"
@@ -447,7 +454,7 @@ class CompliancePersistenceService:
             for member in source.members:
                 values = self._member_source_values(
                     member,
-                    block_by_id.get(member.block_id),
+                    block_by_id.get(cast(UUID, member.block_id)),
                 )
                 if not any(
                     values[key]
@@ -683,9 +690,13 @@ class CompliancePersistenceService:
     def _run_status(
         result: CompliancePipelineResult,
     ) -> ComplianceRunStatus:
+        validator_results = cast(
+            Sequence[ValidatorResult],
+            result.validator_results,
+        )
         partial = bool(result.warnings) or any(
             str(validator.status) in {"NOT_EVALUATED", "NEEDS_REVIEW"}
-            for validator in result.validator_results
+            for validator in validator_results
         )
         return (
             ComplianceRunStatus.PARTIALLY_COMPLETED
@@ -697,9 +708,13 @@ class CompliancePersistenceService:
     def _component_scores(
         result: CompliancePipelineResult,
     ) -> dict[str, Decimal]:
+        validator_results = cast(
+            Sequence[ValidatorResult],
+            result.validator_results,
+        )
         by_code = {
             str(validator.validator_code): _decimal(validator.score)
-            for validator in result.validator_results
+            for validator in validator_results
         }
         return {
             field: by_code.get(code, Decimal(0))
@@ -710,6 +725,10 @@ class CompliancePersistenceService:
     def _run_metrics(
         result: CompliancePipelineResult,
     ) -> dict[str, object]:
+        validator_results = cast(
+            Sequence[ValidatorResult],
+            result.validator_results,
+        )
         metrics: dict[str, object] = {
             "scoreBreakdown": {
                 "weightedScore": result.score.weighted_score,
@@ -732,7 +751,7 @@ class CompliancePersistenceService:
                     "metrics": dict(validator.metrics),
                     "warnings": list(validator.warnings),
                 }
-                for validator in result.validator_results
+                for validator in validator_results
             },
             "structuralValidationOnly": True,
             "semanticSimilarityEvaluated": False,

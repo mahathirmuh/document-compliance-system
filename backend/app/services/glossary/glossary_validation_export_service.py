@@ -147,18 +147,18 @@ class GlossaryValidationExportService(GlossaryServiceBase):
                 "exception_id",
             )
         )
-        for item in matches.items:
+        for match in matches.items:
             match_sheet.append(
                 (
-                    item.term_code,
-                    item.concept_name,
-                    item.language_code.value,
-                    item.matched_text,
-                    item.match_type.value,
-                    item.is_preferred,
-                    item.is_forbidden,
-                    item.source_reference,
-                    str(item.exception_id) if item.exception_id else None,
+                    match.term_code,
+                    match.concept_name,
+                    match.language_code.value,
+                    match.matched_text,
+                    match.match_type.value,
+                    match.is_preferred,
+                    match.is_forbidden,
+                    match.source_reference,
+                    str(match.exception_id) if match.exception_id else None,
                 )
             )
         finding_sheet = workbook.create_sheet("Findings")
@@ -173,18 +173,18 @@ class GlossaryValidationExportService(GlossaryServiceBase):
                 "is_repeat",
             )
         )
-        for item in findings.items:
+        for finding in findings.items:
             finding_sheet.append(
                 (
-                    item.finding_code,
-                    item.severity,
-                    item.status,
-                    item.title,
-                    item.language_code.value
-                    if item.language_code
+                    finding.finding_code,
+                    finding.severity,
+                    finding.status,
+                    finding.title,
+                    finding.language_code.value
+                    if finding.language_code
                     else None,
-                    item.source_reference,
-                    item.is_repeat,
+                    finding.source_reference,
+                    finding.is_repeat,
                 )
             )
         for sheet in workbook.worksheets:

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.extracted_block import ExtractedBlock
 from app.models.extracted_container import (
@@ -210,7 +212,7 @@ class LanguageBlockResultRepository:
         page: int = 1,
         page_size: int = 100,
     ) -> tuple[list[LanguageBlockReadRow], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             LanguageBlockResult.language_detection_run_id == language_detection_run_id
         ]
         if language_code is not None:
@@ -292,7 +294,7 @@ class LanguageBlockResultRepository:
         language_detection_run_id: UUID,
         *,
         limit: int,
-    ) -> list[LanguageBlockReadRow]:
+    ) -> builtins.list[LanguageBlockReadRow]:
         rows, _ = await self.list(
             language_detection_run_id,
             page=1,
@@ -305,7 +307,7 @@ class LanguageBlockResultRepository:
         language_detection_run_id: UUID,
         *,
         limit: int,
-    ) -> list[ComplianceBlockData]:
+    ) -> builtins.list[ComplianceBlockData]:
         """Load bounded Phase 6/7 source, structure, and language provenance."""
         statement = (
             select(
@@ -455,7 +457,7 @@ class LanguageBlockResultRepository:
         extracted_block_ids: Sequence[UUID] | None = None,
         ocr_block_ids: Sequence[UUID] | None = None,
         language_code: LanguageCode | None = None,
-    ) -> list[LanguageBlockResult]:
+    ) -> builtins.list[LanguageBlockResult]:
         """Load viewer annotations without joining or returning source text."""
         statement = select(LanguageBlockResult).where(
             LanguageBlockResult.language_detection_run_id == language_detection_run_id
@@ -463,7 +465,7 @@ class LanguageBlockResultRepository:
         source_filter_requested = (
             extracted_block_ids is not None or ocr_block_ids is not None
         )
-        source_predicates: list[object] = []
+        source_predicates: list[ColumnElement[bool]] = []
         if extracted_block_ids:
             source_predicates.append(
                 LanguageBlockResult.extracted_block_id.in_(extracted_block_ids)

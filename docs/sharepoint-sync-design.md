@@ -14,6 +14,14 @@ business revisions.
 Delete policies are limited to ignore, archive local, mark missing, or local
 soft-delete. Synchronisation never hard-deletes document history.
 
+For SharePoint-backed files, application soft delete and restore are paired
+Graph move operations between the active path and the controlled deleted
+namespace. Native SharePoint Online recycle-bin restore is not exposed as a
+production-safe work/school drive API in Graph v1.0, so provider capability
+`supports_restore` is false. A policy-driven Graph `DELETE` only moves the
+remote item into the Microsoft 365 recycle bin; it does not prove physical
+purge. Sync and retention code never use Graph beta restore endpoints.
+
 ## Transaction boundaries
 
 Jobs and claimed items are committed before network I/O. Graph transfers occur
@@ -49,4 +57,3 @@ and only queue Celery work. Heavy sync never runs in the webhook request.
 
 Subscriptions are renewed by Celery Beat before expiry. Renewal failures create
 an administrator notification and retain diagnostic request IDs without tokens.
-

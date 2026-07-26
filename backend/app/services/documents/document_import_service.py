@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 from zipfile import BadZipFile, ZipFile, is_zipfile
 
@@ -319,14 +319,16 @@ class DocumentImportService(DocumentServiceBase):
             for entity in scalar_result.all():
                 parent = None
                 if parent_kind == "department":
+                    section = cast(Section, entity)
                     parent = (
-                        entity.department.code
-                        if entity.department is not None
+                        section.department.code
+                        if section.department is not None
                         else None
                     )
                 elif parent_kind == "document_type":
-                    if entity.document_type is not None:
-                        parent = entity.document_type.code
+                    validation_rule = cast(ValidationRule, entity)
+                    if validation_rule.document_type is not None:
+                        parent = validation_rule.document_type.code
                     else:
                         parent = "GLOBAL"
                 reference.append(

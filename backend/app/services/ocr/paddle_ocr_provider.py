@@ -7,7 +7,7 @@ import importlib.metadata
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from app.models.ocr_job import OCRLanguageProfile
 from app.models.ocr_page_result import OCRPageStatus
@@ -431,7 +431,10 @@ class PaddleOCRProvider(BaseOCRProvider):
             polygon = cls._normalise_polygon(polygon_value)
             if len(polygon) < 4:
                 continue
-            confidence = min(1.0, max(0.0, float(confidence_value)))
+            confidence = min(
+                1.0,
+                max(0.0, float(cast(Any, confidence_value))),
+            )
             xs = [point[0] for point in polygon]
             ys = [point[1] for point in polygon]
             blocks.append(
@@ -547,7 +550,7 @@ class PaddleOCRProvider(BaseOCRProvider):
         if value is None or isinstance(value, bool):
             return None
         try:
-            numeric_value = float(value)
+            numeric_value = float(cast(Any, value))
         except (TypeError, ValueError):
             return None
         if not numeric_value.is_integer():
@@ -578,7 +581,9 @@ class PaddleOCRProvider(BaseOCRProvider):
         maximum: float,
     ) -> float:
         try:
-            parsed = float(default if value is None else value)
+            parsed = float(
+                cast(Any, default if value is None else value)
+            )
         except (TypeError, ValueError):
             parsed = default
         return min(maximum, max(minimum, parsed))
@@ -592,7 +597,7 @@ class PaddleOCRProvider(BaseOCRProvider):
         maximum: int,
     ) -> int:
         try:
-            parsed = int(default if value is None else value)
+            parsed = int(cast(Any, default if value is None else value))
         except (TypeError, ValueError):
             parsed = default
         return min(maximum, max(minimum, parsed))

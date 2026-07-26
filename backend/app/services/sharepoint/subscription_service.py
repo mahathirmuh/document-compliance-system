@@ -71,9 +71,9 @@ class GraphSubscriptionService(SharePointServiceBase):
                 for item in items
             ],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=total_pages(total, page_size),
         )
 
     async def create(

@@ -17,6 +17,16 @@ sync history, and webhook events.
   permits it.
 - Remote delete detection follows the sync profile delete policy; it never
   triggers an implicit hard delete.
+- SharePoint application soft delete/restore uses reversible Graph move
+  operations against the controlled deleted namespace. Provider-native
+  recycle-bin restore is not supported for SharePoint Online work/school
+  drives through production Graph v1.0.
+- A SharePoint Graph `DELETE` moves the item into the Microsoft 365 recycle
+  bin. Removing the application row is permanent only from the application's
+  perspective and must not be documented as verified physical purge.
+- Graph `permanentDelete` is intentionally disabled. Enabling an irreversible
+  remote purge requires separate legal approval, an explicit policy, tenant
+  permission review, and a dedicated implementation/test cycle.
 
 Recommended initial policy:
 
@@ -32,4 +42,3 @@ Recommended initial policy:
 
 These values are examples, not organizational approvals. Administrators should
 run dry-run, obtain owner/legal approval, then enable policy execution.
-

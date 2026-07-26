@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -153,7 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if graph_client is not None and hasattr(graph_client, "close"):
                 await graph_client.close()
             await close_default_storage()
-            await redis_client.aclose()
+            await cast(Any, redis_client).aclose()
             await dispose_engine()
 
     application = FastAPI(

@@ -12,9 +12,7 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class DepartmentRepository(BaseMasterDataRepository[Department]):
     model = Department
-    sortable_columns: ClassVar[
-        dict[str, InstrumentedAttribute[Any]]
-    ] = {
+    sortable_columns: ClassVar[dict[str, InstrumentedAttribute[Any]]] = {
         "code": Department.code,
         "name": Department.name,
         "isActive": Department.is_active,

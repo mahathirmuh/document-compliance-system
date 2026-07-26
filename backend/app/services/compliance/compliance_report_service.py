@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from math import ceil
@@ -981,7 +982,7 @@ def _language_order_valid(run: ComplianceRun) -> bool | None:
     return (invalid or 0) == 0
 
 
-def _findings_summary(rows: list[Any]) -> FindingsReportSummary:
+def _findings_summary(rows: Sequence[Any]) -> FindingsReportSummary:
     status_counts: Counter[FindingStatus] = Counter()
     severity_counts: Counter[FindingSeverity] = Counter()
     department_counts: Counter[str] = Counter()

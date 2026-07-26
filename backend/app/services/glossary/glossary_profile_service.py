@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from typing import Any
 from uuid import UUID
 
@@ -79,9 +80,9 @@ class GlossaryProfileService(GlossaryServiceBase):
         return GlossaryProfileListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, profile_id: UUID) -> GlossaryProfileResponse:
@@ -169,7 +170,7 @@ class GlossaryProfileService(GlossaryServiceBase):
         *,
         department_id: UUID | None,
         document_type_id: UUID | None,
-    ) -> list[GlossaryProfile]:
+    ) -> builtins.list[GlossaryProfile]:
         return await self.profiles.resolve_for_scope(
             department_id=department_id,
             document_type_id=document_type_id,

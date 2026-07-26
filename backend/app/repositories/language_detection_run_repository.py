@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.document_file import DocumentFile
 from app.models.language_detection_job import LanguageDetectionJob
@@ -20,7 +23,7 @@ class LanguageDetectionRunRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(LanguageDetectionRun.job).joinedload(
                 LanguageDetectionJob.requester
@@ -165,6 +168,6 @@ class LanguageDetectionRunRepository:
             .where(*conditions)
             .values({latest_column: language_detection_run_id})
         )
-        if result.rowcount != 1:
+        if cast(CursorResult[Any], result).rowcount != 1:
             raise ValueError("Language detection source is no longer current.")
         await self.session.flush()

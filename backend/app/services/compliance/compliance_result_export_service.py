@@ -78,9 +78,10 @@ class ComplianceResultExportService(ComplianceQueryService):
                 title="Compliance export format is invalid.",
             )
         run = await self._run(run_id)
-        section_total = await self.sections.count_for_run(run.id)
+        section_repository = self._detected_section_repository()
+        section_total = await section_repository.count_for_run(run.id)
         section_language_total = (
-            await self.sections.count_language_results_for_run(run.id)
+            await section_repository.count_language_results_for_run(run.id)
         )
         group_total = await self.groups.count_for_run(run.id)
         group_member_total = await self.groups.count_members_for_run(run.id)
@@ -185,8 +186,9 @@ class ComplianceResultExportService(ComplianceQueryService):
         output: list[object] = []
         page = 1
         page_size = min(self.settings.compliance_db_batch_size, total)
+        section_repository = self._detected_section_repository()
         while len(output) < total:
-            items = await self.sections.list_for_run(
+            items = await section_repository.list_for_run(
                 run_id,
                 page=page,
                 page_size=page_size,

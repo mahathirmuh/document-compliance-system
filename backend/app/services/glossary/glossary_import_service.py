@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
+from typing import Any, cast
 from uuid import UUID
 from zipfile import is_zipfile
 
@@ -19,8 +20,13 @@ from sqlalchemy.orm import selectinload
 
 from app.core.authorization import AuditAction
 from app.models.glossary_enums import (
+    GlossaryExceptionScopeType,
+    GlossaryExceptionType,
     GlossaryLanguageCode,
+    GlossaryScopeType,
+    GlossaryTermSeverity,
     GlossaryTermType,
+    GlossaryVariantType,
 )
 from app.models.glossary_exception import GlossaryException
 from app.models.glossary_profile import GlossaryProfile
@@ -153,12 +159,18 @@ def _text(value: object, *, required: bool = False) -> str | None:
     return normalized or None
 
 
+def _required_text(value: object) -> str:
+    normalized = _text(value, required=True)
+    assert normalized is not None
+    return normalized
+
+
 def _integer(value: object, *, default: int = 0) -> int:
     if value is None or value == "":
         return default
     if isinstance(value, bool):
         raise ValueError("Boolean is not an integer.")  # noqa: TRY004
-    result = int(value)
+    result = int(cast(Any, value))
     if isinstance(value, float) and result != value:
         raise ValueError("Integer value must not contain decimals.")
     return result
@@ -270,28 +282,31 @@ class GlossaryImportService(GlossaryServiceBase):
             ).all()
         }
         for row in validation.rows["Profiles"]:
-            payload = row.payload
-            assert isinstance(payload, GlossaryProfileCreate)
-            item = profiles.get(payload.code.upper())
-            if item is not None and mode is GlossaryImportMode.CREATE_ONLY:
+            profile_payload = row.payload
+            assert isinstance(profile_payload, GlossaryProfileCreate)
+            profile_item = profiles.get(profile_payload.code.upper())
+            if (
+                profile_item is not None
+                and mode is GlossaryImportMode.CREATE_ONLY
+            ):
                 skipped["profiles"] += 1
                 continue
-            if item is None:
-                item = GlossaryProfile(
-                    **payload.model_dump(by_alias=False),
+            if profile_item is None:
+                profile_item = GlossaryProfile(
+                    **profile_payload.model_dump(by_alias=False),
                     created_by=self.user.id,
                     updated_by=self.user.id,
                 )
-                self.session.add(item)
-                profiles[item.code] = item
+                self.session.add(profile_item)
+                profiles[profile_item.code] = profile_item
                 created["profiles"] += 1
             else:
-                for key, value in payload.model_dump(
+                for field_name, value in profile_payload.model_dump(
                     by_alias=False
                 ).items():
-                    setattr(item, key, value)
-                item.version += 1
-                item.updated_by = self.user.id
+                    setattr(profile_item, field_name, value)
+                profile_item.version += 1
+                profile_item.updated_by = self.user.id
                 updated["profiles"] += 1
         await self.session.flush()
 
@@ -305,18 +320,21 @@ class GlossaryImportService(GlossaryServiceBase):
         }
         term_by_code: dict[str, GlossaryTerm] = {}
         for row in validation.rows["Terms"]:
-            payload = row.payload
-            assert isinstance(payload, GlossaryTermCreate)
+            term_payload = row.payload
+            assert isinstance(term_payload, GlossaryTermCreate)
             profile_code = str(row.context["profileCode"])
-            key = (profile_code, payload.term_code.upper())
-            item = terms.get(key)
-            if item is not None and mode is GlossaryImportMode.CREATE_ONLY:
+            term_key = (profile_code, term_payload.term_code.upper())
+            term_item = terms.get(term_key)
+            if (
+                term_item is not None
+                and mode is GlossaryImportMode.CREATE_ONLY
+            ):
                 skipped["terms"] += 1
-                term_by_code[payload.term_code.upper()] = item
+                term_by_code[term_payload.term_code.upper()] = term_item
                 continue
-            if item is None:
-                item = GlossaryTerm(
-                    **payload.model_dump(
+            if term_item is None:
+                term_item = GlossaryTerm(
+                    **term_payload.model_dump(
                         by_alias=False,
                         exclude={"glossary_profile_id"},
                     ),
@@ -324,18 +342,18 @@ class GlossaryImportService(GlossaryServiceBase):
                     created_by=self.user.id,
                     updated_by=self.user.id,
                 )
-                self.session.add(item)
-                terms[key] = item
+                self.session.add(term_item)
+                terms[term_key] = term_item
                 created["terms"] += 1
             else:
-                for field, value in payload.model_dump(
+                for field_name, value in term_payload.model_dump(
                     by_alias=False,
                     exclude={"glossary_profile_id"}
                 ).items():
-                    setattr(item, field, value)
-                item.updated_by = self.user.id
+                    setattr(term_item, field_name, value)
+                term_item.updated_by = self.user.id
                 updated["terms"] += 1
-            term_by_code[payload.term_code.upper()] = item
+            term_by_code[term_payload.term_code.upper()] = term_item
         await self.session.flush()
 
         translations: dict[
@@ -352,51 +370,63 @@ class GlossaryImportService(GlossaryServiceBase):
         term_code_by_id = {
             term.id: term.term_code for term in term_by_code.values()
         }
-        for item in existing_translations:
-            term_code = term_code_by_id.get(item.glossary_term_id)
+        for existing_translation in existing_translations:
+            term_code = term_code_by_id.get(
+                existing_translation.glossary_term_id
+            )
             if term_code:
                 translations[
                     (
                         term_code,
-                        item.language_code.value,
-                        item.normalised_term,
+                        existing_translation.language_code.value,
+                        existing_translation.normalised_term,
                     )
-                ] = item
+                ] = existing_translation
         for row in validation.rows["Translations"]:
-            payload = row.payload
-            assert isinstance(payload, GlossaryTranslationCreate)
+            translation_payload = row.payload
+            assert isinstance(
+                translation_payload,
+                GlossaryTranslationCreate,
+            )
             term_code = row.key
             term = term_by_code[term_code]
             normalized = normalize_term(
-                payload.term_text,
+                translation_payload.term_text,
                 case_sensitive=term.is_case_sensitive,
             )
-            key = (term_code, payload.language_code.value, normalized)
-            item = translations.get(key)
-            if item is not None and mode is GlossaryImportMode.CREATE_ONLY:
+            translation_key = (
+                term_code,
+                translation_payload.language_code.value,
+                normalized,
+            )
+            translation_item = translations.get(translation_key)
+            if (
+                translation_item is not None
+                and mode is GlossaryImportMode.CREATE_ONLY
+            ):
                 skipped["translations"] += 1
                 continue
-            if item is None:
-                item = GlossaryTranslation(
-                    **payload.model_dump(by_alias=False),
+            if translation_item is None:
+                translation_item = GlossaryTranslation(
+                    **translation_payload.model_dump(by_alias=False),
                     glossary_term_id=term.id,
                     normalised_term=normalized,
                 )
-                item.variants = []
-                self.session.add(item)
-                translations[key] = item
+                translation_item.variants = []
+                self.session.add(translation_item)
+                translations[translation_key] = translation_item
                 created["translations"] += 1
             else:
-                for field, value in payload.model_dump(
+                for field_name, value in translation_payload.model_dump(
                     by_alias=False
                 ).items():
-                    setattr(item, field, value)
+                    setattr(translation_item, field_name, value)
                 updated["translations"] += 1
         await self.session.flush()
 
         for row in validation.rows["Variants"]:
-            payload = row.payload
-            assert isinstance(payload, GlossaryVariantCreate)
+            variant_payload = row.payload
+            assert isinstance(variant_payload, GlossaryVariantCreate)
             translation_key = (
                 row.key,
                 str(row.context["languageCode"]),
@@ -405,7 +435,7 @@ class GlossaryImportService(GlossaryServiceBase):
             translation = translations[translation_key]
             term = term_by_code[row.key]
             normalized = normalize_term(
-                payload.variant_text,
+                variant_payload.variant_text,
                 case_sensitive=term.is_case_sensitive,
             )
             existing = next(
@@ -419,9 +449,9 @@ class GlossaryImportService(GlossaryServiceBase):
             if existing is not None and mode is GlossaryImportMode.CREATE_ONLY:
                 skipped["variants"] += 1
                 continue
-            values = payload.model_dump(by_alias=False)
+            values = variant_payload.model_dump(by_alias=False)
             if (
-                payload.variant_type.value == "FORBIDDEN_VARIANT"
+                variant_payload.variant_type.value == "FORBIDDEN_VARIANT"
             ):
                 values["is_allowed"] = False
             if existing is None:
@@ -439,12 +469,12 @@ class GlossaryImportService(GlossaryServiceBase):
                 updated["variants"] += 1
 
         for row in validation.rows["Exceptions"]:
-            payload = row.payload
-            assert isinstance(payload, GlossaryExceptionCreate)
+            exception_payload = row.payload
+            assert isinstance(exception_payload, GlossaryExceptionCreate)
             term = term_by_code[row.key]
             self.session.add(
                 GlossaryException(
-                    **payload.model_dump(
+                    **exception_payload.model_dump(
                         by_alias=False,
                         exclude={"glossary_term_id"},
                     ),
@@ -505,13 +535,12 @@ class GlossaryImportService(GlossaryServiceBase):
                 code = str(_text(row["code"], required=True)).upper()
                 if code in seen_profile_codes:
                     raise ValueError("Duplicate profile code in workbook.")
-                payload = GlossaryProfileCreate(
+                profile_payload = GlossaryProfileCreate(
                     code=code,
-                    name=_text(row["name"], required=True),
+                    name=_required_text(row["name"]),
                     description=_text(row["description"]),
-                    scope_type=_text(
-                        row["scope_type"],
-                        required=True,
+                    scope_type=GlossaryScopeType(
+                        _required_text(row["scope_type"])
                     ),
                     department_id=_uuid(row["department_id"]),
                     document_type_id=_uuid(row["document_type_id"]),
@@ -525,12 +554,12 @@ class GlossaryImportService(GlossaryServiceBase):
                         "Profiles",
                         row_number,
                         code,
-                        payload,
+                        profile_payload,
                         {},
                     )
                 )
                 preview["Profiles"].append(
-                    payload.model_dump(mode="json", by_alias=True)
+                    profile_payload.model_dump(mode="json", by_alias=True)
                 )
             except (ValueError, ValidationError) as exc:
                 issues.append(self._issue("Profiles", row_number, exc))
@@ -554,16 +583,17 @@ class GlossaryImportService(GlossaryServiceBase):
                     if profile is not None
                     else UUID(int=0)
                 )
-                payload = GlossaryTermCreate(
+                term_payload = GlossaryTermCreate(
                     glossary_profile_id=profile_id,
                     term_code=term_code,
-                    concept_name=_text(
-                        row["concept_name"],
-                        required=True,
-                    ),
+                    concept_name=_required_text(row["concept_name"]),
                     description=_text(row["description"]),
-                    term_type=_text(row["term_type"], required=True),
-                    severity=_text(row["severity"], required=True),
+                    term_type=GlossaryTermType(
+                        _required_text(row["term_type"])
+                    ),
+                    severity=GlossaryTermSeverity(
+                        _required_text(row["severity"])
+                    ),
                     is_case_sensitive=_bool(
                         row["is_case_sensitive"],
                         default=False,
@@ -581,18 +611,18 @@ class GlossaryImportService(GlossaryServiceBase):
                     notes=_text(row["notes"]),
                 )
                 seen_term_codes.add(term_code)
-                term_definitions[term_code] = payload
+                term_definitions[term_code] = term_payload
                 term_profile_codes[term_code] = profile_code
                 validated["Terms"].append(
                     ValidatedImportRow(
                         "Terms",
                         row_number,
                         term_code,
-                        payload,
+                        term_payload,
                         {"profileCode": profile_code},
                     )
                 )
-                data = payload.model_dump(mode="json", by_alias=True)
+                data = term_payload.model_dump(mode="json", by_alias=True)
                 data["profileCode"] = profile_code
                 preview["Terms"].append(data)
             except (ValueError, ValidationError) as exc:
@@ -613,12 +643,11 @@ class GlossaryImportService(GlossaryServiceBase):
                 term = term_definitions.get(term_code)
                 if term is None:
                     raise ValueError("Referenced term does not exist.")
-                payload = GlossaryTranslationCreate(
-                    language_code=_text(
-                        row["language_code"],
-                        required=True,
+                translation_payload = GlossaryTranslationCreate(
+                    language_code=GlossaryLanguageCode(
+                        _required_text(row["language_code"])
                     ),
-                    term_text=_text(row["term_text"], required=True),
+                    term_text=_required_text(row["term_text"]),
                     is_preferred=_bool(
                         row["is_preferred"],
                         default=False,
@@ -637,32 +666,38 @@ class GlossaryImportService(GlossaryServiceBase):
                     is_active=_bool(row["is_active"], default=True),
                 )
                 normalized = normalize_term(
-                    payload.term_text,
+                    translation_payload.term_text,
                     case_sensitive=term.is_case_sensitive,
                 )
                 key = (
                     term_code,
-                    payload.language_code.value,
+                    translation_payload.language_code.value,
                     normalized,
                 )
                 if key in seen_translations:
                     raise ValueError("Duplicate translation in workbook.")
                 if term.is_regex:
                     self.matching.regex.validate(
-                        payload.term_text,
+                        translation_payload.term_text,
                         case_sensitive=term.is_case_sensitive,
                     )
                 seen_translations.add(key)
-                translation_rows[key] = payload
+                translation_rows[key] = translation_payload
                 languages_by_term[term_code].add(
-                    payload.language_code.value
+                    translation_payload.language_code.value
                 )
-                if payload.is_preferred:
+                if translation_payload.is_preferred:
                     preferred_counts[
-                        (term_code, payload.language_code.value)
+                        (
+                            term_code,
+                            translation_payload.language_code.value,
+                        )
                     ] += 1
                     if preferred_counts[
-                        (term_code, payload.language_code.value)
+                        (
+                            term_code,
+                            translation_payload.language_code.value,
+                        )
                     ] > 1:
                         raise ValueError(
                             "Conflicting preferred translations."
@@ -672,12 +707,15 @@ class GlossaryImportService(GlossaryServiceBase):
                         "Translations",
                         row_number,
                         term_code,
-                        payload,
+                        translation_payload,
                         {"normalisedTerm": normalized},
                     )
                 )
                 preview["Translations"].append(
-                    payload.model_dump(mode="json", by_alias=True)
+                    translation_payload.model_dump(
+                        mode="json",
+                        by_alias=True,
+                    )
                     | {"termCode": term_code}
                 )
             except (ValueError, ValidationError) as exc:
@@ -738,20 +776,16 @@ class GlossaryImportService(GlossaryServiceBase):
                     raise ValueError(
                         "Referenced preferred translation does not exist."
                     )
-                payload = GlossaryVariantCreate(
-                    variant_text=_text(
-                        row["variant_text"],
-                        required=True,
-                    ),
-                    variant_type=_text(
-                        row["variant_type"],
-                        required=True,
+                variant_payload = GlossaryVariantCreate(
+                    variant_text=_required_text(row["variant_text"]),
+                    variant_type=GlossaryVariantType(
+                        _required_text(row["variant_type"])
                     ),
                     is_allowed=_bool(row["is_allowed"], default=True),
                     is_active=_bool(row["is_active"], default=True),
                 )
                 normalized = normalize_term(
-                    payload.variant_text,
+                    variant_payload.variant_text,
                     case_sensitive=term.is_case_sensitive,
                 )
                 key = (term_code, language, normalized)
@@ -767,7 +801,7 @@ class GlossaryImportService(GlossaryServiceBase):
                         "Variants",
                         row_number,
                         term_code,
-                        payload,
+                        variant_payload,
                         {
                             "languageCode": language,
                             "preferredNormalised": preferred_normalized,
@@ -775,7 +809,10 @@ class GlossaryImportService(GlossaryServiceBase):
                     )
                 )
                 preview["Variants"].append(
-                    payload.model_dump(mode="json", by_alias=True)
+                    variant_payload.model_dump(
+                        mode="json",
+                        by_alias=True,
+                    )
                     | {
                         "termCode": term_code,
                         "languageCode": language,
@@ -792,11 +829,10 @@ class GlossaryImportService(GlossaryServiceBase):
                 ).upper()
                 if term_code not in term_definitions:
                     raise ValueError("Referenced term does not exist.")
-                payload = GlossaryExceptionCreate(
+                exception_payload = GlossaryExceptionCreate(
                     glossary_term_id=UUID(int=0),
-                    scope_type=_text(
-                        row["scope_type"],
-                        required=True,
+                    scope_type=GlossaryExceptionScopeType(
+                        _required_text(row["scope_type"])
                     ),
                     department_id=_uuid(row["department_id"]),
                     document_id=_uuid(row["document_id"]),
@@ -807,12 +843,19 @@ class GlossaryImportService(GlossaryServiceBase):
                     section_definition_id=_uuid(
                         row["section_definition_id"]
                     ),
-                    language_code=_text(row["language_code"]),
-                    exception_type=_text(
-                        row["exception_type"],
-                        required=True,
+                    language_code=(
+                        GlossaryLanguageCode(language_code)
+                        if (
+                            language_code := _text(
+                                row["language_code"]
+                            )
+                        )
+                        else None
                     ),
-                    reason=_text(row["reason"], required=True),
+                    exception_type=GlossaryExceptionType(
+                        _required_text(row["exception_type"])
+                    ),
+                    reason=_required_text(row["reason"]),
                     effective_from=_date(row["effective_from"]),
                     effective_to=_date(row["effective_to"]),
                     is_active=_bool(row["is_active"], default=True),
@@ -823,12 +866,15 @@ class GlossaryImportService(GlossaryServiceBase):
                         "Exceptions",
                         row_number,
                         term_code,
-                        payload,
+                        exception_payload,
                         {},
                     )
                 )
                 preview["Exceptions"].append(
-                    payload.model_dump(mode="json", by_alias=True)
+                    exception_payload.model_dump(
+                        mode="json",
+                        by_alias=True,
+                    )
                     | {"termCode": term_code}
                 )
             except (ValueError, ValidationError) as exc:

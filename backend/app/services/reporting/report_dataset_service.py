@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from statistics import median
+from typing import Any, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.compliance_run import ComplianceRun
 from app.models.document import Document
@@ -109,7 +113,7 @@ class ReportDatasetService:
                 for key, value in status_counts.items()
             },
         }
-        rows = [
+        rows: list[dict[str, object]] = [
             {
                 "documentId": str(item.document_id),
                 "revisionId": str(item.document_revision_id),
@@ -170,7 +174,7 @@ class ReportDatasetService:
             )
             .limit(self.maximum_rows)
         )
-        rows = [
+        rows: list[dict[str, object]] = [
             {
                 "findingCode": finding_code.value,
                 "severity": severity.value,
@@ -184,7 +188,9 @@ class ReportDatasetService:
         return ReportDataset(
             report_type=AdvancedReportType.FINDINGS_ANALYTICS,
             summary={
-                "totalFindings": sum(int(item["count"]) for item in rows),
+                "totalFindings": sum(
+                    int(cast(Any, item["count"])) for item in rows
+                ),
                 "categories": len(rows),
             },
             data_series=rows[: self.maximum_chart_categories],
@@ -241,7 +247,7 @@ class ReportDatasetService:
         en_zh_averages = self._numbers(
             rows, "en_zh_average_similarity"
         )
-        summary = {
+        summary: dict[str, object] = {
             "status": "AVAILABLE" if rows else "NOT_EVALUATED",
             "runs": len(rows),
             "averageSimilarity": self._mean(averages),
@@ -269,7 +275,7 @@ class ReportDatasetService:
                 item.negation_mismatch_count for item in rows
             ),
         }
-        table = [
+        table: list[dict[str, object]] = [
             {
                 "runId": str(item.id),
                 "documentId": str(item.document_id),
@@ -361,7 +367,7 @@ class ReportDatasetService:
         )
         preferred = sum(item.preferred_term_matches for item in rows)
         matched = sum(item.matched_terms for item in rows)
-        summary = {
+        summary: dict[str, object] = {
             "status": "AVAILABLE" if rows else "NOT_EVALUATED",
             "runs": len(rows),
             "preferredMatches": preferred,
@@ -501,7 +507,7 @@ class ReportDatasetService:
             .group_by(group_column)
             .limit(self.maximum_chart_categories)
         )
-        rows = [
+        rows: list[dict[str, object]] = [
             {
                 "groupId": str(group_id),
                 "validatedDocumentCount": int(count),
@@ -552,10 +558,10 @@ class ReportDatasetService:
                 DocumentRevision.id == Document.current_revision_id,
             )
             predicates.extend(self._revision_predicates(filters))
-        document_count = int(
-            await self.session.scalar(statement.where(*predicates))
-            or 0
+        document_count_value = await self.session.scalar(
+            statement.where(*predicates)
         )
+        document_count = int(document_count_value or 0)
         return ReportDataset(
             report_type=AdvancedReportType.PROCESSING_PERFORMANCE,
             summary={
@@ -572,7 +578,7 @@ class ReportDatasetService:
 
     def _compliance_predicates(
         self, filters: AdvancedReportFilters
-    ) -> list[object]:
+    ) -> list[ColumnElement[bool]]:
         predicates = self._document_predicates(filters)
         predicates.extend(self._revision_predicates(filters))
         if filters.validation_rule_ids:
@@ -600,8 +606,8 @@ class ReportDatasetService:
     @staticmethod
     def _document_predicates(
         filters: AdvancedReportFilters,
-    ) -> list[object]:
-        predicates: list[object] = []
+    ) -> list[ColumnElement[bool]]:
+        predicates: list[ColumnElement[bool]] = []
         if filters.department_ids:
             predicates.append(
                 Document.department_id.in_(filters.department_ids)
@@ -619,7 +625,7 @@ class ReportDatasetService:
     @staticmethod
     def _revision_predicates(
         filters: AdvancedReportFilters,
-    ) -> list[object]:
+    ) -> list[ColumnElement[bool]]:
         if not filters.document_status_ids:
             return []
         return [
@@ -630,9 +636,11 @@ class ReportDatasetService:
 
     @classmethod
     def _date_predicates(
-        cls, column, filters: AdvancedReportFilters
-    ) -> list[object]:
-        predicates: list[object] = []
+        cls,
+        column: InstrumentedAttribute[datetime],
+        filters: AdvancedReportFilters,
+    ) -> list[ColumnElement[bool]]:
+        predicates: list[ColumnElement[bool]] = []
         if filters.date_from:
             predicates.append(column >= cls._date_start(filters.date_from))
         if filters.date_to:
@@ -650,11 +658,11 @@ class ReportDatasetService:
         )
 
     @staticmethod
-    def _date_start(value: date):
+    def _date_start(value: date) -> datetime:
         return datetime.combine(value, time.min, tzinfo=UTC)
 
     @staticmethod
-    def _date_after(value: date):
+    def _date_after(value: date) -> datetime:
         return datetime.combine(
             value + timedelta(days=1), time.min, tzinfo=UTC
         )
@@ -666,10 +674,14 @@ class ReportDatasetService:
 
     @staticmethod
     def _number(value: object | None) -> float | None:
-        return float(value) if value is not None else None
+        return float(cast(Any, value)) if value is not None else None
 
     @classmethod
-    def _numbers(cls, rows: list[object], attribute: str) -> list[float]:
+    def _numbers(
+        cls,
+        rows: Sequence[object],
+        attribute: str,
+    ) -> list[float]:
         return [
             number
             for item in rows

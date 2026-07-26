@@ -2,9 +2,10 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pymupdf
+from pydantic import JsonValue
 
 from app.schemas.extraction import (
     ExtractedContainerData,
@@ -83,7 +84,13 @@ def extract_pdf_page(page: Any, page_number: int) -> ExtractedPDFPage:
         blocks.append(normalized)
         bbox = normalized.location["bbox"]
         assert isinstance(bbox, list)
-        horizontal_bands.append((float(bbox[0]), float(bbox[1]), float(bbox[3])))
+        horizontal_bands.append(
+            (
+                float(cast(Any, bbox[0])),
+                float(cast(Any, bbox[1])),
+                float(cast(Any, bbox[3])),
+            )
+        )
 
     raw_text = "\n".join(block.text for block in blocks)
     normalised_text = normalize_text(raw_text)
@@ -102,7 +109,7 @@ def extract_pdf_page(page: Any, page_number: int) -> ExtractedPDFPage:
             "text order is approximate."
         )
 
-    metadata = {
+    metadata: dict[str, JsonValue] = {
         "pageNumber": page_number,
         "width": width,
         "height": height,

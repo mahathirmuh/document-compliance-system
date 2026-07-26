@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Any, TypedDict, Unpack
+from uuid import UUID
+
 from app.models.similarity_enums import (
     ConsistencyStatus,
     SimilarityAnalysisStatus,
@@ -12,6 +15,25 @@ from app.schemas.similarity_internal import (
     SimilarityResultDraft,
     SimilarityThresholds,
 )
+
+
+class _FindingValues(TypedDict, total=False):
+    translation_group_id: UUID | None
+    detected_section_id: UUID | None
+    container_id: UUID | None
+    source_reference: str | None
+    language_code: str | None
+    expected_value: dict[str, Any]
+    actual_value: dict[str, Any]
+    metrics: dict[str, Any]
+
+
+class _FindingCommon(TypedDict):
+    translation_group_id: UUID
+    detected_section_id: UUID | None
+    container_id: UUID | None
+    source_reference: str
+    language_code: str
 
 
 class SimilarityFindingService:
@@ -43,7 +65,7 @@ class SimilarityFindingService:
         *,
         thresholds: SimilarityThresholds,
     ) -> list[SimilarityFindingDraft]:
-        common = {
+        common: _FindingCommon = {
             "translation_group_id": result.translation_group_id,
             "detected_section_id": result.detected_section_id,
             "container_id": result.container_id,
@@ -218,7 +240,7 @@ class SimilarityFindingService:
         severity: str,
         title: str,
         recommendation: str,
-        **values: object,
+        **values: Unpack[_FindingValues],
     ) -> SimilarityFindingDraft:
         return SimilarityFindingDraft(
             finding_code=finding_code,

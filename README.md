@@ -2243,10 +2243,14 @@ typed transformers—never arbitrary configured code.
 The SharePoint storage provider supports folder creation, direct upload up to
 the configured threshold, sequential resumable upload sessions for large
 files, authenticated streaming download, metadata, copy, move, rename,
-archive/restore where supported, child listing, and remote versions. Temporary
-Graph download URLs remain server-side and are never stored as permanent URLs.
-The five generated samples under `sample-documents/sharepoint` contain no
-company data.
+application soft-delete/restore through reversible move operations, child
+listing, and remote versions. Provider-native SharePoint Online recycle-bin
+restore is not available for work/school drives through production Graph v1.0,
+so `supports_restore` remains false and no `/beta` endpoint is used. A Graph
+`DELETE` moves an item to the Microsoft 365 recycle bin and is not described as
+verified physical purge. Temporary Graph download URLs remain server-side and
+are never stored as permanent URLs. The five generated samples under
+`sample-documents/sharepoint` contain no company data.
 
 ### Full, delta, webhook, and conflict synchronisation
 
@@ -2361,6 +2365,9 @@ Automated Graph, SharePoint, email, Teams, and Telegram integration tests use
 mock transports by default. A real Microsoft 365 development tenant,
 `Sites.Selected` grant/admin consent, production certificate, public DNS/TLS,
 and organization-approved RPO/RTO remain deployment responsibilities. Phase 10
-does not add PPTX, automatic translation, source editing, cloud LLMs, public
-file URLs, SharePoint page editing, broad permission administration, digital
-signatures, Google Drive, Dropbox, or OneDrive Personal integration.
+uses reversible move operations for application soft-delete/restore; native
+SharePoint Online recycle-bin restore remains unavailable through production
+Graph v1.0 for work/school drives. It does not add PPTX, automatic translation,
+source editing, cloud LLMs, public file URLs, SharePoint page editing, broad
+permission administration, digital signatures, Google Drive, Dropbox, or
+OneDrive Personal integration.

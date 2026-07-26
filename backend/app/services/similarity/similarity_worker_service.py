@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,11 +153,13 @@ class SimilarityWorkerService:
                     raise SimilarityProviderUnavailable(
                         "The configured local similarity model is unavailable."
                     )
+                active_job_id = job.id
+                progress_job = job
 
                 async def cancellation_requested() -> bool:
                     status = await session.scalar(
                         select(SimilarityJob.status)
-                        .where(SimilarityJob.id == job.id)
+                        .where(SimilarityJob.id == active_job_id)
                         .execution_options(populate_existing=True)
                     )
                     return status is SimilarityJobStatus.CANCEL_REQUESTED
@@ -170,7 +174,7 @@ class SimilarityWorkerService:
                     last_progress = current
                     await self._set_progress(
                         session,
-                        job,
+                        progress_job,
                         status=SimilarityJobStatus(stage),
                         progress=progress,
                         stage=stage.replace("_", " ").title(),
@@ -409,7 +413,7 @@ class SimilarityWorkerService:
         )
         await session.commit()
         await session.refresh(job)
-        if result.rowcount != 1:
+        if cast(CursorResult[Any], result).rowcount != 1:
             if job.status is SimilarityJobStatus.CANCEL_REQUESTED:
                 raise SimilarityAnalysisCancelled()
             raise SimilarityWorkerError(

@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.core.authorization import AuditAction, Permission
 from app.core.config import Settings
@@ -203,7 +204,7 @@ class FindingExportService(FindingManagementService):
         )
 
     @staticmethod
-    def _export_options() -> tuple[object, ...]:
+    def _export_options() -> tuple[ExecutableOption, ...]:
         return (
             selectinload(ValidationFinding.document).selectinload(Document.department),
             selectinload(ValidationFinding.revision),

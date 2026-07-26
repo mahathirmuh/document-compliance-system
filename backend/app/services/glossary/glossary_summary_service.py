@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any, TypedDict, Unpack, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.glossary_enums import (
+    GlossaryLanguageCode,
+    GlossaryMatchType,
+)
 from app.models.user import User
 from app.models.validation_finding import ValidationFinding
 from app.repositories.glossary_match_repository import (
@@ -29,6 +35,16 @@ from app.services.glossary.base import (
     glossary_not_found,
 )
 from app.services.glossary.glossary_job_service import glossary_run_response
+
+
+class GlossaryMatchFilters(TypedDict, total=False):
+    language_code: GlossaryLanguageCode | None
+    term_id: UUID | None
+    match_type: GlossaryMatchType | None
+    is_preferred: bool | None
+    is_forbidden: bool | None
+    has_exception: bool | None
+    sort_order: str
 
 
 class GlossarySummaryService(GlossaryServiceBase):
@@ -84,8 +100,13 @@ class GlossarySummaryService(GlossaryServiceBase):
             inconsistent_terms=run.inconsistent_terms,
             exception_applied_count=run.exception_applied_count,
             total_findings=run.total_findings,
-            match_count=int(counts["matchCount"]),
-            language_counts=dict(counts["languageCounts"]),
+            match_count=int(cast(Any, counts["matchCount"])),
+            language_counts=dict(
+                cast(
+                    Mapping[str, int],
+                    counts["languageCounts"],
+                )
+            ),
             finding_counts=finding_counts,
             metrics=dict(run.metrics_json),
             warnings=list(run.warnings_json),
@@ -97,7 +118,7 @@ class GlossarySummaryService(GlossaryServiceBase):
         *,
         page: int,
         page_size: int,
-        **filters: object,
+        **filters: Unpack[GlossaryMatchFilters],
     ) -> GlossaryMatchListResponse:
         run = await self._run(run_id)
         items, total = await self.matches.list_page(
@@ -143,9 +164,9 @@ class GlossarySummaryService(GlossaryServiceBase):
                 for item in items
             ],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def list_findings(
@@ -184,9 +205,9 @@ class GlossarySummaryService(GlossaryServiceBase):
         return GlossaryFindingListResponse(
             items=[self._finding_response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def _run(self, run_id: UUID):
@@ -212,7 +233,11 @@ class GlossarySummaryService(GlossaryServiceBase):
             description=item.description,
             recommendation=item.recommendation or "",
             glossary_term_id=UUID(str(metrics["glossaryTermId"])),
-            language_code=item.language_code,
+            language_code=(
+                GlossaryLanguageCode(item.language_code)
+                if item.language_code is not None
+                else None
+            ),
             source_reference=item.source_reference,
             extracted_block_id=item.extracted_block_id,
             ocr_block_id=item.ocr_block_id,

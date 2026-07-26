@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from difflib import SequenceMatcher
+from typing import Any, cast
 
 from app.services.compliance._compat import (
     bool_value,
@@ -168,11 +169,14 @@ class SectionMatcher:
                     max(
                         self.minimum_confidence,
                         float(
-                            first(
-                                alias,
-                                "match_confidence",
-                                "regex_confidence",
-                                default=0.92,
+                            cast(
+                                Any,
+                                first(
+                                    alias,
+                                    "match_confidence",
+                                    "regex_confidence",
+                                    default=0.92,
+                                ),
                             ),
                         ),
                     ),

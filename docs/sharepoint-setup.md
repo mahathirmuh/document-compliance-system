@@ -51,3 +51,30 @@ not a tenant-wide SharePoint explorer.
 
 Temporary Graph download URLs are never stored or returned to the browser.
 
+## Delete and restore semantics
+
+Application soft delete does not call the SharePoint recycle-bin restore API.
+It moves the item with Graph `PATCH` into the configured
+`documents/deleted/...` namespace and records its prior storage key. Explicit
+application restore moves the same item back. This preserves the Phase 5
+soft-delete contract for `LOCAL`, `SHAREPOINT`, and `HYBRID` storage.
+
+`SharePointStorageProvider.supports_restore` remains `false` specifically for
+provider-native recycle-bin restore. Microsoft Graph v1.0 `driveItem: restore`
+supports OneDrive Personal, not work/school SharePoint drives. The v1.0
+`recycleBin` resource applies to SharePoint Embedded containers, and the
+corresponding restore operation remains beta. Production code therefore never
+calls `/beta` or claims native SharePoint Online recycle-bin restore support.
+
+References:
+
+- <https://learn.microsoft.com/graph/api/driveitem-restore?view=graph-rest-1.0>
+- <https://learn.microsoft.com/graph/api/resources/recyclebin?view=graph-rest-1.0>
+- <https://learn.microsoft.com/graph/api/driveitem-move?view=graph-rest-1.0>
+- <https://learn.microsoft.com/graph/api/driveitem-delete?view=graph-rest-1.0>
+
+Graph `DELETE` sends a drive item to the recycle bin. Retention cleanup may
+remove the application row after an approved policy, but that is not a
+guarantee of physical purge from Microsoft 365. The irreversible
+`permanentDelete` operation is intentionally not used without a separately
+approved retention policy and permission review.

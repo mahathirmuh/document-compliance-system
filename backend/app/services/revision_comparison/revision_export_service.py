@@ -6,6 +6,7 @@ import io
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 from openpyxl import Workbook
@@ -400,7 +401,7 @@ class RevisionExportService(DocumentServiceBase):
                 "SPLIT": "modified",
                 "MERGED": "modified",
             }[item.change_type.value]
-            row[bucket] = int(row[bucket]) + 1
+            row[bucket] = cast(int, row[bucket]) + 1
         return list(output.values())
 
     @staticmethod
@@ -441,7 +442,7 @@ class RevisionExportService(DocumentServiceBase):
         return value[: self.settings.report_text_snippet_max_characters]
 
     @staticmethod
-    def _decimal(value: object | None) -> float | None:
+    def _decimal(value: float | None) -> float | None:
         return float(value) if value is not None else None
 
     @staticmethod

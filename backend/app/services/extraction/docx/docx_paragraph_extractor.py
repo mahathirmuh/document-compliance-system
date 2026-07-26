@@ -3,6 +3,7 @@
 from typing import Any
 
 from docx.oxml.ns import qn
+from pydantic import JsonValue
 
 from app.schemas.extraction import ExtractedBlockData, ExtractedBlockType
 from app.services.extraction.docx.docx_style_normalizer import (
@@ -54,7 +55,7 @@ def extract_docx_paragraph(
         else ExtractedBlockType.PARAGRAPH
     )
     is_list_item, numbering_id, list_level = list_metadata(paragraph)
-    metadata = {
+    metadata: dict[str, JsonValue] = {
         "paragraphIndex": paragraph_index,
         "styleName": style_name(paragraph),
         "alignment": alignment_name(paragraph),

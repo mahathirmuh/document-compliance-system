@@ -6,12 +6,14 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.api.v1.endpoints import revision_comparisons as revision_endpoints
 from app.core.authorization import UserRole
 from app.core.exceptions import AuthorizationError
 from app.models.glossary_enums import GlossaryValidationStatus
@@ -40,7 +42,10 @@ from app.schemas.advanced_reporting import (
     AdvancedReportGenerateRequest,
     ReportScheduleCreateRequest,
 )
-from app.schemas.revision_comparison import RevisionFindingChange
+from app.schemas.revision_comparison import (
+    RevisionFindingChange,
+    RevisionSectionChangesResponse,
+)
 from app.services.reporting.advanced_reporting_service import (
     report_snapshot_response,
 )
@@ -85,6 +90,35 @@ from app.services.revision_comparison.revision_score_comparison_service import (
 )
 
 TestSessionFactory = async_sessionmaker[AsyncSession]
+
+
+@pytest.mark.asyncio
+async def test_revision_section_endpoint_uses_non_shadowed_query_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_id = uuid4()
+    expected = RevisionSectionChangesResponse(
+        comparison_id=comparison_id,
+        items=[],
+    )
+    section_changes = AsyncMock(return_value=expected)
+    service = SimpleNamespace(section_changes=section_changes)
+    monkeypatch.setattr(
+        revision_endpoints,
+        "RevisionComparisonQueryService",
+        lambda *_args: service,
+    )
+
+    response = await revision_endpoints.get_revision_section_changes(
+        comparison_id,
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+    )
+
+    assert response.data == expected
+    section_changes.assert_awaited_once_with(comparison_id)
 
 
 def _item(

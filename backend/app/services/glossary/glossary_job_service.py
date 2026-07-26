@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import builtins
+from datetime import datetime
+from typing import TYPE_CHECKING, TypedDict, Unpack
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -58,6 +60,17 @@ _USABLE_COMPLIANCE_STATUSES = {
 }
 
 
+class GlossaryJobFilters(TypedDict, total=False):
+    document_id: UUID | None
+    document_file_id: UUID | None
+    status: GlossaryValidationStatus | None
+    requested_by: UUID | None
+    requested_from: datetime | None
+    requested_to: datetime | None
+    search: str | None
+    sort_order: str
+
+
 def glossary_run_response(
     run: GlossaryValidationRun,
 ) -> GlossaryValidationRunResponse:
@@ -89,7 +102,7 @@ def glossary_run_response(
         exception_applied_count=run.exception_applied_count,
         total_findings=run.total_findings,
         metrics=dict(run.metrics_json),
-        warnings=list(run.warnings_json),
+        warnings=run.warnings_json,
         error_code=run.error_code,
         error_message=run.error_message,
         requested_by=run.requested_by,
@@ -311,10 +324,11 @@ class GlossaryJobService(GlossaryServiceBase):
 
     async def list(
         self,
-        **filters: object,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        **filters: Unpack[GlossaryJobFilters],
     ) -> GlossaryValidationJobListResponse:
-        page = int(filters.pop("page", 1))
-        page_size = int(filters.pop("page_size", 20))
         items, total = await self.runs.list_page(
             department_ids=self.department_ids,
             page=page,
@@ -324,9 +338,9 @@ class GlossaryJobService(GlossaryServiceBase):
         return GlossaryValidationJobListResponse(
             items=[glossary_run_response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def history(
@@ -350,9 +364,9 @@ class GlossaryJobService(GlossaryServiceBase):
         return GlossaryValidationHistoryResponse(
             items=[glossary_run_response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def current(
@@ -479,8 +493,8 @@ class GlossaryJobService(GlossaryServiceBase):
     async def _resolve_profiles(
         self,
         document_file: DocumentFile,
-        profile_ids: list[UUID],
-    ) -> list[GlossaryProfile]:
+        profile_ids: builtins.list[UUID],
+    ) -> builtins.list[GlossaryProfile]:
         if profile_ids:
             profiles = await self.profiles.list_by_ids(
                 profile_ids,

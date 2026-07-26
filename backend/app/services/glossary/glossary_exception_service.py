@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, Unpack
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,11 @@ from app.models.department import Department
 from app.models.document import Document
 from app.models.document_file import DocumentFile
 from app.models.document_revision import DocumentRevision
-from app.models.glossary_enums import GlossaryExceptionScopeType
+from app.models.glossary_enums import (
+    GlossaryExceptionScopeType,
+    GlossaryExceptionType,
+    GlossaryLanguageCode,
+)
 from app.models.glossary_exception import GlossaryException
 from app.models.section_definition import SectionDefinition
 from app.models.user import User
@@ -50,6 +54,16 @@ _SCOPE_PRIORITY = {
     GlossaryExceptionScopeType.DOCUMENT_FILE: 5,
     GlossaryExceptionScopeType.SECTION: 6,
 }
+
+
+class GlossaryExceptionFilters(TypedDict, total=False):
+    term_id: UUID | None
+    scope_type: GlossaryExceptionScopeType | None
+    exception_type: GlossaryExceptionType | None
+    language_code: GlossaryLanguageCode | None
+    is_active: bool | None
+    effective_on: date | None
+    sort_order: str
 
 
 class GlossaryExceptionService:
@@ -210,9 +224,13 @@ class GlossaryExceptionManagementService(GlossaryServiceBase):
             updated_at=item.updated_at,
         )
 
-    async def list(self, **filters: object) -> GlossaryExceptionListResponse:
-        page = int(filters.pop("page", 1))
-        page_size = int(filters.pop("page_size", 20))
+    async def list(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        **filters: Unpack[GlossaryExceptionFilters],
+    ) -> GlossaryExceptionListResponse:
         items, total = await self.repository.list_page(
             department_ids=self.department_ids,
             page=page,
@@ -222,9 +240,9 @@ class GlossaryExceptionManagementService(GlossaryServiceBase):
         return GlossaryExceptionListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def create(

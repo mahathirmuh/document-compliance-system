@@ -9,7 +9,7 @@ import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, cast
 from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
@@ -167,7 +167,7 @@ class ExtractionService:
                 job_id,
                 error_code=exc.code,
                 error_message=exc.safe_message,
-                error_details=exc.details,
+                error_details=cast(dict[str, object], exc.details),
             )
             return ExtractionJobStatus.FAILED
         except (OperationalError, ConnectionError, TimeoutError) as exc:

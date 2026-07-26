@@ -1,7 +1,7 @@
 """Extraction result, content, history, search, and export endpoints."""
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
@@ -226,7 +226,7 @@ async def list_extracted_containers(
     return ApiResponse(
         success=True,
         message="Extracted containers retrieved successfully.",
-        data=data,
+        data=cast(ExtractedContainerListResponse, data),
         errors=None,
     )
 
@@ -287,7 +287,7 @@ async def list_extracted_blocks(
     return ApiResponse(
         success=True,
         message="Extracted blocks retrieved successfully.",
-        data=data,
+        data=cast(ExtractedBlockListResponse, data),
         errors=None,
     )
 
@@ -333,7 +333,7 @@ async def list_extracted_tables(
     return ApiResponse(
         success=True,
         message="Extracted tables retrieved successfully.",
-        data=data,
+        data=cast(ExtractedTableListResponse, data),
         errors=None,
     )
 

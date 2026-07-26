@@ -2,10 +2,11 @@
 
 from dataclasses import dataclass
 from itertools import zip_longest
-from typing import Any
+from typing import Any, cast
 
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.cell_range import CellRange
+from pydantic import JsonValue
 
 from app.schemas.extraction import (
     ExtractedContainerData,
@@ -213,7 +214,7 @@ def extract_xlsx_sheet(
 
     raw_text = "\n".join(block.text for block in blocks if block.text)
     normalised_text = normalize_text(raw_text)
-    metadata = {
+    metadata: dict[str, JsonValue] = {
         "sheetName": str(worksheet.title),
         "sheetState": str(worksheet.sheet_state),
         "maxRow": int(worksheet.max_row),
@@ -223,7 +224,10 @@ def extract_xlsx_sheet(
         "actualCellCount": cell_count - counters.cells,
         "mergedRangeCount": len(merged_ranges),
         "freezePane": package_metadata.freeze_pane,
-        "tableNames": list(package_metadata.table_names),
+        "tableNames": cast(
+            JsonValue,
+            list(package_metadata.table_names),
+        ),
         "sheetProtected": package_metadata.sheet_protected,
     }
     container = ExtractedContainerData(

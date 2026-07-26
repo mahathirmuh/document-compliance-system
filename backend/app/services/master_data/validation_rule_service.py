@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from typing import Any
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.authorization import AuditAction
 from app.models.user import User
-from app.models.validation_rule import ValidationRule
+from app.models.validation_rule import QualityScoreMode, ValidationRule
 from app.repositories.document_type_repository import DocumentTypeRepository
 from app.repositories.section_alias_profile_repository import (
     SectionAliasProfileRepository,
@@ -107,7 +108,7 @@ class ValidationRuleService(MasterDataServiceBase):
             table_completeness_weight=float(entity.table_completeness_weight),
             translation_similarity_weight=float(entity.translation_similarity_weight),
             glossary_compliance_weight=float(entity.glossary_compliance_weight),
-            quality_score_mode=entity.quality_score_mode,
+            quality_score_mode=QualityScoreMode(entity.quality_score_mode),
             critical_finding_score_cap=float(entity.critical_finding_score_cap),
             major_finding_penalty=float(entity.major_finding_penalty),
             minor_finding_penalty=float(entity.minor_finding_penalty),
@@ -313,9 +314,9 @@ class ValidationRuleService(MasterDataServiceBase):
         return ValidationRuleListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, entity_id: UUID) -> ValidationRuleResponse:
@@ -324,7 +325,9 @@ class ValidationRuleService(MasterDataServiceBase):
             raise not_found(self.entity_name)
         return self.response(entity)
 
-    async def options(self, *, active_only: bool = True) -> list[MasterDataOption]:
+    async def options(
+        self, *, active_only: bool = True
+    ) -> builtins.list[MasterDataOption]:
         entities = await self.repository.options(active_only=active_only)
         return [MasterDataOption.model_validate(entity) for entity in entities]
 

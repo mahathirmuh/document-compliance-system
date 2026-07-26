@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import asc, desc, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.department import Department
 from app.models.document import Document
@@ -23,7 +25,7 @@ class DocumentRepository:
         self.session = session
 
     @staticmethod
-    def _summary_options() -> tuple[object, ...]:
+    def _summary_options() -> tuple[ExecutableOption, ...]:
         current = selectinload(Document.current_revision)
         return (
             selectinload(Document.department),
@@ -35,7 +37,7 @@ class DocumentRepository:
         )
 
     @classmethod
-    def _detail_options(cls) -> tuple[object, ...]:
+    def _detail_options(cls) -> tuple[ExecutableOption, ...]:
         revisions = selectinload(Document.revisions)
         return (
             *cls._summary_options(),
@@ -184,7 +186,7 @@ class DocumentRepository:
         self,
         document: Document,
         *,
-        archived_at: object,
+        archived_at: datetime,
         archived_by: UUID,
         reason: str,
     ) -> Document:
@@ -352,6 +354,6 @@ class DocumentRepository:
         )
         return list(result.unique().all()), total
 
-    async def count(self, **filters: object) -> int:
+    async def count(self, **filters: Any) -> int:
         _, total = await self.list(page=1, page_size=1, **filters)
         return total

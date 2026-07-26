@@ -9,6 +9,8 @@ from uuid import UUID
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.document_file import DocumentFile
@@ -29,7 +31,7 @@ class OCRJobRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(OCRJob.document),
             joinedload(OCRJob.revision),
@@ -119,7 +121,7 @@ class OCRJobRepository:
         sort_order: str = "desc",
     ) -> tuple[list[OCRJob], int]:
         statement: Select[tuple[OCRJob]] = select(OCRJob).join(OCRJob.document)
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         if not scope_all_departments:
             if scope_department_id is None:
                 return [], 0

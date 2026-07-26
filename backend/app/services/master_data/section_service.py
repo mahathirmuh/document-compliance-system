@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -87,9 +88,9 @@ class SectionService(MasterDataServiceBase):
         return SectionListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, entity_id: UUID) -> SectionResponse:
@@ -103,7 +104,7 @@ class SectionService(MasterDataServiceBase):
         *,
         department_id: UUID | None,
         active_only: bool,
-    ) -> list[MasterDataOption]:
+    ) -> builtins.list[MasterDataOption]:
         entities = await self.repository.options(
             department_id=department_id,
             active_only=active_only,

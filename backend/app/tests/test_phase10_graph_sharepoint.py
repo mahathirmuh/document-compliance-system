@@ -719,6 +719,13 @@ async def test_sharepoint_storage_provider_preserves_base_storage_contract() -> 
         internal_reference = provider.generate_internal_reference(
             "documents/file.pdf"
         )
+        requests_before_restore = len(requests)
+        with pytest.raises(
+            NotImplementedError,
+            match="recycle-bin restore",
+        ):
+            await provider.restore("documents/file.pdf")
+        assert len(requests) == requests_before_restore
         await provider.close()
 
     assert stored == {

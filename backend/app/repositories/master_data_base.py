@@ -1,7 +1,7 @@
 """Reusable persistence primitives for master-data repositories."""
 
 from collections.abc import Mapping
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypedDict, TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy import Select, asc, desc, func, or_, select
@@ -13,17 +13,29 @@ from app.database.base import Base
 ModelT = TypeVar("ModelT", bound=Base)
 
 
+class MasterDataListPageFilters(TypedDict, total=False):
+    """Keyword filters shared by specialized master-data repositories."""
+
+    search: str | None
+    is_active: bool | None
+    page: int
+    page_size: int
+    sort_by: str
+    sort_order: str
+
+
 class BaseMasterDataRepository(Generic[ModelT]):
     """Common database-only operations for soft-deletable master data."""
 
     model: type[ModelT]
-    sortable_columns: Mapping[str, InstrumentedAttribute[Any]]
+    sortable_columns: ClassVar[Mapping[str, InstrumentedAttribute[Any]]]
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     def base_statement(self) -> Select[tuple[ModelT]]:
-        return select(self.model).where(self.model.deleted_at.is_(None))
+        columns = cast(Any, self.model)
+        return select(self.model).where(columns.deleted_at.is_(None))
 
     async def get_by_id(
         self,
@@ -31,7 +43,8 @@ class BaseMasterDataRepository(Generic[ModelT]):
         *,
         for_update: bool = False,
     ) -> ModelT | None:
-        statement = self.base_statement().where(self.model.id == entity_id)
+        columns = cast(Any, self.model)
+        statement = self.base_statement().where(columns.id == entity_id)
         if for_update:
             statement = statement.with_for_update()
         return (await self.session.execute(statement)).scalar_one_or_none()
@@ -43,11 +56,10 @@ class BaseMasterDataRepository(Generic[ModelT]):
         for_update: bool = False,
         include_deleted: bool = False,
     ) -> ModelT | None:
-        statement = select(self.model).where(
-            self.model.code == code.strip().upper()
-        )
+        columns = cast(Any, self.model)
+        statement = select(self.model).where(columns.code == code.strip().upper())
         if not include_deleted:
-            statement = statement.where(self.model.deleted_at.is_(None))
+            statement = statement.where(columns.deleted_at.is_(None))
         if for_update:
             statement = statement.with_for_update()
         return (await self.session.execute(statement)).scalar_one_or_none()
@@ -64,18 +76,17 @@ class BaseMasterDataRepository(Generic[ModelT]):
         search: str | None,
         is_active: bool | None,
     ) -> Select[tuple[ModelT]]:
+        columns = cast(Any, self.model)
         if search:
             pattern = f"%{search.strip()}%"
             statement = statement.where(
                 or_(
-                    self.model.code.ilike(pattern),
-                    self.model.name.ilike(pattern),
+                    columns.code.ilike(pattern),
+                    columns.name.ilike(pattern),
                 )
             )
         if is_active is not None:
-            statement = statement.where(
-                self.model.is_active.is_(is_active)
-            )
+            statement = statement.where(columns.is_active.is_(is_active))
         return statement
 
     async def list_page(
@@ -103,8 +114,9 @@ class BaseMasterDataRepository(Generic[ModelT]):
             self.sortable_columns["code"],
         )
         ordering = desc(sort_column) if sort_order == "desc" else asc(sort_column)
+        columns = cast(Any, self.model)
         result = await self.session.scalars(
-            filtered.order_by(ordering, asc(self.model.id))
+            filtered.order_by(ordering, asc(columns.id))
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -118,23 +130,20 @@ class BaseMasterDataRepository(Generic[ModelT]):
         statement: Select[tuple[ModelT]] | None = None,
     ) -> list[ModelT]:
         query = statement if statement is not None else self.base_statement()
+        columns = cast(Any, self.model)
         if active_only:
-            query = query.where(self.model.is_active.is_(True))
+            query = query.where(columns.is_active.is_(True))
         result = await self.session.scalars(
-            query.order_by(asc(self.model.code)).limit(limit)
+            query.order_by(asc(columns.code)).limit(limit)
         )
         return list(result.unique().all())
 
     async def counts(self) -> tuple[int, int, int]:
+        columns = cast(Any, self.model)
         statement = select(
-            func.count(self.model.id),
-            func.count(self.model.id).filter(
-                self.model.is_active.is_(True)
-            ),
-            func.count(self.model.id).filter(
-                self.model.is_active.is_(False)
-            ),
-        ).where(self.model.deleted_at.is_(None))
+            func.count(columns.id),
+            func.count(columns.id).filter(columns.is_active.is_(True)),
+            func.count(columns.id).filter(columns.is_active.is_(False)),
+        ).where(columns.deleted_at.is_(None))
         row = (await self.session.execute(statement)).one()
         return int(row[0]), int(row[1]), int(row[2])
-

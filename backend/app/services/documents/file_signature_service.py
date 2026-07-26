@@ -225,9 +225,18 @@ def detect_file_type(
 
 async def detect_file_type_async(
     source: FileSource,
-    **limits: float,
+    *,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
+    max_uncompressed_size: int = DEFAULT_MAX_UNCOMPRESSED_SIZE,
+    max_compression_ratio: float = DEFAULT_MAX_COMPRESSION_RATIO,
 ) -> str:
-    return await asyncio.to_thread(detect_file_type, source, **limits)
+    return await asyncio.to_thread(
+        detect_file_type,
+        source,
+        max_entries=max_entries,
+        max_uncompressed_size=max_uncompressed_size,
+        max_compression_ratio=max_compression_ratio,
+    )
 
 
 class FileSignatureService:

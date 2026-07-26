@@ -8,6 +8,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 from uuid import UUID
 
 from openpyxl import Workbook
@@ -381,7 +382,7 @@ class LanguageExportService(LanguageResultService):
         )
 
 
-def _write_json_value(output: object, value: object) -> None:
+def _write_json_value(output: TextIO, value: object) -> None:
     json.dump(
         value,
         output,

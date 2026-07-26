@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from typing import cast
+from uuid import UUID
 
 from app.schemas.compliance_internal import (
     ComplianceBlockData,
@@ -127,12 +129,15 @@ class ComplianceContextService:
             default_prerequisites.update(dict(prerequisites))
         try:
             return ComplianceValidationContext(
-                document_id=document_id,
-                document_revision_id=document_revision_id,
-                document_file_id=document_file_id,
-                extraction_run_id=extraction_run_id,
-                ocr_run_id=ocr_run_id,
-                language_detection_run_id=language_detection_run_id,
+                document_id=cast(UUID | None, document_id),
+                document_revision_id=cast(UUID | None, document_revision_id),
+                document_file_id=cast(UUID | None, document_file_id),
+                extraction_run_id=cast(UUID | None, extraction_run_id),
+                ocr_run_id=cast(UUID | None, ocr_run_id),
+                language_detection_run_id=cast(
+                    UUID | None,
+                    language_detection_run_id,
+                ),
                 document_code=document_code,
                 expected_document_code=expected_document_code,
                 source_format=normalized_format,
@@ -269,12 +274,18 @@ class ComplianceContextService:
                 ),
             }
             return ComplianceBlockData(
-                id=source_id,
-                container_id=read(nested_source, "container_id", None),
+                id=cast(UUID | None, source_id),
+                container_id=cast(
+                    UUID | None,
+                    read(nested_source, "container_id", None),
+                ),
                 container_type=enum_value(
                     read(nested_source, "container_type", ""),
                 ),
-                container_name=read(nested_source, "container_name", None),
+                container_name=cast(
+                    str | None,
+                    read(nested_source, "container_name", None),
+                ),
                 container_index=int_value(
                     read(nested_source, "container_index", 0),
                 ),
@@ -296,19 +307,28 @@ class ComplianceContextService:
                 normalised_text=string_value(
                     read(nested_source, "normalised_text", ""),
                 ),
-                style_name=first(
-                    source_metadata,
-                    "style_name",
-                    "styleName",
-                    default=None,
+                style_name=cast(
+                    str | None,
+                    first(
+                        source_metadata,
+                        "style_name",
+                        "styleName",
+                        default=None,
+                    ),
                 ),
-                heading_level=first(
-                    source_metadata,
-                    "heading_level",
-                    "headingLevel",
-                    default=None,
+                heading_level=cast(
+                    int | None,
+                    first(
+                        source_metadata,
+                        "heading_level",
+                        "headingLevel",
+                        default=None,
+                    ),
                 ),
-                page_number=read(nested_source, "page_number", None),
+                page_number=cast(
+                    int | None,
+                    read(nested_source, "page_number", None),
+                ),
                 language_code=enum_value(
                     read(nested_detection, "language_code", "unknown"),
                 ),
@@ -337,22 +357,31 @@ class ComplianceContextService:
             first(block, "location", "location_json", default={}),
         )
         return ComplianceBlockData(
-            id=first(
-                block,
-                "id",
-                "extracted_block_id",
-                "ocr_block_id",
-                default=None,
+            id=cast(
+                UUID | None,
+                first(
+                    block,
+                    "id",
+                    "extracted_block_id",
+                    "ocr_block_id",
+                    default=None,
+                ),
             ),
-            container_id=read(block, "container_id", None),
+            container_id=cast(
+                UUID | None,
+                read(block, "container_id", None),
+            ),
             container_type=enum_value(
                 read(block, "container_type", ""),
             ),
-            container_name=first(
-                block,
-                "container_name",
-                "container_title",
-                default=None,
+            container_name=cast(
+                str | None,
+                first(
+                    block,
+                    "container_name",
+                    "container_title",
+                    default=None,
+                ),
             ),
             container_index=int_value(read(block, "container_index", 0)),
             block_order=int_value(read(block, "block_order", 0)),
@@ -364,12 +393,18 @@ class ComplianceContextService:
             normalised_text=string_value(
                 first(block, "normalised_text", "text", default=""),
             ),
-            style_name=read(block, "style_name", None),
-            heading_level=read(block, "heading_level", None),
-            page_number=first(
-                block,
-                "page_number",
-                default=first(location, "page", default=None),
+            style_name=cast(str | None, read(block, "style_name", None)),
+            heading_level=cast(
+                int | None,
+                read(block, "heading_level", None),
+            ),
+            page_number=cast(
+                int | None,
+                first(
+                    block,
+                    "page_number",
+                    default=first(location, "page", default=None),
+                ),
             ),
             language_code=enum_value(
                 read(block, "language_code", "unknown"),
@@ -468,8 +503,11 @@ class ComplianceContextService:
             "sourceConfidence": read(row, "source_confidence", None),
         }
         return ComplianceBlockData(
-            id=source_id,
-            container_id=read(persisted_result, "container_id", None),
+            id=cast(UUID | None, source_id),
+            container_id=cast(
+                UUID | None,
+                read(persisted_result, "container_id", None),
+            ),
             container_type=container_type,
             container_name=container_name,
             container_index=container_index,
@@ -496,17 +534,23 @@ class ComplianceContextService:
             source_reference=reference,
             text=raw_text,
             normalised_text=" ".join(raw_text.split()),
-            style_name=first(
-                source_metadata,
-                "style_name",
-                "styleName",
-                default=None,
+            style_name=cast(
+                str | None,
+                first(
+                    source_metadata,
+                    "style_name",
+                    "styleName",
+                    default=None,
+                ),
             ),
-            heading_level=first(
-                source_metadata,
-                "heading_level",
-                "headingLevel",
-                default=None,
+            heading_level=cast(
+                int | None,
+                first(
+                    source_metadata,
+                    "heading_level",
+                    "headingLevel",
+                    default=None,
+                ),
             ),
             page_number=(
                 int_value(page_number) if page_number is not None else None
@@ -632,45 +676,47 @@ class ComplianceContextService:
             cells: list[ComplianceTableCellData] = []
             for cell in table.cells:
                 coordinate = (cell.coordinate or "").upper()
-                annotation = by_sheet_coordinate.get((sheet, coordinate))
+                matched_annotation = by_sheet_coordinate.get(
+                    (sheet, coordinate),
+                )
                 if (
-                    annotation is None
+                    matched_annotation is None
                     and coordinate_counts.get(coordinate) == 1
                 ):
-                    annotation = by_coordinate.get(coordinate)
-                if annotation is None:
+                    matched_annotation = by_coordinate.get(coordinate)
+                if matched_annotation is None:
                     cells.append(cell)
                     continue
                 cells.append(
                     cell.model_copy(
                         update={
-                            "language_code": annotation.language_code,
+                            "language_code": matched_annotation.language_code,
                             "language_confidence": (
-                                annotation.language_confidence
+                                matched_annotation.language_confidence
                             ),
                             "metadata": {
                                 **cell.metadata,
                                 "languageSourceReference": (
-                                    annotation.source_reference
+                                    matched_annotation.source_reference
                                 ),
-                                "languageSourceBlockId": annotation.id,
+                                "languageSourceBlockId": matched_annotation.id,
                                 "languageSourceType": read(
-                                    annotation.metadata,
+                                    matched_annotation.metadata,
                                     "sourceType",
                                     "",
                                 ),
                                 "languageBlockResultId": read(
-                                    annotation.metadata,
+                                    matched_annotation.metadata,
                                     "languageBlockResultId",
                                     None,
                                 ),
                                 "extractedBlockId": read(
-                                    annotation.metadata,
+                                    matched_annotation.metadata,
                                     "extractedBlockId",
                                     None,
                                 ),
                                 "ocrBlockId": read(
-                                    annotation.metadata,
+                                    matched_annotation.metadata,
                                     "ocrBlockId",
                                     None,
                                 ),
@@ -692,16 +738,19 @@ class ComplianceContextService:
             return container.model_copy(deep=True)
         raw_blocks = sequence(read(container, "blocks", []))
         return ComplianceContainerData(
-            id=read(container, "id", None),
+            id=cast(UUID | None, read(container, "id", None)),
             container_type=enum_value(
                 read(container, "container_type", ""),
             ),
-            container_name=first(
-                container,
-                "container_name",
-                "name",
-                "title",
-                default=None,
+            container_name=cast(
+                str | None,
+                first(
+                    container,
+                    "container_name",
+                    "name",
+                    "title",
+                    default=None,
+                ),
             ),
             container_index=int_value(
                 read(container, "container_index", 0),
@@ -717,7 +766,7 @@ class ComplianceContextService:
         blocks: Sequence[ComplianceBlockData],
     ) -> list[ComplianceContainerData]:
         grouped: dict[
-            tuple[object | None, str, str | None, int],
+            tuple[UUID | None, str, str | None, int],
             list[ComplianceBlockData],
         ] = defaultdict(list)
         for block in blocks:
@@ -761,8 +810,11 @@ class ComplianceContextService:
             self._cell(cell) for cell in sequence(read(table, "cells", []))
         ]
         return ComplianceTableData(
-            id=read(table, "id", None),
-            container_id=read(table, "container_id", None),
+            id=cast(UUID | None, read(table, "id", None)),
+            container_id=cast(
+                UUID | None,
+                read(table, "container_id", None),
+            ),
             source_reference=string_value(
                 read(table, "source_reference", ""),
             ),
@@ -780,12 +832,15 @@ class ComplianceContextService:
         if isinstance(cell, ComplianceTableCellData):
             return cell.model_copy(deep=True)
         return ComplianceTableCellData(
-            id=read(cell, "id", None),
+            id=cast(UUID | None, read(cell, "id", None)),
             row_index=int_value(read(cell, "row_index", 0)),
             column_index=int_value(read(cell, "column_index", 0)),
             row_span=int_value(read(cell, "row_span", 1), 1),
             column_span=int_value(read(cell, "column_span", 1), 1),
-            coordinate=read(cell, "coordinate", None),
+            coordinate=cast(
+                str | None,
+                read(cell, "coordinate", None),
+            ),
             text=string_value(read(cell, "text", "")),
             normalised_text=string_value(
                 first(cell, "normalised_text", "text", default=""),

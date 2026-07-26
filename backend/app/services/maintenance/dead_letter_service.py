@@ -74,9 +74,9 @@ class DeadLetterService:
         return DeadLetterListResponse(
             items=[DeadLetterJobResponse.model_validate(row) for row in rows],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=ceil(total / page_size) if total else 0,
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=ceil(total / page_size) if total else 0,
         )
 
     async def record(

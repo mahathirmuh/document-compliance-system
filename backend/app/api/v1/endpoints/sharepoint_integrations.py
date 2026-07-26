@@ -529,6 +529,9 @@ def _optional_string(value: Any) -> str | None:
 
 def _folder_response(item: dict[str, Any]) -> SharePointFolderResponse:
     folder = item.get("folder")
+    child_count_value = (
+        folder.get("childCount") if isinstance(folder, dict) else None
+    )
     return SharePointFolderResponse(
         id=str(item["id"]),
         name=str(item.get("name") or ""),
@@ -539,9 +542,8 @@ def _folder_response(item: dict[str, Any]) -> SharePointFolderResponse:
             else None
         ),
         child_count=(
-            int(folder.get("childCount"))
-            if isinstance(folder, dict)
-            and folder.get("childCount") is not None
+            int(child_count_value)
+            if isinstance(child_count_value, (int, str))
             else None
         ),
     )

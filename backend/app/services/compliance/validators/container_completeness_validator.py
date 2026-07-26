@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
+from typing import TypedDict
 
 from app.schemas.compliance_internal import (
+    ComplianceBlockData,
     ComplianceValidationContext,
     ValidatorResult,
 )
@@ -34,6 +37,14 @@ from app.services.compliance.validators._helpers import (
 from app.services.compliance.validators.base_validator import (
     BaseComplianceValidator,
 )
+
+
+class _ContainerLocation(TypedDict):
+    container_id: object
+    page_number: int | None
+    worksheet_name: str | None
+    source_reference: str
+    location: dict[str, object]
 
 
 class ContainerCompletenessValidator(BaseComplianceValidator):
@@ -93,7 +104,10 @@ class ContainerCompletenessValidator(BaseComplianceValidator):
             20,
         )
         languages = required_languages(context)
-        blocks_by_container: dict[object | None, list[object]] = defaultdict(list)
+        blocks_by_container: dict[
+            object | None,
+            list[ComplianceBlockData],
+        ] = defaultdict(list)
         for block in context.blocks:
             blocks_by_container[block.container_id].append(block)
         evaluated = 0
@@ -180,8 +194,8 @@ class ContainerCompletenessValidator(BaseComplianceValidator):
     @staticmethod
     def _location(
         container: object,
-        blocks: list[object],
-    ) -> dict[str, object]:
+        blocks: Sequence[object],
+    ) -> _ContainerLocation:
         container_type = enum_value(
             read(container, "container_type", ""),
         ).upper()

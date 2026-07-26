@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.document_revision import DocumentRevision
 
@@ -19,7 +21,7 @@ class DocumentRevisionRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             selectinload(DocumentRevision.document_status),
             selectinload(DocumentRevision.validation_rule),
@@ -194,7 +196,7 @@ class DocumentRevisionRepository:
         self,
         revision: DocumentRevision,
         *,
-        superseded_at: object,
+        superseded_at: datetime,
         superseded_by_revision_id: UUID,
     ) -> DocumentRevision:
         revision.is_superseded = True

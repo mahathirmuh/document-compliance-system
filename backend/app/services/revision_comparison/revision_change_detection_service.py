@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from uuid import UUID
@@ -94,7 +95,7 @@ class RevisionChangeDetectionService:
                 else None
             ),
             language_code=(
-                target.language_code if target else base.language_code
+                reference.language_code
             ),
             source_reference_base=(
                 base.source_reference if base else None
@@ -117,7 +118,10 @@ class RevisionChangeDetectionService:
         )
 
     @staticmethod
-    def _edit_count(left: object, right: object) -> int:
+    def _edit_count(
+        left: Sequence[object],
+        right: Sequence[object],
+    ) -> int:
         matcher = SequenceMatcher(None, left, right)
         count = 0
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():

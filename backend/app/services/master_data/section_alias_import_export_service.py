@@ -437,45 +437,48 @@ class SectionAliasImportExportService:
                 entity.updated_by = self.user.id
                 result.definitions_updated += 1
         seen_alias_keys: set[tuple[object, object, str]] = set()
-        for row in preview.aliases:
-            definition = definitions_by_code.get(row.canonical_code)
+        for alias_row in preview.aliases:
+            definition = definitions_by_code.get(alias_row.canonical_code)
             if definition is None:
                 raise business_error(
-                    f"Unknown canonical section {row.canonical_code}.",
+                    f"Unknown canonical section {alias_row.canonical_code}.",
                     field="canonicalCode",
                 )
-            normalized = normalise_alias(row.alias_text, row.match_type)
-            alias_key = (definition.id, row.language_code, normalized)
+            normalized = normalise_alias(
+                alias_row.alias_text,
+                alias_row.match_type,
+            )
+            alias_key = (definition.id, alias_row.language_code, normalized)
             if alias_key in seen_alias_keys:
                 result.skipped += 1
                 continue
             seen_alias_keys.add(alias_key)
-            entity = await self.aliases.get_duplicate(
+            alias_entity = await self.aliases.get_duplicate(
                 section_definition_id=definition.id,
-                language_code=row.language_code,
+                language_code=alias_row.language_code,
                 normalised_alias=normalized,
             )
-            values = row.model_dump(
+            values = alias_row.model_dump(
                 exclude={"row_number", "canonical_code"},
                 by_alias=False,
             )
-            if entity is None:
-                entity = SectionAlias(
+            if alias_entity is None:
+                alias_entity = SectionAlias(
                     section_definition_id=definition.id,
                     normalised_alias=normalized,
                     **values,
                     created_by=self.user.id,
                     updated_by=self.user.id,
                 )
-                await self.aliases.add(entity)
+                await self.aliases.add(alias_entity)
                 result.aliases_created += 1
             elif mode is ImportMode.CREATE_ONLY:
                 result.skipped += 1
             else:
                 for key, value in values.items():
-                    setattr(entity, key, value)
-                entity.normalised_alias = normalized
-                entity.updated_by = self.user.id
+                    setattr(alias_entity, key, value)
+                alias_entity.normalised_alias = normalized
+                alias_entity.updated_by = self.user.id
                 result.aliases_updated += 1
         try:
             await self.session.flush()

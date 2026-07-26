@@ -8,6 +8,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,7 +137,7 @@ class ExtractionExportService(ExtractionContentService):
 
     async def _write_containers_json(
         self,
-        output: object,
+        output: TextIO,
         run: ExtractionRun,
     ) -> None:
         first = True
@@ -149,7 +150,7 @@ class ExtractionExportService(ExtractionContentService):
             )
             for item in items:
                 if not first:
-                    output.write(",")  # type: ignore[attr-defined]
+                    output.write(",")
                 _write_json_value(
                     output,
                     container_export_response(item).model_dump(
@@ -164,7 +165,7 @@ class ExtractionExportService(ExtractionContentService):
 
     async def _write_blocks_json(
         self,
-        output: object,
+        output: TextIO,
         run: ExtractionRun,
     ) -> None:
         first = True
@@ -177,7 +178,7 @@ class ExtractionExportService(ExtractionContentService):
             )
             for item in items:
                 if not first:
-                    output.write(",")  # type: ignore[attr-defined]
+                    output.write(",")
                 _write_json_value(
                     output,
                     block_response(item).model_dump(
@@ -192,7 +193,7 @@ class ExtractionExportService(ExtractionContentService):
 
     async def _write_tables_json(
         self,
-        output: object,
+        output: TextIO,
         run: ExtractionRun,
     ) -> None:
         first_table = True
@@ -206,7 +207,7 @@ class ExtractionExportService(ExtractionContentService):
             )
             for table in tables:
                 if not first_table:
-                    output.write(",")  # type: ignore[attr-defined]
+                    output.write(",")
                 payload = table_export_response(
                     table,
                     include_cells=False,
@@ -217,8 +218,8 @@ class ExtractionExportService(ExtractionContentService):
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
-                output.write(prefix[:-1])  # type: ignore[attr-defined]
-                output.write(',"cells":[')  # type: ignore[attr-defined]
+                output.write(prefix[:-1])
+                output.write(',"cells":[')
                 first_cell = True
                 cell_page = 1
                 while True:
@@ -229,7 +230,7 @@ class ExtractionExportService(ExtractionContentService):
                     )
                     for cell in cells:
                         if not first_cell:
-                            output.write(",")  # type: ignore[attr-defined]
+                            output.write(",")
                         _write_json_value(
                             output,
                             cell_response(cell).model_dump(
@@ -241,7 +242,7 @@ class ExtractionExportService(ExtractionContentService):
                     if cell_page * 500 >= cell_total:
                         break
                     cell_page += 1
-                output.write("]}")  # type: ignore[attr-defined]
+                output.write("]}")
                 first_table = False
             if page * 100 >= total:
                 break
@@ -305,7 +306,7 @@ def _container_heading(
     return f"[FOOTER: {name or index}]"
 
 
-def _write_json_value(output: object, value: object) -> None:
+def _write_json_value(output: TextIO, value: object) -> None:
     json.dump(
         value,
         output,

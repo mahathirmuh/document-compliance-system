@@ -123,9 +123,9 @@ class SectionAliasProfileService(MasterDataServiceBase):
         return SectionAliasProfileListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, profile_id: UUID) -> SectionAliasProfileResponse:
@@ -303,9 +303,9 @@ class SectionDefinitionService(MasterDataServiceBase):
         return SectionDefinitionListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, definition_id: UUID) -> SectionDefinitionResponse:

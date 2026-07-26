@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
+from jwt.types import Options
 
 from app.core.authorization import UserRole
 from app.core.config import Settings
@@ -114,7 +115,7 @@ class TokenService:
         if not token:
             raise AuthenticationError("Token is invalid.")
 
-        options = {
+        options: Options = {
             "require": ["sub", "type", "iat", "nbf", "exp", "jti"],
             "verify_aud": False,
             "verify_iss": False,

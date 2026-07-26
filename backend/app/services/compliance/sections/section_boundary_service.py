@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from typing import cast
+from uuid import UUID
 
 from app.schemas.compliance_internal import DetectedSectionData
 from app.services.compliance._compat import int_value, read, string_value
@@ -102,8 +104,8 @@ class SectionBoundaryService:
             sections.append(
                 DetectedSectionData(
                     canonical_code=primary.canonical_code,
-                    container_id=candidate.container_id,
-                    heading_block_id=candidate.block_id,
+                    container_id=cast(UUID | None, candidate.container_id),
+                    heading_block_id=cast(UUID | None, candidate.block_id),
                     heading_text=" / ".join(
                         item.candidate.text for item in group
                     ),
@@ -119,15 +121,21 @@ class SectionBoundaryService:
                     section_order=len(sections) + 1,
                     start_block_order=start_order,
                     end_block_order=end_order,
-                    start_block_id=(
-                        read(start_block, "id", None)
-                        if start_block is not None
-                        else None
+                    start_block_id=cast(
+                        UUID | None,
+                        (
+                            read(start_block, "id", None)
+                            if start_block is not None
+                            else None
+                        ),
                     ),
-                    end_block_id=(
-                        read(end_block, "id", None)
-                        if end_block is not None
-                        else None
+                    end_block_id=cast(
+                        UUID | None,
+                        (
+                            read(end_block, "id", None)
+                            if end_block is not None
+                            else None
+                        ),
                     ),
                     source_reference=candidate.source_reference,
                     is_required=primary.canonical_code in required,

@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.revision_comparison import RevisionComparison
@@ -83,7 +84,7 @@ class RevisionComparisonRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[RevisionComparison], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             RevisionComparison.document_id == document_id
         ]
         if department_ids is not None:

@@ -168,7 +168,8 @@ class SystemHealthService:
         dependencies: Sequence[DependencyHealthResponse],
         workers: Sequence[WorkerHealthResponse],
     ) -> HealthComponentStatus:
-        statuses = [item.status for item in (*dependencies, *workers)]
+        statuses = [item.status for item in dependencies]
+        statuses.extend(item.status for item in workers)
         if any(item == HealthComponentStatus.UNHEALTHY for item in statuses):
             return HealthComponentStatus.UNHEALTHY
         if any(item == HealthComponentStatus.DEGRADED for item in statuses):

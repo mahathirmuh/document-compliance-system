@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.in_app_notification import InAppNotification
@@ -109,7 +111,7 @@ class InAppNotificationRepository:
             )
             .values(is_read=True, read_at=read_at)
         )
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)
 
     async def delete_expired(self, *, now: datetime, batch_size: int) -> int:
         ids = list(
@@ -125,4 +127,4 @@ class InAppNotificationRepository:
         result = await self.session.execute(
             delete(InAppNotification).where(InAppNotification.id.in_(ids))
         )
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)

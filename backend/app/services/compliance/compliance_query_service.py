@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from math import ceil
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,9 +88,12 @@ class ComplianceQueryService(DocumentServiceBase):
         self.settings = settings
         self.runs = ComplianceRunRepository(session)
         self.files = DocumentFileRepository(session)
-        self.sections = DetectedSectionRepository(session)
+        self.sections = cast(Any, DetectedSectionRepository(session))
         self.groups = TranslationGroupRepository(session)
         self.findings = ValidationFindingRepository(session)
+
+    def _detected_section_repository(self) -> DetectedSectionRepository:
+        return cast(DetectedSectionRepository, self.sections)
 
     async def get_run(self, run_id: UUID) -> ComplianceRunResponse:
         run = await self._run(run_id)
@@ -184,7 +188,9 @@ class ComplianceQueryService(DocumentServiceBase):
         block_coverage = _float_mapping(coverage_metrics.get("blockCoverage"))
         character_coverage = _float_mapping(coverage_metrics.get("characterCoverage"))
         average_confidence = {
-            str(key): (float(value) if value is not None else None)
+            str(key): (
+                float(cast(Any, value)) if value is not None else None
+            )
             for key, value in _mapping(
                 presence_metrics.get("averageConfidence")
             ).items()
@@ -203,24 +209,32 @@ class ComplianceQueryService(DocumentServiceBase):
             incomplete_groups,
         ) = await self.groups.count_completeness_for_run(run.id)
         total_groups = complete_groups + incomplete_groups
-        low_confidence = int(group_metrics.get("lowConfidenceGroups", 0) or 0)
+        low_confidence = int(
+            cast(Any, group_metrics.get("lowConfidenceGroups", 0) or 0),
+        )
         order_invalid = await self.groups.count_invalid_order_for_run(run.id)
         required_count = int(
-            required_metrics.get(
-                "totalRequiredSections",
-                len(run.required_sections_json),
-            )
-            or 0
+            cast(
+                Any,
+                required_metrics.get(
+                    "totalRequiredSections",
+                    len(run.required_sections_json),
+                )
+                or 0,
+            ),
         )
         complete_sections = int(
-            required_metrics.get(
-                "completeSections",
-                max(
-                    0,
-                    required_count - len(run.missing_sections_json),
-                ),
-            )
-            or 0
+            cast(
+                Any,
+                required_metrics.get(
+                    "completeSections",
+                    max(
+                        0,
+                        required_count - len(run.missing_sections_json),
+                    ),
+                )
+                or 0,
+            ),
         )
         return ComplianceSummaryResponse(
             run_id=run.id,
@@ -278,7 +292,10 @@ class ComplianceQueryService(DocumentServiceBase):
                 minor=run.minor_findings,
                 information=run.information_findings,
             ),
-            warnings=list(run.warnings_json),
+            warnings=cast(
+                list[str] | list[dict[str, Any]],
+                list(run.warnings_json),
+            ),
         )
 
     async def score_breakdown(
@@ -339,7 +356,7 @@ class ComplianceQueryService(DocumentServiceBase):
                 ),
             ),
             score_cap=(
-                float(breakdown["scoreCap"])
+                float(cast(Any, breakdown["scoreCap"]))
                 if breakdown.get("scoreCap") is not None
                 else None
             ),
@@ -355,11 +372,14 @@ class ComplianceQueryService(DocumentServiceBase):
     ) -> DetectedSectionListResponse:
         await self._run(run_id)
         self._ensure_result_page_size(page_size)
-        total = await self.sections.count_for_run(run_id)
-        language_result_total = await self.sections.count_language_results_for_run_page(
-            run_id,
-            page=page,
-            page_size=page_size,
+        section_repository = self._detected_section_repository()
+        total = await section_repository.count_for_run(run_id)
+        language_result_total = (
+            await section_repository.count_language_results_for_run_page(
+                run_id,
+                page=page,
+                page_size=page_size,
+            )
         )
         if language_result_total > self.settings.compliance_export_max_rows:
             raise document_error(
@@ -368,7 +388,7 @@ class ComplianceQueryService(DocumentServiceBase):
                 status_code=413,
                 title="Compliance result page is too large.",
             )
-        sections = await self.sections.list_for_run(
+        sections = await section_repository.list_for_run(
             run_id,
             page=page,
             page_size=page_size,
@@ -697,7 +717,10 @@ def compliance_run_response(run: ComplianceRun) -> ComplianceRunResponse:
         required_sections=list(run.required_sections_json),
         detected_sections=run.detected_sections_json,
         missing_sections=list(run.missing_sections_json),
-        warnings=list(run.warnings_json),
+        warnings=cast(
+            list[str] | list[dict[str, Any]],
+            list(run.warnings_json),
+        ),
         metrics=dict(run.metrics_json),
         started_at=run.started_at,
         completed_at=run.completed_at,
@@ -860,7 +883,7 @@ def _snapshot_integer(
     if value is None:
         return None
     try:
-        return int(value)
+        return int(cast(Any, value))
     except (TypeError, ValueError):
         return None
 
@@ -876,7 +899,10 @@ def _safe_public_value(value: object) -> object:
 
 
 def _component(value: object, maximum: float) -> ComplianceScoreComponent:
-    return ComplianceScoreComponent(earned=float(value), maximum=maximum)
+    return ComplianceScoreComponent(
+        earned=float(cast(Any, value)),
+        maximum=maximum,
+    )
 
 
 def _mapping(value: object) -> dict[str, object]:

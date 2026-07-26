@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from math import ceil
+from typing import TypedDict
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +42,12 @@ from app.schemas.ocr_internal import OCRBoundingBox
 from app.services.auth.auth_service import RequestMetadata
 from app.services.documents.base import DocumentServiceBase
 from app.services.ocr.ocr_job_service import ocr_run_not_found
+
+
+class _OCRSummaryOptions(TypedDict):
+    low_confidence_blocks: int
+    low_confidence_threshold: float
+    review_confidence_threshold: float
 
 
 class OCRResultService(DocumentServiceBase):
@@ -264,7 +271,7 @@ class OCRResultService(DocumentServiceBase):
     async def _summary_options(
         self,
         run_ids: list[UUID],
-    ) -> dict[UUID, dict[str, float | int]]:
+    ) -> dict[UUID, _OCRSummaryOptions]:
         low_threshold = float(
             getattr(self.settings, "ocr_low_confidence_threshold", 0.60)
         )

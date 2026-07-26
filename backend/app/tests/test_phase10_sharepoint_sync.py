@@ -54,6 +54,7 @@ from app.repositories.sharepoint_sync_repository import (
     SharePointSyncRepository,
 )
 from app.schemas.sharepoint_sync import (
+    SharePointFileStatusResponse,
     SharePointSyncJobResponse,
     SharePointSyncProfileCreateRequest,
 )
@@ -505,6 +506,14 @@ def test_public_sync_contract_hides_delta_state_and_filters_remote_url() -> None
             "https://evil.example/download"
         )
         is None
+    )
+    remote_status = SharePointFileStatusResponse(
+        document_file_id=uuid4(),
+        storage_provider="SHAREPOINT",
+        remote_web_url="https://tenant.sharepoint.com/sites/docs/file.pdf",
+    ).model_dump(mode="json", by_alias=True)
+    assert remote_status["remoteWebUrl"] == (
+        "https://tenant.sharepoint.com/sites/docs/file.pdf"
     )
 
 

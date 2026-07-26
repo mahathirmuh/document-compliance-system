@@ -1065,7 +1065,7 @@ def language_container_response(
         chinese_characters=item.chinese_characters,
         mixed_characters=item.mixed_characters,
         unknown_characters=item.unknown_characters,
-        dominant_language=item.dominant_language,
+        dominant_language=LanguageCode(item.dominant_language),
         language_presence=dict(item.language_presence_json),
         coverage=dict(item.coverage_json),
         created_at=item.created_at,

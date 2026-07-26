@@ -429,20 +429,24 @@ class ExtractionContentService(DocumentServiceBase):
             source_id = UUID(item.source_id)
             if item.source == "NATIVE":
                 native = native_by_id[source_id]
-                container = native.container
+                candidate_container = native.container
                 item_block_type = native.block_type
                 source_reference = native.source_reference
             else:
                 ocr, page_number = ocr_by_id[source_id]
-                container = page_containers.get(page_number)
-                if container is None:
+                page_container = page_containers.get(page_number)
+                if page_container is None:
                     continue
+                candidate_container = page_container
                 item_block_type = ExtractedBlockType.TEXT
                 source_reference = _ocr_source_reference(
                     page_number,
                     ocr.block_order,
                 )
-            if container_id is not None and container.id != container_id:
+            if (
+                container_id is not None
+                and candidate_container.id != container_id
+            ):
                 continue
             if block_type is not None and item_block_type is not block_type:
                 continue
@@ -457,7 +461,7 @@ class ExtractionContentService(DocumentServiceBase):
                 )
             ):
                 continue
-            candidates.append((item, container))
+            candidates.append((item, candidate_container))
 
         annotations: tuple[
             dict[UUID, LanguageBlockResult],

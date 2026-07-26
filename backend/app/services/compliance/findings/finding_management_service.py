@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
 from datetime import date
 from enum import Enum
@@ -707,7 +708,7 @@ class FindingManagementService(DocumentServiceBase):
     async def _history(
         self,
         finding: ValidationFinding,
-    ) -> list[FindingHistoryEntry]:
+    ) -> builtins.list[FindingHistoryEntry]:
         """Load bounded workflow audit rows only after scoped finding lookup."""
 
         statement = (
@@ -773,7 +774,7 @@ class FindingManagementService(DocumentServiceBase):
     async def _scoped_findings_for_update(
         self,
         finding_ids: Sequence[UUID],
-    ) -> list[tuple[ValidationFinding, UUID]]:
+    ) -> builtins.list[tuple[ValidationFinding, UUID]]:
         """Lock all visible rows in stable order, then restore request order."""
 
         department_ids = self._scope_department_ids()
@@ -829,7 +830,7 @@ class FindingManagementService(DocumentServiceBase):
         finding_ids: Sequence[UUID],
         *,
         maximum_items: int,
-    ) -> list[UUID]:
+    ) -> builtins.list[UUID]:
         normalized = list(dict.fromkeys(finding_ids))
         if not normalized:
             raise document_error(
@@ -857,7 +858,7 @@ class FindingManagementService(DocumentServiceBase):
         filters: FindingFilter,
         *,
         department_ids: Sequence[UUID] | None,
-    ) -> list[Any]:
+    ) -> builtins.list[Any]:
         predicates: list[Any] = []
         if department_ids is not None:
             predicates.append(Document.department_id.in_(list(department_ids)))

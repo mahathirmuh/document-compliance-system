@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ApplicationError
@@ -307,7 +307,7 @@ class FileValidationService:
                     )
                 spool.write(chunk)
             spool.seek(0)
-            return spool, True
+            return cast(BinaryIO, spool), True
         except Exception:
             spool.close()
             raise

@@ -2,12 +2,13 @@
 
 import logging
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ExceptionHandler
 
 from app.core.exceptions import ApplicationError
 from app.schemas.common import ApiResponse, ErrorDetail
@@ -84,7 +85,16 @@ async def unexpected_error_handler(
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register handlers in one place for every API endpoint."""
-    app.add_exception_handler(ApplicationError, application_error_handler)
-    app.add_exception_handler(RequestValidationError, validation_error_handler)
-    app.add_exception_handler(StarletteHTTPException, http_error_handler)
+    app.add_exception_handler(
+        ApplicationError,
+        cast(ExceptionHandler, application_error_handler),
+    )
+    app.add_exception_handler(
+        RequestValidationError,
+        cast(ExceptionHandler, validation_error_handler),
+    )
+    app.add_exception_handler(
+        StarletteHTTPException,
+        cast(ExceptionHandler, http_error_handler),
+    )
     app.add_exception_handler(Exception, unexpected_error_handler)

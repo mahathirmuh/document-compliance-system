@@ -32,12 +32,17 @@ _QUEUE_BY_WORKER = {
 
 
 def _identity(sender: Any) -> tuple[str, str, str]:
-    eventer = getattr(sender, "eventer", None)
-    hostname = str(
-        getattr(eventer, "hostname", None)
-        or getattr(sender, "hostname", None)
-        or "worker@unknown"
-    )
+    if isinstance(sender, str):
+        # ``heartbeat_sent`` provides a Heart instance, while Celery's
+        # ``worker_shutting_down`` signal provides the hostname directly.
+        hostname = sender.strip() or "worker@unknown"
+    else:
+        eventer = getattr(sender, "eventer", None)
+        hostname = str(
+            getattr(eventer, "hostname", None)
+            or getattr(sender, "hostname", None)
+            or "worker@unknown"
+        )
     prefix = hostname.split("@", maxsplit=1)[0].casefold()
     worker_name = prefix if prefix in _QUEUE_BY_WORKER else "unknown"
     return worker_name, hostname, _QUEUE_BY_WORKER.get(worker_name, prefix)

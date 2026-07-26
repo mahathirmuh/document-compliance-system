@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import delete, func, literal_column, or_, select
+from sqlalchemy import String, delete, func, literal_column, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.elements import ColumnElement
@@ -21,7 +24,10 @@ def _block_text_search_predicate(
 ) -> ColumnElement[bool]:
     """Build an indexed PostgreSQL predicate with a SQLite-safe fallback."""
     if dialect_name == "postgresql":
-        simple_config = literal_column("'simple'")
+        simple_config: ColumnElement[str] = literal_column(
+            "'simple'",
+            type_=String(),
+        )
         indexed_content = (
             ExtractedBlock.normalised_text
             + literal_column("' '")
@@ -38,7 +44,10 @@ def _block_text_search_predicate(
 
 def _container_name_search_predicate(query: str) -> ColumnElement[bool]:
     """Build the predicate matching the PostgreSQL container-name GIN index."""
-    simple_config = literal_column("'simple'")
+    simple_config: ColumnElement[str] = literal_column(
+        "'simple'",
+        type_=String(),
+    )
     document_vector = func.to_tsvector(
         simple_config,
         ExtractedContainer.name,
@@ -108,8 +117,8 @@ class ExtractedBlockRepository:
         page: int = 1,
         page_size: int = 100,
         sort_order: str = "asc",
-    ) -> tuple[list[ExtractedBlock], int]:
-        predicates: list[object] = [
+    ) -> tuple[builtins.list[ExtractedBlock], int]:
+        predicates: list[ColumnElement[bool]] = [
             ExtractedBlock.extraction_run_id == extraction_run_id
         ]
         if container_id is not None:
@@ -187,7 +196,7 @@ class ExtractedBlockRepository:
         query: str,
         *,
         limit: int = 500,
-    ) -> tuple[list[ExtractedBlock], int]:
+    ) -> tuple[builtins.list[ExtractedBlock], int]:
         normalized_query = query.strip()
         dialect_name = self.session.get_bind().dialect.name
         predicate = _block_search_predicate(
@@ -237,4 +246,4 @@ class ExtractedBlockRepository:
             )
         )
         await self.session.flush()
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)

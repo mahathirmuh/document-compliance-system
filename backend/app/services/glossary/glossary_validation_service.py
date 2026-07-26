@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from app.models.glossary_enums import GlossaryExceptionType
 from app.services.glossary.contracts import (
@@ -293,17 +294,17 @@ class GlossaryValidationService:
         scope: GlossaryValidationScope,
         as_of: date,
     ) -> tuple[
-        set[tuple[object, str, str]],
+        set[tuple[UUID, str, str]],
         list[GlossaryFindingSignal],
     ]:
         terms_by_id = {term.id: term for term in terms}
         grouped: dict[
-            tuple[object, str],
+            tuple[UUID, str],
             list[GlossaryMatchCandidate],
         ] = defaultdict(list)
         for item in matches:
             grouped[(item.glossary_term_id, item.context_key)].append(item)
-        excepted: set[tuple[object, str, str]] = set()
+        excepted: set[tuple[UUID, str, str]] = set()
         expired_findings: list[GlossaryFindingSignal] = []
         seen_expired: set[object] = set()
         for (term_id, context_key), context_matches in grouped.items():
@@ -331,12 +332,15 @@ class GlossaryValidationService:
                 )
                 if active is not None:
                     excepted.add((term_id, context_key, language))
-                for item in expired:
-                    if item.id not in seen_expired:
+                for expired_exception in expired:
+                    if expired_exception.id not in seen_expired:
                         expired_findings.append(
-                            self._expired_exception_signal(item, anchor)
+                            self._expired_exception_signal(
+                                expired_exception,
+                                anchor,
+                            )
                         )
-                        seen_expired.add(item.id)
+                        seen_expired.add(expired_exception.id)
         return excepted, expired_findings
 
     def _required_term_exceptions(

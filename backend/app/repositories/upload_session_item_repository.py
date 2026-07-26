@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.upload_session_item import (
     UploadIdentificationStatus,
@@ -21,7 +22,7 @@ class UploadSessionItemRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(UploadSessionItem.matched_document),
             joinedload(UploadSessionItem.matched_revision),

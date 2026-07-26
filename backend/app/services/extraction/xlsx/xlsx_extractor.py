@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from pathlib import Path
+from typing import cast
 from zipfile import BadZipFile, ZipFile
 
 from openpyxl import load_workbook
@@ -154,7 +155,10 @@ class XLSXExtractor(BaseDocumentExtractor):
                     counters.formulas_without_cached_values
                 ),
                 "workbookProperties": _workbook_properties(workbook),
-                "definedNames": _defined_names(workbook),
+                "definedNames": cast(
+                    JsonValue,
+                    _defined_names(workbook),
+                ),
                 "calculationPerformed": False,
                 **package_metadata,
             }

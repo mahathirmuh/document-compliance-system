@@ -5,6 +5,8 @@ from uuid import UUID
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.compliance_enums import FindingSeverity
 from app.models.similarity_enums import (
@@ -52,7 +54,7 @@ class TranslationSimilarityRepository:
         page: int = 1,
         page_size: int = 100,
     ) -> tuple[list[TranslationSimilarityResult], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             TranslationSimilarityResult.similarity_run_id == run_id
         ]
         if section_id is not None:
@@ -237,8 +239,8 @@ class TranslationSimilarityRepository:
 
     @staticmethod
     def _mismatch_predicate(
-        predicates: list[object],
-        column: object,
+        predicates: list[ColumnElement[bool]],
+        column: InstrumentedAttribute[ConsistencyStatus],
         selected: bool | None,
     ) -> None:
         if selected is True:

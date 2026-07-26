@@ -1,6 +1,7 @@
 """File metadata and current downloads nested under register resources."""
 
-from typing import Annotated
+from collections.abc import AsyncIterable
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -102,7 +103,7 @@ async def download_current_revision_file(
         session, settings, user, metadata
     ).prepare_current_revision_download(document_id, revision_id)
     return StreamingResponse(
-        download.body,
+        cast(AsyncIterable[bytes], download.body),
         media_type=download.media_type,
         headers={
             "Content-Length": str(download.content_length),
@@ -112,4 +113,3 @@ async def download_current_revision_file(
             "Cache-Control": "private, no-store",
         },
     )
-

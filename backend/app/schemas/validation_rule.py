@@ -111,10 +111,16 @@ class ValidationRuleValues(ApiSchema):
     )
     section_alias_profile_id: UUID | None = None
     minimum_language_block_coverage: dict[str, float] = Field(
-        default_factory=lambda: dict(DEFAULT_LANGUAGE_BLOCK_COVERAGE)
+        default_factory=lambda: {
+            language: float(coverage)
+            for language, coverage in DEFAULT_LANGUAGE_BLOCK_COVERAGE.items()
+        }
     )
     minimum_language_character_coverage: dict[str, float] = Field(
-        default_factory=lambda: dict(DEFAULT_LANGUAGE_CHARACTER_COVERAGE)
+        default_factory=lambda: {
+            language: float(coverage)
+            for language, coverage in DEFAULT_LANGUAGE_CHARACTER_COVERAGE.items()
+        }
     )
     maximum_unknown_block_percentage: float = Field(
         default=10,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from math import ceil
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +31,10 @@ from app.repositories.translation_similarity_repository import (
 from app.schemas.similarity import (
     SectionSimilaritySummaryListResponse,
     SectionSimilaritySummaryResponse,
+    SimilarityDocumentReference,
+    SimilarityFileReference,
+    SimilarityRequesterReference,
+    SimilarityRevisionReference,
     SimilarityRunListResponse,
     SimilarityRunResponse,
     SimilaritySummaryResponse,
@@ -112,7 +117,7 @@ class SimilarityQueryService:
             },
             section_count=section_count,
             finding_count=int(metrics.get("findingCount", 0) or 0),
-            warnings=list(run.warnings_json or []),
+            warnings=run.warnings_json or [],
         )
 
     async def list_results(
@@ -285,22 +290,22 @@ def similarity_run_response(run: SimilarityRun) -> SimilarityRunResponse:
         document_file_id=run.document_file_id,
         compliance_run_id=run.compliance_run_id,
         language_detection_run_id=run.language_detection_run_id,
-        document={
-            "id": document.id,
-            "base_document_code": document.base_document_code,
-            "title": document.title,
-            "department_id": document.department_id,
-        },
-        revision={
-            "id": revision.id,
-            "revision_code": revision.revision_code,
-            "full_document_code": revision.full_document_code,
-        },
-        file={
-            "id": document_file.id,
-            "filename": document_file.original_filename,
-            "file_extension": document_file.file_extension,
-        },
+        document=SimilarityDocumentReference(
+            id=document.id,
+            base_document_code=document.base_document_code,
+            title=document.title,
+            department_id=document.department_id,
+        ),
+        revision=SimilarityRevisionReference(
+            id=revision.id,
+            revision_code=revision.revision_code,
+            full_document_code=revision.full_document_code,
+        ),
+        file=SimilarityFileReference(
+            id=document_file.id,
+            filename=document_file.original_filename,
+            file_extension=document_file.file_extension,
+        ),
         provider=run.provider,
         model_name=run.model_name,
         model_version=run.model_version,
@@ -332,12 +337,15 @@ def similarity_run_response(run: SimilarityRun) -> SimilarityRunResponse:
         measurement_mismatch_count=run.measurement_mismatch_count,
         reference_mismatch_count=run.reference_mismatch_count,
         negation_mismatch_count=run.negation_mismatch_count,
-        warnings=list(run.warnings_json or []),
+        warnings=run.warnings_json or [],
         metrics=dict(run.metrics_json or {}),
         started_at=run.started_at,
         completed_at=run.completed_at,
         requested_by=(
-            {"id": requester.id, "name": requester.name}
+            SimilarityRequesterReference(
+                id=requester.id,
+                name=requester.name,
+            )
             if requester is not None
             else None
         ),
@@ -368,11 +376,19 @@ def similarity_result_response(
         source_text_hash=result.source_text_hash,
         target_text_hash=result.target_text_hash,
         source_text_snippet=_snippet(
-            texts.get(result.source_member_id),
+            (
+                texts.get(result.source_member_id)
+                if result.source_member_id is not None
+                else None
+            ),
             snippet_max_characters,
         ),
         target_text_snippet=_snippet(
-            texts.get(result.target_member_id),
+            (
+                texts.get(result.target_member_id)
+                if result.target_member_id is not None
+                else None
+            ),
             snippet_max_characters,
         ),
         similarity_score=_optional_float(result.similarity_score),
@@ -401,7 +417,7 @@ def similarity_result_response(
         chunk_count_source=result.chunk_count_source,
         chunk_count_target=result.chunk_count_target,
         metrics=metrics,
-        warnings=list(result.warnings_json or []),
+        warnings=result.warnings_json or [],
         finding_count=len(finding_ids),
         related_finding_ids=list(finding_ids),
         created_at=result.created_at,
@@ -434,12 +450,12 @@ def section_similarity_response(
 
 
 def _optional_float(value: object) -> float | None:
-    return float(value) if value is not None else None
+    return float(cast(Any, value)) if value is not None else None
 
 
 def _optional_score(value: object) -> float | None:
     try:
-        score = float(value) if value is not None else None
+        score = float(cast(Any, value)) if value is not None else None
     except (TypeError, ValueError):
         return None
     return score if score is not None and 0 <= score <= 1 else None

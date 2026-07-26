@@ -3,6 +3,7 @@
 from typing import Any
 
 from openpyxl.utils import get_column_letter
+from pydantic import JsonValue
 
 from app.schemas.extraction import ExtractedBlockData, ExtractedBlockType
 from app.services.extraction.text_normalizer import (
@@ -49,7 +50,7 @@ def extract_xlsx_cell(
     cell_hyperlink_target = getattr(hyperlink, "target", None)
     effective_hyperlink_target = hyperlink_target or cell_hyperlink_target
     column_number = int(cell.column)
-    metadata = {
+    metadata: dict[str, JsonValue] = {
         "sheet": sheet_name,
         "coordinate": str(cell.coordinate),
         "row": int(cell.row),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from uuid import UUID
 
 from app.models.language_block_result import (
     LanguageCode,
@@ -102,7 +103,7 @@ class LanguageAggregationService:
         blocks: Sequence[DetectedLanguageBlockData],
     ) -> list[LanguageContainerAggregateData]:
         grouped: dict[
-            tuple[object, str, str | None, int],
+            tuple[UUID | None, str, str | None, int],
             list[DetectedLanguageBlockData],
         ] = defaultdict(list)
         for block in blocks:

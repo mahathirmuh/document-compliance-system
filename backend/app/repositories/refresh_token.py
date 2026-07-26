@@ -1,9 +1,11 @@
 """Persistence operations for refresh-token sessions."""
 
 from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.refresh_token import RefreshToken
@@ -73,4 +75,4 @@ class RefreshTokenRepository:
             )
             .values(revoked_at=revoked_at)
         )
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)

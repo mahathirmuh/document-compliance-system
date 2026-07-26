@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.report_snapshot import (
     AdvancedReportType,
@@ -30,7 +31,7 @@ class ReportSnapshotRepository:
     @staticmethod
     def _scope_predicate(
         department_ids: Sequence[UUID] | None,
-    ) -> object | None:
+    ) -> ColumnElement[bool] | None:
         if department_ids is None:
             return None
         if not department_ids:
@@ -44,7 +45,7 @@ class ReportSnapshotRepository:
         department_ids: Sequence[UUID] | None,
         for_update: bool = False,
     ) -> ReportSnapshot | None:
-        predicates: list[object] = [ReportSnapshot.id == snapshot_id]
+        predicates: list[ColumnElement[bool]] = [ReportSnapshot.id == snapshot_id]
         scope = self._scope_predicate(department_ids)
         if scope is not None:
             predicates.append(scope)
@@ -66,7 +67,7 @@ class ReportSnapshotRepository:
         generated_from: datetime | None = None,
         generated_to: datetime | None = None,
     ) -> tuple[list[ReportSnapshot], int]:
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         scope = self._scope_predicate(department_ids)
         if scope is not None:
             predicates.append(scope)

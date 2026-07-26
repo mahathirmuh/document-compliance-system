@@ -94,7 +94,7 @@ class RevisionAlignmentService:
 
         remaining_targets = set(range(len(target_items)))
         aligned: list[AlignedRevisionPair] = []
-        target_index = self._build_index(target_items)
+        alignment_index = self._build_index(target_items)
 
         # Exact source references inside the same canonical structure are the
         # strongest stable Phase 6/8 provenance signal.
@@ -104,7 +104,7 @@ class RevisionAlignmentService:
                 target_items,
                 self._candidate_indices(
                     base,
-                    target_index,
+                    alignment_index,
                     remaining_targets,
                 ),
             )
@@ -120,9 +120,9 @@ class RevisionAlignmentService:
                     )
                 )
                 continue
-            target_index, score, text_score, structural, signals = candidate
-            remaining_targets.remove(target_index)
-            target = target_items[target_index]
+            candidate_index, score, text_score, structural, signals = candidate
+            remaining_targets.remove(candidate_index)
+            target = target_items[candidate_index]
             moved = self._is_moved(base, target, text_score)
             aligned.append(
                 AlignedRevisionPair(
@@ -136,11 +136,11 @@ class RevisionAlignmentService:
                 )
             )
 
-        for target_index in sorted(remaining_targets):
+        for candidate_index in sorted(remaining_targets):
             aligned.append(
                 AlignedRevisionPair(
                     base=None,
-                    target=target_items[target_index],
+                    target=target_items[candidate_index],
                     text_similarity=0.0,
                     structural_similarity=0.0,
                     alignment_confidence=1.0,

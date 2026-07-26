@@ -151,6 +151,11 @@ def test_celery_correlation_and_worker_identity() -> None:
             eventer=SimpleNamespace(hostname="sharepoint@worker-1")
         )
     ) == ("sharepoint", "sharepoint@worker-1", "sharepoint")
+    assert _identity("maintenance@worker-2") == (
+        "maintenance",
+        "maintenance@worker-2",
+        "maintenance",
+    )
 
 
 def _production_settings(**overrides: object) -> Settings:

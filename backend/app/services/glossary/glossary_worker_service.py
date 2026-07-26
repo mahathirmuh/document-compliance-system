@@ -407,6 +407,7 @@ class GlossaryWorkerService:
                 row.eligibility_status != "ELIGIBLE"
                 or row.language_code not in {"id", "en", "zh"}
                 or not row.text
+                or row.id is None
             ):
                 continue
             source_type = str(

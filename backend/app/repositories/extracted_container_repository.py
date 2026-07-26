@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.extracted_container import (
     ExtractedContainer,
@@ -23,7 +27,7 @@ class ExtractedContainerRepository:
     async def bulk_create(
         self,
         containers: Sequence[ExtractedContainer],
-    ) -> list[ExtractedContainer]:
+    ) -> builtins.list[ExtractedContainer]:
         if not containers:
             return []
         self.session.add_all(containers)
@@ -39,7 +43,7 @@ class ExtractedContainerRepository:
         page: int = 1,
         page_size: int = 100,
     ) -> tuple[list[ExtractedContainer], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             ExtractedContainer.extraction_run_id == extraction_run_id
         ]
         if container_type is not None:
@@ -89,7 +93,7 @@ class ExtractedContainerRepository:
         query: str,
         *,
         limit: int = 100,
-    ) -> list[ExtractedContainer]:
+    ) -> builtins.list[ExtractedContainer]:
         pattern = f"%{query.strip()}%"
         statement = (
             select(ExtractedContainer)
@@ -114,4 +118,4 @@ class ExtractedContainerRepository:
             )
         )
         await self.session.flush()
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)

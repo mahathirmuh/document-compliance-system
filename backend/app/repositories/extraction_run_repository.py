@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.document_file import DocumentFile
 from app.models.extraction_job import ExtractionJob
@@ -20,7 +21,7 @@ class ExtractionRunRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(ExtractionRun.extraction_job).joinedload(
                 ExtractionJob.requester

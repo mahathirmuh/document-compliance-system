@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID, uuid4
 
 import jwt
@@ -91,13 +91,17 @@ SectionConfigurer = Annotated[
 ]
 
 SortOrder = Literal["asc", "desc"]
+SheetName = Literal["Section Definitions", "Section Aliases"]
 XLSX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 _IMPORT_TOKEN_TYPE = "section_alias_import"
 _IMPORT_TOKEN_TTL = timedelta(minutes=15)
 _IMPORT_TOKEN_MAX_LENGTH = 8_000_000
-_SHEETS = ("Section Definitions", "Section Aliases")
+_SHEETS: tuple[SheetName, SheetName] = (
+    "Section Definitions",
+    "Section Aliases",
+)
 
 
 def _profile_service(
@@ -237,12 +241,12 @@ async def _resolve_profile(
     *,
     require_active: bool,
 ) -> tuple[SectionAliasProfile, bool]:
-    used_default = profile_id is None
-    profile = (
-        await service.profiles.get_default()
-        if used_default
-        else await service.profiles.get_by_id(profile_id)
-    )
+    if profile_id is None:
+        used_default = True
+        profile = await service.profiles.get_default()
+    else:
+        used_default = False
+        profile = await service.profiles.get_by_id(profile_id)
     if profile is None:
         if used_default:
             raise business_error(
@@ -389,7 +393,7 @@ def _preview_response(
         if (sheet, row_number) not in represented_rows:
             rows.append(
                 SectionAliasImportPreviewRow(
-                    sheet_name=sheet,
+                    sheet_name=cast(SheetName, sheet),
                     row_number=row_number,
                     status="INVALID",
                     data={},

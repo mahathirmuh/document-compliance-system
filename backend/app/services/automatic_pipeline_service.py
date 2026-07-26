@@ -546,6 +546,7 @@ class AutomaticPipelineService:
         if not worker_reference:
             return
         async with self.session_factory() as session:
+            job: OCRJob | LanguageDetectionJob | None
             if ocr:
                 job = await OCRJobRepository(session).get_by_id(
                     job_id,

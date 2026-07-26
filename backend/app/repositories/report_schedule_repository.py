@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.report_schedule import ReportSchedule
 
@@ -27,7 +28,7 @@ class ReportScheduleRepository:
         department_ids: Sequence[UUID] | None,
         for_update: bool = False,
     ) -> ReportSchedule | None:
-        predicates: list[object] = [ReportSchedule.id == schedule_id]
+        predicates: list[ColumnElement[bool]] = [ReportSchedule.id == schedule_id]
         if department_ids is not None:
             if not department_ids:
                 return None
@@ -47,7 +48,7 @@ class ReportScheduleRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[ReportSchedule], int]:
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         if department_ids is not None:
             if not department_ids:
                 return [], 0

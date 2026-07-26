@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from http import HTTPStatus
+from typing import cast
 from urllib.parse import quote
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from app.core.authorization import AuditAction, Permission, has_permission
 from app.core.config import Settings
 from app.models.document_file import DocumentFile, DocumentFileStatus
 from app.models.upload_session import UploadSessionType
+from app.models.upload_session_item import UploadProposedAction
 from app.repositories.document_file_repository import DocumentFileRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.document_revision_repository import (
@@ -187,9 +189,9 @@ class DocumentFileService(DocumentServiceBase):
         return DocumentFileListResponse(
             items=[self._item(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=(total + page_size - 1) // page_size if total else 0,
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=(total + page_size - 1) // page_size if total else 0,
         )
 
     async def prepare_download(self, file_id: UUID) -> FileDownload:
@@ -315,7 +317,7 @@ class DocumentFileService(DocumentServiceBase):
                 items=[
                     UploadConfirmationItem(
                         upload_item_id=item.upload_item_id,
-                        action="REPLACE_CURRENT_FILE",
+                        action=UploadProposedAction.REPLACE_CURRENT_FILE,
                         document_id=current.document_id,
                         revision_id=current.document_revision_id,
                         metadata=UploadActionMetadata(reason=reason),
@@ -356,7 +358,10 @@ class DocumentFileService(DocumentServiceBase):
                 title="File could not be deleted.",
             )
         old_key = document_file.storage_key
-        old_audit_values = self._audit_values(document_file)
+        old_audit_values = cast(
+            dict[str, object],
+            self._audit_values(document_file),
+        )
         deleted_key = self.paths.deleted_key(
             document_file.document_id,
             document_file.document_revision_id,
@@ -385,7 +390,10 @@ class DocumentFileService(DocumentServiceBase):
                 ),
                 old_values=old_audit_values,
                 new_values={
-                    **self._audit_values(document_file),
+                    **cast(
+                        dict[str, object],
+                        self._audit_values(document_file),
+                    ),
                     "reason": payload.reason,
                 },
             )
@@ -466,7 +474,10 @@ class DocumentFileService(DocumentServiceBase):
                     "replacedCurrent": old_current_values,
                 },
                 new_values={
-                    **self._audit_values(document_file),
+                    **cast(
+                        dict[str, object],
+                        self._audit_values(document_file),
+                    ),
                     "reason": payload.reason,
                 },
             )

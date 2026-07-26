@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
@@ -198,7 +198,7 @@ async def list_ocr_jobs(
     return ApiResponse(
         success=True,
         message="OCR jobs retrieved successfully.",
-        data=data,
+        data=cast(OCRJobListResponse, data),
         errors=None,
     )
 

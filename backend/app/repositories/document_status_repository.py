@@ -12,9 +12,7 @@ from app.repositories.master_data_base import BaseMasterDataRepository
 
 class DocumentStatusRepository(BaseMasterDataRepository[DocumentStatus]):
     model = DocumentStatus
-    sortable_columns: ClassVar[
-        dict[str, InstrumentedAttribute[Any]]
-    ] = {
+    sortable_columns: ClassVar[dict[str, InstrumentedAttribute[Any]]] = {
         "code": DocumentStatus.code,
         "name": DocumentStatus.name,
         "displayOrder": DocumentStatus.display_order,

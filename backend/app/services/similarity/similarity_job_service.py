@@ -40,9 +40,13 @@ from app.repositories.similarity_run_repository import (
 )
 from app.schemas.similarity import (
     SimilarityCancelResponse,
+    SimilarityDocumentReference,
+    SimilarityFileReference,
     SimilarityJobListResponse,
     SimilarityJobResponse,
     SimilarityQueuedResponse,
+    SimilarityRequesterReference,
+    SimilarityRevisionReference,
 )
 from app.services.auth.auth_service import RequestMetadata
 from app.services.documents.base import document_conflict, document_error
@@ -539,22 +543,22 @@ def similarity_job_response(job: SimilarityJob) -> SimilarityJobResponse:
         document_file_id=job.document_file_id,
         compliance_run_id=job.compliance_run_id,
         language_detection_run_id=job.language_detection_run_id,
-        document={
-            "id": document.id,
-            "base_document_code": document.base_document_code,
-            "title": document.title,
-            "department_id": document.department_id,
-        },
-        revision={
-            "id": revision.id,
-            "revision_code": revision.revision_code,
-            "full_document_code": revision.full_document_code,
-        },
-        file={
-            "id": document_file.id,
-            "filename": document_file.original_filename,
-            "file_extension": document_file.file_extension,
-        },
+        document=SimilarityDocumentReference(
+            id=document.id,
+            base_document_code=document.base_document_code,
+            title=document.title,
+            department_id=document.department_id,
+        ),
+        revision=SimilarityRevisionReference(
+            id=revision.id,
+            revision_code=revision.revision_code,
+            full_document_code=revision.full_document_code,
+        ),
+        file=SimilarityFileReference(
+            id=document_file.id,
+            filename=document_file.original_filename,
+            file_extension=document_file.file_extension,
+        ),
         job_type=job.job_type,
         status=job.status,
         progress=job.progress,
@@ -563,7 +567,10 @@ def similarity_job_response(job: SimilarityJob) -> SimilarityJobResponse:
         provider=job.provider,
         model_name=job.model_name,
         requested_by=(
-            {"id": requester.id, "name": requester.name}
+            SimilarityRequesterReference(
+                id=requester.id,
+                name=requester.name,
+            )
             if requester is not None
             else None
         ),

@@ -690,12 +690,13 @@ class SharePointWorkerService:
             async with self.session_factory() as session:
                 repository = DocumentFileRepository(session)
                 old = await repository.get_by_id(file_id, for_update=True)
-                job = await SharePointSyncRepository(session).get_job(
+                loaded_job = await SharePointSyncRepository(session).get_job(
                     job_id,
                     for_update=True,
                 )
-                if old is None or job is None:
+                if old is None or loaded_job is None:
                     raise ValueError("SharePoint pull source no longer exists.")
+                job = loaded_job
                 extension = PurePosixPath(sanitized).suffix.lower().lstrip(".")
                 if extension not in {"pdf", "docx", "xlsx"}:
                     raise ValueError("Remote SharePoint file type is unsupported.")
@@ -986,16 +987,20 @@ class SharePointWorkerService:
         finally:
             await graph.close()
         async with self.session_factory() as session:
-            job = await SharePointSyncRepository(session).get_job(
+            loaded_job = await SharePointSyncRepository(session).get_job(
                 job_id,
                 for_update=True,
             )
-            document_file = await DocumentFileRepository(session).get_by_id(
+            loaded_document_file = await DocumentFileRepository(
+                session
+            ).get_by_id(
                 file_id,
                 for_update=True,
             )
-            if job is None or document_file is None:
+            if loaded_job is None or loaded_document_file is None:
                 return
+            job = loaded_job
+            document_file = loaded_document_file
             document_file.remote_sync_status = RemoteSyncStatus.SYNCED
             document_file.last_synced_at = utc_now()
             if self._standalone_job(job):
@@ -1827,7 +1832,9 @@ class SharePointWorkerService:
                     folder_item_id=None,
                     delta_link=result.delta_link,
                 )
-                job.result_summary_json["deltaTokenPersisted"] = True
+                result_summary = dict(job.result_summary_json or {})
+                result_summary["deltaTokenPersisted"] = True
+                job.result_summary_json = result_summary
             elif (
                 job.status is SharePointSyncJobStatus.COMPLETED
                 and bool(

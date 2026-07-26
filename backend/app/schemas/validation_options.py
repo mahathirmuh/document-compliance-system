@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from typing import Any, cast
 
 SECTION_COVERAGE_EVALUATION_MODES = frozenset(
     {
@@ -110,7 +111,9 @@ def _section_coverage_thresholds(value: object) -> dict[str, object]:
     if not raw:
         return {}
     if all(key.strip().casefold() in _SUPPORTED_LANGUAGES for key in raw):
-        return _language_thresholds(raw)
+        normalized_languages: dict[str, object] = {}
+        normalized_languages.update(_language_thresholds(raw))
+        return normalized_languages
 
     normalized: dict[str, object] = {}
     for section, language_values in raw.items():
@@ -131,7 +134,7 @@ def _section_coverage_thresholds(value: object) -> dict[str, object]:
     return normalized
 
 
-def _language_thresholds(value: Mapping[object, object]) -> dict[str, float]:
+def _language_thresholds(value: Mapping[Any, object]) -> dict[str, float]:
     normalized: dict[str, float] = {}
     for language, percentage in value.items():
         code = str(language).strip().casefold()
@@ -149,7 +152,7 @@ def _percentage(value: object, *, maximum: float) -> float:
             "Section coverage thresholds must be numeric."
         )
     try:
-        numeric = float(value)
+        numeric = float(cast(Any, value))
     except (TypeError, ValueError) as exc:
         raise ValueError("Section coverage thresholds must be numeric.") from exc
     if not 0 <= numeric <= maximum:

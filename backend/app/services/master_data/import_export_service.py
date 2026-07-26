@@ -6,13 +6,14 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeAlias, cast, overload
+from uuid import UUID
 from zipfile import is_zipfile
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,12 +33,13 @@ from app.repositories.document_status_repository import (
     DocumentStatusRepository,
 )
 from app.repositories.document_type_repository import DocumentTypeRepository
+from app.repositories.master_data_base import MasterDataListPageFilters
 from app.repositories.section_repository import SectionRepository
 from app.repositories.validation_rule_repository import ValidationRuleRepository
 from app.schemas.common import ErrorDetail
 from app.schemas.department import DepartmentCreate
 from app.schemas.document_status import DocumentStatusCreate
-from app.schemas.document_type import DocumentTypeCreate
+from app.schemas.document_type import DocumentTypeCategory, DocumentTypeCreate
 from app.schemas.master_data import (
     ImportConfirmResponse,
     ImportEntityType,
@@ -53,6 +55,14 @@ from app.utils.datetime import utc_now
 
 XLSX_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+ImportPayload: TypeAlias = (
+    DepartmentCreate
+    | SectionCreate
+    | DocumentTypeCreate
+    | DocumentStatusCreate
+    | ValidationRuleCreate
 )
 
 TEMPLATE_HEADERS: dict[ImportEntityType, tuple[str, ...]] = {
@@ -114,7 +124,7 @@ TEMPLATE_HEADERS: dict[ImportEntityType, tuple[str, ...]] = {
 class ParsedImportRow:
     row_number: int
     raw: dict[str, Any]
-    payload: BaseModel | None
+    payload: ImportPayload | None
     existing: Any | None
     key: str | tuple[str, str] | None
     status: ImportRowStatus
@@ -181,6 +191,14 @@ def _integer(value: Any, *, default: int | None = None) -> int:
     if isinstance(value, float) and value != numeric:
         raise ValueError("Integer value must not contain decimals.")
     return numeric
+
+
+@overload
+def _string(value: Any, *, optional: Literal[False] = False) -> str: ...
+
+
+@overload
+def _string(value: Any, *, optional: Literal[True]) -> str | None: ...
 
 
 def _string(value: Any, *, optional: bool = False) -> str | None:
@@ -568,7 +586,7 @@ class MasterDataImportExportService:
                 for_update=for_update,
             )
         except (ValueError, ValidationError) as exc:
-            errors = (
+            validation_errors = (
                 _validation_messages(exc)
                 if isinstance(exc, ValidationError)
                 else [str(exc)]
@@ -580,7 +598,7 @@ class MasterDataImportExportService:
                 existing=None,
                 key=None,
                 status=ImportRowStatus.INVALID,
-                errors=errors,
+                errors=validation_errors,
                 context={},
             )
 
@@ -629,7 +647,7 @@ class MasterDataImportExportService:
         raw: dict[str, Any],
         *,
         for_update: bool,
-    ) -> tuple[BaseModel, dict[str, Any]]:
+    ) -> tuple[ImportPayload, dict[str, Any]]:
         if entity_type is ImportEntityType.DEPARTMENTS:
             return (
                 DepartmentCreate(
@@ -664,11 +682,16 @@ class MasterDataImportExportService:
                 },
             )
         if entity_type is ImportEntityType.DOCUMENT_TYPES:
+            category_value = _string(raw["category"], optional=True)
             return (
                 DocumentTypeCreate(
                     code=_string(raw["code"]),
                     name=_string(raw["name"]),
-                    category=_string(raw["category"], optional=True),
+                    category=(
+                        DocumentTypeCategory(category_value)
+                        if category_value is not None
+                        else None
+                    ),
                     description=_string(raw["description"], optional=True),
                     requires_section=_boolean(
                         raw["requires_section"],
@@ -790,7 +813,7 @@ class MasterDataImportExportService:
     @staticmethod
     def _key(
         entity_type: ImportEntityType,
-        payload: BaseModel,
+        payload: ImportPayload,
         context: dict[str, Any],
     ) -> str | tuple[str, str]:
         code = str(payload.code)
@@ -801,35 +824,49 @@ class MasterDataImportExportService:
     async def _existing(
         self,
         entity_type: ImportEntityType,
-        payload: BaseModel,
+        payload: ImportPayload,
         context: dict[str, Any],
         *,
         for_update: bool,
     ) -> Any | None:
         code = str(payload.code)
         if entity_type is ImportEntityType.SECTIONS:
+            section_payload = cast(SectionCreate, payload)
             statement = select(Section).where(
-                Section.department_id == payload.department_id,
+                Section.department_id == section_payload.department_id,
                 Section.code == code,
             )
             if for_update:
                 statement = statement.with_for_update()
             return await self.session.scalar(statement)
-        model = {
-            ImportEntityType.DEPARTMENTS: Department,
-            ImportEntityType.DOCUMENT_TYPES: DocumentType,
-            ImportEntityType.DOCUMENT_STATUSES: DocumentStatus,
-            ImportEntityType.VALIDATION_RULES: ValidationRule,
-        }[entity_type]
-        statement = select(model).where(model.code == code)
-        if for_update:
-            statement = statement.with_for_update()
-        return await self.session.scalar(statement)
+        if entity_type is ImportEntityType.DEPARTMENTS:
+            return await self.departments.get_by_code(
+                code,
+                for_update=for_update,
+                include_deleted=True,
+            )
+        if entity_type is ImportEntityType.DOCUMENT_TYPES:
+            return await self.document_types.get_by_code(
+                code,
+                for_update=for_update,
+                include_deleted=True,
+            )
+        if entity_type is ImportEntityType.DOCUMENT_STATUSES:
+            return await self.document_statuses.get_by_code(
+                code,
+                for_update=for_update,
+                include_deleted=True,
+            )
+        return await self.validation_rules.get_by_code(
+            code,
+            for_update=for_update,
+            include_deleted=True,
+        )
 
     async def _row_business_errors(
         self,
         entity_type: ImportEntityType,
-        payload: BaseModel,
+        payload: ImportPayload,
         existing: Any | None,
         *,
         for_update: bool,
@@ -837,7 +874,7 @@ class MasterDataImportExportService:
         errors: list[str] = []
         if (
             entity_type is ImportEntityType.DOCUMENT_STATUSES
-            and payload.is_initial
+            and cast(DocumentStatusCreate, payload).is_initial
         ):
             initial = await self.document_statuses.get_initial(
                 exclude_id=(
@@ -849,10 +886,11 @@ class MasterDataImportExportService:
                 errors.append("Another initial document status already exists.")
         if (
             entity_type is ImportEntityType.VALIDATION_RULES
-            and payload.is_default
+            and cast(ValidationRuleCreate, payload).is_default
         ):
+            rule_payload = cast(ValidationRuleCreate, payload)
             default = await self.validation_rules.get_default(
-                payload.document_type_id,
+                rule_payload.document_type_id,
                 exclude_id=(
                     existing.id if isinstance(existing, ValidationRule) else None
                 ),
@@ -937,7 +975,7 @@ class MasterDataImportExportService:
             ImportEntityType.DOCUMENT_STATUSES: DocumentStatus,
             ImportEntityType.VALIDATION_RULES: ValidationRule,
         }[entity_type]
-        entity = model(
+        entity: Any = model(
             **values,
             created_by=self.user.id,
             updated_by=self.user.id,
@@ -1027,11 +1065,11 @@ class MasterDataImportExportService:
         max_rows: int,
         search: str | None,
         is_active: bool | None,
-        department_id: Any | None,
-        document_type_id: Any | None,
+        department_id: UUID | None,
+        document_type_id: UUID | None,
         category: str | None,
     ) -> tuple[list[Any], int]:
-        common = {
+        common: MasterDataListPageFilters = {
             "search": search,
             "is_active": is_active,
             "page": 1,

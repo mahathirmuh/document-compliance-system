@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from app.services.glossary.contracts import GlossaryFindingSignal
 
@@ -24,12 +25,12 @@ class RequiredTranslationValidator:
         matches: Sequence[GlossaryMatchCandidate],
         terms: Sequence[GlossaryTerm],
         *,
-        excepted: set[tuple[object, str, str]] | None = None,
+        excepted: set[tuple[UUID, str, str]] | None = None,
     ) -> list[GlossaryFindingSignal]:
         excepted = excepted or set()
         term_by_id = {term.id: term for term in terms}
         grouped: dict[
-            tuple[object, str],
+            tuple[UUID, str],
             list[GlossaryMatchCandidate],
         ] = defaultdict(list)
         for match in matches:

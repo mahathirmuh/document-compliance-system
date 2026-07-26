@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
 from datetime import datetime
 from http import HTTPStatus
 from math import ceil
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -375,7 +377,7 @@ class RevisionComparisonJobService(DocumentServiceBase):
             or document_file.sha256_hash
         )
 
-    def _scope_department_ids(self) -> list[UUID] | None:
+    def _scope_department_ids(self) -> builtins.list[UUID] | None:
         if has_permission(
             self.user.role,
             Permission.REVISION_COMPARISON_VIEW_ALL_DEPARTMENTS,
@@ -477,7 +479,7 @@ class RevisionComparisonQueryService(RevisionComparisonJobService):
             total_pages=ceil(total / page_size) if total else 0,
         )
 
-    async def sections(
+    async def section_changes(
         self, comparison_id: UUID
     ) -> RevisionSectionChangesResponse:
         comparison = await self._comparison(comparison_id)
@@ -529,7 +531,10 @@ class RevisionComparisonQueryService(RevisionComparisonJobService):
         )
         items = [
             RevisionLanguageChange(
-                language_code=str(item.get("languageCode", "unknown")),
+                language_code=cast(
+                    Literal["id", "en", "zh", "unknown"],
+                    str(item.get("languageCode", "unknown")),
+                ),
                 base_count=int(item.get("baseCount", 0)),
                 target_count=int(item.get("targetCount", 0)),
                 base_coverage=self._optional_float(
@@ -619,7 +624,7 @@ class RevisionComparisonQueryService(RevisionComparisonJobService):
         return comparison
 
     @staticmethod
-    def _float(value: object | None) -> float | None:
+    def _float(value: float | None) -> float | None:
         return float(value) if value is not None else None
 
     @staticmethod

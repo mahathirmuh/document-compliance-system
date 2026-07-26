@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.revision_comparison_job import (
@@ -81,7 +82,7 @@ class RevisionComparisonJobRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[RevisionComparisonJob], int]:
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         if department_ids is not None:
             if not department_ids:
                 return [], 0

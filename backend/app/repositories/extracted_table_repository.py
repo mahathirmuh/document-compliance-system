@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Sequence
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.extracted_container import ExtractedContainer
 from app.models.extracted_table import ExtractedTable
@@ -50,7 +54,7 @@ class ExtractedTableRepository:
         page: int = 1,
         page_size: int = 100,
     ) -> tuple[list[ExtractedTable], int]:
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             ExtractedTable.extraction_run_id == extraction_run_id
         ]
         if container_id is not None:
@@ -102,7 +106,7 @@ class ExtractedTableRepository:
         *,
         page: int = 1,
         page_size: int = 200,
-    ) -> tuple[list[ExtractedTableCell], int]:
+    ) -> tuple[builtins.list[ExtractedTableCell], int]:
         base = select(ExtractedTableCell).where(
             ExtractedTableCell.extracted_table_id == extracted_table_id
         )
@@ -138,7 +142,7 @@ class ExtractedTableRepository:
         query: str,
         *,
         limit: int = 100,
-    ) -> tuple[list[ExtractedTable], int]:
+    ) -> tuple[builtins.list[ExtractedTable], int]:
         pattern = f"%{query.strip()}%"
         base = (
             select(ExtractedTable)
@@ -187,4 +191,4 @@ class ExtractedTableRepository:
             )
         )
         await self.session.flush()
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[Any], result).rowcount or 0)

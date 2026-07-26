@@ -1,20 +1,21 @@
 """Validation-rule persistence operations."""
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Unpack
 from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.validation_rule import ValidationRule
-from app.repositories.master_data_base import BaseMasterDataRepository
+from app.repositories.master_data_base import (
+    BaseMasterDataRepository,
+    MasterDataListPageFilters,
+)
 
 
 class ValidationRuleRepository(BaseMasterDataRepository[ValidationRule]):
     model = ValidationRule
-    sortable_columns: ClassVar[
-        dict[str, InstrumentedAttribute[Any]]
-    ] = {
+    sortable_columns: ClassVar[dict[str, InstrumentedAttribute[Any]]] = {
         "code": ValidationRule.code,
         "name": ValidationRule.name,
         "documentTypeId": ValidationRule.document_type_id,
@@ -63,9 +64,10 @@ class ValidationRuleRepository(BaseMasterDataRepository[ValidationRule]):
         *,
         document_type_id: UUID | None = None,
         is_default: bool | None = None,
-        **kwargs: object,
+        statement: Select[tuple[ValidationRule]] | None = None,
+        **kwargs: Unpack[MasterDataListPageFilters],
     ) -> tuple[list[ValidationRule], int]:
-        statement = self.base_statement()
+        statement = statement if statement is not None else self.base_statement()
         if document_type_id is not None:
             statement = statement.where(
                 ValidationRule.document_type_id == document_type_id

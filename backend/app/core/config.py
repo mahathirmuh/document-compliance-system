@@ -3,9 +3,10 @@
 import base64
 import binascii
 import json
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from typing import Literal, Self
+from typing import Literal, Self, cast
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -1214,4 +1215,5 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Return one immutable-by-convention settings instance per process."""
-    return Settings()
+    settings_factory = cast(Callable[[], Settings], Settings)
+    return settings_factory()

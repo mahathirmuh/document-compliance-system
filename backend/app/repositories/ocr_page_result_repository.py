@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.ocr_page_result import OCRPageResult, OCRPageStatus
 
@@ -46,15 +47,15 @@ class OCRPageResultRepository:
         offset: int = 0,
         limit: int = 100,
     ) -> tuple[list[OCRPageResult], int]:
-        predicates: list[object] = [OCRPageResult.ocr_run_id == ocr_run_id]
+        predicates: list[ColumnElement[bool]] = [
+            OCRPageResult.ocr_run_id == ocr_run_id
+        ]
         if statuses:
             predicates.append(OCRPageResult.status.in_(statuses))
-        total = int(
-            await self.session.scalar(
-                select(func.count(OCRPageResult.id)).where(*predicates)
-            )
-            or 0
+        total_value = await self.session.scalar(
+            select(func.count(OCRPageResult.id)).where(*predicates)
         )
+        total = int(total_value or 0)
         rows = await self.session.scalars(
             select(OCRPageResult)
             .where(*predicates)

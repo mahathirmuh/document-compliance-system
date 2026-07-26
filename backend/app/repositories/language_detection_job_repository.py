@@ -9,6 +9,8 @@ from uuid import UUID
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.document_file import DocumentFile
@@ -27,7 +29,7 @@ class LanguageDetectionJobRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(LanguageDetectionJob.document),
             joinedload(LanguageDetectionJob.revision),
@@ -102,7 +104,7 @@ class LanguageDetectionJobRepository:
         sort_by: str = "requestedAt",
         sort_order: str = "desc",
     ) -> tuple[list[LanguageDetectionJob], int]:
-        predicates: list[object] = []
+        predicates: list[ColumnElement[bool]] = []
         if department_id is not None:
             predicates.append(Document.department_id == department_id)
         if document_id is not None:

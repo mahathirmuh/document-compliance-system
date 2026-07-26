@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Sequence
+from typing import Any, cast
 
 from app.services.compliance._compat import (
     bool_value,
@@ -227,7 +228,9 @@ class FindingDeduplicationService:
     ) -> object:
         existing_metrics = mapping(read(existing, "metrics", {}))
         duplicate_metrics = mapping(read(duplicate, "metrics", {}))
-        occurrence_count = int(existing_metrics.get("occurrenceCount", 1)) + 1
+        occurrence_count = (
+            int(cast(Any, existing_metrics.get("occurrenceCount", 1))) + 1
+        )
         references = {
             string_value(read(existing, "source_reference", "")),
             string_value(read(duplicate, "source_reference", "")),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +14,7 @@ from app.models.user import User
 from app.repositories.document_type_repository import DocumentTypeRepository
 from app.repositories.validation_rule_repository import ValidationRuleRepository
 from app.schemas.document_type import (
+    DocumentTypeCategory,
     DocumentTypeCreate,
     DocumentTypeListResponse,
     DocumentTypeResponse,
@@ -54,7 +56,11 @@ class DocumentTypeService(MasterDataServiceBase):
             id=entity.id,
             code=entity.code,
             name=entity.name,
-            category=entity.category,
+            category=(
+                DocumentTypeCategory(entity.category)
+                if entity.category is not None
+                else None
+            ),
             description=entity.description,
             requires_section=entity.requires_section,
             default_validation_rule_id=entity.default_validation_rule_id,
@@ -117,9 +123,9 @@ class DocumentTypeService(MasterDataServiceBase):
         return DocumentTypeListResponse(
             items=[self.response(item) for item in items],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=self.total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=self.total_pages(total, page_size),
         )
 
     async def get(self, entity_id: UUID) -> DocumentTypeResponse:
@@ -128,7 +134,9 @@ class DocumentTypeService(MasterDataServiceBase):
             raise not_found(self.entity_name)
         return self.response(entity)
 
-    async def options(self, *, active_only: bool = True) -> list[MasterDataOption]:
+    async def options(
+        self, *, active_only: bool = True
+    ) -> builtins.list[MasterDataOption]:
         entities = await self.repository.options(active_only=active_only)
         return [
             MasterDataOption.model_validate(entity) for entity in entities

@@ -3,7 +3,7 @@
 import asyncio
 import importlib.util
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from celery.exceptions import CeleryError
 from kombu.exceptions import KombuError
@@ -71,7 +71,7 @@ class HealthService:
         except (OSError, RedisError):
             return "unavailable"
         finally:
-            await client.aclose()
+            await cast(Any, client).aclose()
 
     @staticmethod
     def _worker_states() -> dict[str, DependencyState]:

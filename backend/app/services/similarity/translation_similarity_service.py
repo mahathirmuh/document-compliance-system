@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Awaitable, Callable
 from statistics import fmean
+from typing import TypedDict, Unpack
+from uuid import UUID
 
 from app.models.similarity_enums import (
     ConsistencyStatus,
@@ -57,6 +59,20 @@ from app.services.similarity.similarity_score_service import (
 
 CancellationCheck = Callable[[], Awaitable[bool]]
 ProgressCallback = Callable[[str, int], Awaitable[None]]
+
+
+class _SimilarityResultBase(TypedDict):
+    translation_group_id: UUID
+    detected_section_id: UUID | None
+    canonical_section_code: str | None
+    container_id: UUID | None
+    source_reference: str
+    source_language_code: str
+    target_language_code: str
+    source_member_id: UUID | None
+    target_member_id: UUID | None
+    source_text_hash: str
+    target_text_hash: str
 
 
 class SimilarityAnalysisCancelled(RuntimeError):
@@ -167,7 +183,7 @@ class TranslationSimilarityService:
         target_text = pair.target.text if pair.target else ""
         source_hash = _text_hash(source_text)
         target_hash = _text_hash(target_text)
-        base = {
+        base: _SimilarityResultBase = {
             "translation_group_id": group.id,
             "detected_section_id": group.detected_section_id,
             "canonical_section_code": group.canonical_section_code,
@@ -363,7 +379,7 @@ class TranslationSimilarityService:
         confidence: float,
         required: bool,
         group_confidence: float,
-        **base: object,
+        **base: Unpack[_SimilarityResultBase],
     ) -> SimilarityResultDraft:
         not_applicable = ConsistencyCheckResult(
             status=ConsistencyStatus.NOT_APPLICABLE,

@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.document import Document
 from app.models.document_file import DocumentFile, DocumentFileStatus
@@ -217,7 +218,7 @@ class LanguageDetectionDocumentRepository:
             .scalar_subquery()
         )
 
-        predicates: list[object] = [
+        predicates: list[ColumnElement[bool]] = [
             DocumentFile.file_status == DocumentFileStatus.AVAILABLE,
             DocumentFile.is_current.is_(True),
             DocumentFile.deleted_at.is_(None),

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
+from uuid import UUID
 
 from app.schemas.compliance_internal import (
     TranslationGroupData,
@@ -125,10 +127,10 @@ def member_from_block(
         ),
     )
     return TranslationGroupMemberData(
-        block_id=read(block, "id", None),
-        extracted_block_id=extracted_block_id,
-        ocr_block_id=ocr_block_id,
-        language_block_result_id=language_result_id,
+        block_id=cast(UUID | None, read(block, "id", None)),
+        extracted_block_id=cast(UUID | None, extracted_block_id),
+        ocr_block_id=cast(UUID | None, ocr_block_id),
+        language_block_result_id=cast(UUID | None, language_result_id),
         language_code=(language or language_code(block)).casefold(),
         block_order=int_value(
             first(
@@ -170,7 +172,7 @@ def build_group(
     detected = tuple(dict.fromkeys(language_order))
     orders = [member.block_order for member in members]
     return TranslationGroupData(
-        container_id=container_id,
+        container_id=cast(UUID | None, container_id),
         group_index=group_index,
         group_type=group_type,
         source_reference=source_reference,
@@ -192,8 +194,8 @@ def build_group(
     )
 
 
-def container_id_for(value: object) -> object | None:
-    return read(value, "container_id", None)
+def container_id_for(value: object) -> UUID | None:
+    return cast(UUID | None, read(value, "container_id", None))
 
 
 def source_reference_for(

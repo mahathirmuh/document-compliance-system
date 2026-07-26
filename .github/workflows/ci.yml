@@ -49,26 +49,11 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt -r requirements-dev.txt
       - run: ruff check app alembic scripts
-      - name: Type-check production hardening and integrations
+      - name: Type-check all backend production code
         run: >-
-          mypy
-          app/core/request_id.py
-          app/core/log_redaction.py
-          app/core/rate_limit_middleware.py
-          app/integrations/microsoft_graph
-          app/services/sharepoint
-          app/services/notification
-          app/services/maintenance
-          app/services/retention
-          app/services/security
-          app/services/security_scanning
-          app/services/storage
-          app/services/system_health_service.py
-          app/services/worker_heartbeat_service.py
-          app/workers
+          mypy app
+          --exclude 'app[\\/]tests'
           --ignore-missing-imports
-          --follow-imports=skip
-          --exclude tests
           --no-incremental
       - run: alembic upgrade head
       - run: alembic downgrade -1

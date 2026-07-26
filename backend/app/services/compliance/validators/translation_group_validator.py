@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import TypedDict
+from uuid import UUID
 
 from app.schemas.compliance_internal import (
     ComplianceValidationContext,
@@ -32,6 +34,18 @@ from app.services.compliance.validators._helpers import (
 from app.services.compliance.validators.base_validator import (
     BaseComplianceValidator,
 )
+
+
+class _GroupFindingArguments(TypedDict):
+    severity: str
+    confidence: float
+    source_reference: str
+    container_id: UUID | None
+    detected_section_code: str | None
+    translation_group_signature: str
+    expected_value: dict[str, object]
+    actual_value: dict[str, object]
+    metrics: dict[str, object]
 
 
 class TranslationGroupValidator(BaseComplianceValidator):
@@ -111,7 +125,7 @@ class TranslationGroupValidator(BaseComplianceValidator):
                 if in_required_section or len(missing) > 1
                 else FindingSeverity.MINOR
             )
-            common = {
+            common: _GroupFindingArguments = {
                 "severity": severity,
                 "confidence": group.confidence,
                 "source_reference": group.source_reference,

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.models.document_file import DocumentFile
 from app.models.ocr_job import OCRJob
@@ -20,7 +23,7 @@ class OCRRunRepository:
         self.session = session
 
     @staticmethod
-    def _options() -> tuple[object, ...]:
+    def _options() -> tuple[ExecutableOption, ...]:
         return (
             joinedload(OCRRun.ocr_job).joinedload(OCRJob.requester),
             joinedload(OCRRun.document),
@@ -126,4 +129,4 @@ class OCRRunRepository:
             )
         )
         await self.session.flush()
-        return bool(result.rowcount)
+        return bool(cast(CursorResult[Any], result).rowcount)

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from app.schemas.compliance_internal import (
+    ComplianceBlockData,
     ComplianceValidationContext,
     DetectedSectionData,
     ValidatorResult,
@@ -331,7 +334,10 @@ class RequiredSectionValidator(BaseComplianceValidator):
         coverage_mode: str,
         minimum_confidence: float,
     ) -> _SectionCheck:
-        content = section_content_blocks(section, context.blocks)
+        content = cast(
+            list[ComplianceBlockData],
+            section_content_blocks(section, context.blocks),
+        )
         has_content = section.is_complete and bool(content)
         present = self._section_languages(section, content)
         eligible = [
@@ -420,10 +426,11 @@ class RequiredSectionValidator(BaseComplianceValidator):
             return 0.0
         # A flat language map applies to every required section. A nested map
         # can set a DEFAULT/* baseline or a canonical-section override.
+        language_values: dict[str, object]
         if any(key.casefold() in {"id", "en", "zh"} for key in configured):
             language_values = configured
         else:
-            language_values: dict[str, object] = {}
+            language_values = {}
             for key in ("DEFAULT", "*", canonical_code.upper()):
                 for configured_key, value in configured.items():
                     if configured_key.upper() == key:
@@ -474,7 +481,7 @@ class RequiredSectionValidator(BaseComplianceValidator):
     @staticmethod
     def _section_languages(
         section: DetectedSectionData,
-        content: list[object],
+        content: Sequence[object],
     ) -> dict[str, str]:
         configured = mapping(section.language_presence)
         states = {

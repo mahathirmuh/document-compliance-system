@@ -177,8 +177,10 @@ class LanguageRuntimeConfig:
             ),
             "mixed_min_character_ratio": self.mixed_min_character_ratio,
         }
-        for name, value in thresholds.items():
-            if not 0 <= value <= 1:
-                raise ValueError(f"{name} must be between zero and one.")
+        for threshold_name, threshold_value in thresholds.items():
+            if not 0 <= threshold_value <= 1:
+                raise ValueError(
+                    f"{threshold_name} must be between zero and one."
+                )
         if self.maximum_retries < 0:
             raise ValueError("maximum_retries must be nonnegative.")

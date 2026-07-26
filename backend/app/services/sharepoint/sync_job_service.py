@@ -71,9 +71,9 @@ class SharePointSyncJobService(SharePointServiceBase):
                 for item in items
             ],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=total_pages(total, page_size),
         )
 
     async def get_profile(
@@ -238,9 +238,9 @@ class SharePointSyncJobService(SharePointServiceBase):
                 for item in items
             ],
             page=page,
-            page_size=page_size,
-            total_items=total,
-            total_pages=total_pages(total, page_size),
+            pageSize=page_size,
+            totalItems=total,
+            totalPages=total_pages(total, page_size),
         )
 
     async def get_job(
@@ -370,12 +370,15 @@ class SharePointSyncJobService(SharePointServiceBase):
             )
         except Exception as exc:
             await self.session.rollback()
-            job = await self.repository.get_job(job.id, for_update=True)
-            if job is not None:
-                job.status = SharePointSyncJobStatus.FAILED
-                job.failed_at = utc_now()
-                job.error_code = "SHAREPOINT_WORKER_UNAVAILABLE"
-                job.error_message = (
+            refreshed_job = await self.repository.get_job(
+                job.id,
+                for_update=True,
+            )
+            if refreshed_job is not None:
+                refreshed_job.status = SharePointSyncJobStatus.FAILED
+                refreshed_job.failed_at = utc_now()
+                refreshed_job.error_code = "SHAREPOINT_WORKER_UNAVAILABLE"
+                refreshed_job.error_message = (
                     "The SharePoint worker could not accept this job."
                 )
                 await self.session.commit()

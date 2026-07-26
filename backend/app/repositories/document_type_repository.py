@@ -1,19 +1,20 @@
 """Document-type persistence operations."""
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Unpack
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.document_type import DocumentType
-from app.repositories.master_data_base import BaseMasterDataRepository
+from app.repositories.master_data_base import (
+    BaseMasterDataRepository,
+    MasterDataListPageFilters,
+)
 
 
 class DocumentTypeRepository(BaseMasterDataRepository[DocumentType]):
     model = DocumentType
-    sortable_columns: ClassVar[
-        dict[str, InstrumentedAttribute[Any]]
-    ] = {
+    sortable_columns: ClassVar[dict[str, InstrumentedAttribute[Any]]] = {
         "code": DocumentType.code,
         "name": DocumentType.name,
         "category": DocumentType.category,
@@ -33,9 +34,10 @@ class DocumentTypeRepository(BaseMasterDataRepository[DocumentType]):
         self,
         *,
         category: str | None = None,
-        **kwargs: object,
+        statement: Select[tuple[DocumentType]] | None = None,
+        **kwargs: Unpack[MasterDataListPageFilters],
     ) -> tuple[list[DocumentType], int]:
-        statement = self.base_statement()
+        statement = statement if statement is not None else self.base_statement()
         if category is not None:
             statement = statement.where(DocumentType.category == category)
         return await super().list_page(statement=statement, **kwargs)
