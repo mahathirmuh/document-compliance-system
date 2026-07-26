@@ -103,9 +103,7 @@ export function SystemHealthPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-slate-950">
-              Worker Heartbeats
-            </h2>
+            <h2 className="text-sm font-semibold text-slate-950">Worker Heartbeats</h2>
             {query.data.workers.length === 0 ? (
               <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
                 No worker heartbeats are registered.
@@ -178,10 +176,7 @@ function WorkerCard({ worker }: { worker: WorkerHealth }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="grid size-9 place-items-center rounded-xl bg-slate-50">
-            <Icon
-              className={`size-5 ${iconTone(worker.status)}`}
-              aria-hidden="true"
-            />
+            <Icon className={`size-5 ${iconTone(worker.status)}`} aria-hidden="true" />
           </span>
           <div>
             <h3 className="text-sm font-semibold capitalize text-slate-950">

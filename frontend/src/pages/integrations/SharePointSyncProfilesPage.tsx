@@ -42,6 +42,7 @@ import {
   type SharePointSyncProfileWrite,
   type SyncConflictPolicy,
   type SyncDeletePolicy,
+  type SyncDirection,
   type SyncScopeType,
 } from '../../types/synchronisation';
 import { formatDateTime } from '../../utils/formatters';
@@ -51,6 +52,7 @@ export function SharePointSyncProfilesPage() {
   const [target, setTarget] = useState<SharePointSyncProfile | 'create' | null>(null);
   const [resetTarget, setResetTarget] = useState<SharePointSyncProfile | null>(null);
   const query = useSharePointSyncProfiles({ page, pageSize: 20 });
+  const connections = useSharePointConnections({ page: 1, pageSize: 100 });
   const mutations = useSharePointSyncMutations();
   const canConfigure = useAuthStore((state) =>
     state.hasPermission('sharepoint:configure'),
@@ -165,7 +167,7 @@ export function SharePointSyncProfilesPage() {
                     'Webhook',
                     'Schedule',
                     'Active',
-                    'Last Run',
+                    'Updated',
                     'Actions',
                   ].map((heading) => (
                     <th
@@ -181,14 +183,20 @@ export function SharePointSyncProfilesPage() {
                 {query.data.items.map((profile) => (
                   <tr key={profile.id}>
                     <Phase10Cell strong>{profile.name}</Phase10Cell>
-                    <Phase10Cell>{profile.connectionName ?? '—'}</Phase10Cell>
+                    <Phase10Cell>
+                      {connections.data?.items.find(
+                        (item) => item.id === profile.sharepointConnectionId,
+                      )?.name ?? profile.sharepointConnectionId}
+                    </Phase10Cell>
                     <Phase10Cell>{profile.direction}</Phase10Cell>
                     <Phase10Cell>{profile.scopeType}</Phase10Cell>
                     <Phase10Cell>
                       {profile.folderMappingId ? 'Configured' : '—'}
                     </Phase10Cell>
                     <Phase10Cell>
-                      {profile.metadataMappingProfile ?? 'Default'}
+                      {Object.keys(profile.metadataMappingProfile).length
+                        ? 'Configured'
+                        : 'Default'}
                     </Phase10Cell>
                     <Phase10Cell>
                       {profile.conflictPolicy.replaceAll('_', ' ')}
@@ -204,9 +212,7 @@ export function SharePointSyncProfilesPage() {
                     </Phase10Cell>
                     <Phase10Cell>{profile.syncSchedule ?? 'Manual'}</Phase10Cell>
                     <Phase10Cell>{profile.isActive ? 'Yes' : 'No'}</Phase10Cell>
-                    <Phase10Cell>
-                      {profile.lastRunAt ? formatDateTime(profile.lastRunAt) : 'Never'}
-                    </Phase10Cell>
+                    <Phase10Cell>{formatDateTime(profile.updatedAt)}</Phase10Cell>
                     <td className="px-4 py-3">
                       <div className="flex min-w-max gap-1.5">
                         {canConfigure && (
@@ -318,7 +324,9 @@ function SyncProfileDialog({
   const [connectionId, setConnectionId] = useState(
     profile?.sharepointConnectionId ?? '',
   );
-  const [direction, setDirection] = useState(profile?.direction ?? 'OUTBOUND');
+  const [direction, setDirection] = useState<SyncDirection>(
+    profile?.direction ?? 'OUTBOUND',
+  );
   const [scope, setScope] = useState<SyncScopeType>(profile?.scopeType ?? 'GLOBAL');
   const [departmentId, setDepartmentId] = useState(profile?.departmentId ?? '');
   const [sectionId, setSectionId] = useState(profile?.sectionId ?? '');
@@ -327,7 +335,7 @@ function SyncProfileDialog({
     profile?.folderMappingId ?? '',
   );
   const [metadataMappingProfile, setMetadataMappingProfile] = useState(
-    profile?.metadataMappingProfile ?? '',
+    JSON.stringify(profile?.metadataMappingProfile ?? {}, null, 2),
   );
   const [conflictPolicy, setConflictPolicy] = useState<SyncConflictPolicy>(
     profile?.conflictPolicy ?? 'MANUAL',
@@ -341,15 +349,18 @@ function SyncProfileDialog({
     profile?.webhookEnabled ?? false,
   );
   const [active, setActive] = useState(profile?.isActive ?? true);
-  const requiresScopeId = scope !== 'GLOBAL';
-  const scopeValue =
-    scope === 'DEPARTMENT'
-      ? departmentId
-      : scope === 'SECTION'
-        ? sectionId
-        : scope === 'DOCUMENT_TYPE'
-          ? documentTypeId
-          : '';
+  const requiresDepartment = scope.includes('DEPARTMENT');
+  const requiresSection = scope.includes('SECTION');
+  const requiresDocumentType = scope.includes('DOCUMENT_TYPE');
+  let parsedMetadataProfile: Record<string, unknown> | null = null;
+  try {
+    const parsed: unknown = JSON.parse(metadataMappingProfile);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      parsedMetadataProfile = parsed as Record<string, unknown>;
+    }
+  } catch {
+    parsedMetadataProfile = null;
+  }
   const risky =
     direction === 'BIDIRECTIONAL' ||
     conflictPolicy === 'APPLICATION_WINS' ||
@@ -359,7 +370,10 @@ function SyncProfileDialog({
     name.trim() &&
     connectionId &&
     folderMappingId &&
-    (!requiresScopeId || scopeValue) &&
+    (!requiresDepartment || departmentId) &&
+    (!requiresSection || sectionId) &&
+    (!requiresDocumentType || documentTypeId) &&
+    parsedMetadataProfile !== null &&
     (direction !== 'BIDIRECTIONAL' || Boolean(conflictPolicy));
 
   return (
@@ -382,11 +396,11 @@ function SyncProfileDialog({
             sharepointConnectionId: connectionId,
             direction,
             scopeType: scope,
-            departmentId: scope === 'DEPARTMENT' ? departmentId : null,
-            sectionId: scope === 'SECTION' ? sectionId : null,
-            documentTypeId: scope === 'DOCUMENT_TYPE' ? documentTypeId : null,
+            departmentId: requiresDepartment ? departmentId : null,
+            sectionId: requiresSection ? sectionId : null,
+            documentTypeId: requiresDocumentType ? documentTypeId : null,
             folderMappingId,
-            metadataMappingProfile: metadataMappingProfile.trim() || null,
+            metadataMappingProfile: parsedMetadataProfile ?? {},
             conflictPolicy,
             deletePolicy,
             syncSchedule: schedule.trim() || null,
@@ -422,11 +436,7 @@ function SyncProfileDialog({
         <Field label="Direction">
           <select
             value={direction}
-            onChange={(event) =>
-              setDirection(
-                event.target.value as SharePointSyncProfileWrite['direction'],
-              )
-            }
+            onChange={(event) => setDirection(event.target.value as SyncDirection)}
             className={phase10InputClass}
           >
             {syncDirections.map((value) => (
@@ -442,14 +452,21 @@ function SyncProfileDialog({
             onChange={(event) => setScope(event.target.value as SyncScopeType)}
             className={phase10InputClass}
           >
-            {['GLOBAL', 'DEPARTMENT', 'SECTION', 'DOCUMENT_TYPE'].map((value) => (
+            {[
+              'GLOBAL',
+              'DEPARTMENT',
+              'SECTION',
+              'DOCUMENT_TYPE',
+              'DEPARTMENT_DOCUMENT_TYPE',
+              'SECTION_DOCUMENT_TYPE',
+            ].map((value) => (
               <option key={value} value={value}>
                 {value.replaceAll('_', ' ')}
               </option>
             ))}
           </select>
         </Field>
-        {scope === 'DEPARTMENT' && (
+        {requiresDepartment && (
           <Field label="Department">
             <select
               value={departmentId}
@@ -465,7 +482,7 @@ function SyncProfileDialog({
             </select>
           </Field>
         )}
-        {scope === 'SECTION' && (
+        {requiresSection && (
           <Field label="Section">
             <select
               value={sectionId}
@@ -481,7 +498,7 @@ function SyncProfileDialog({
             </select>
           </Field>
         )}
-        {scope === 'DOCUMENT_TYPE' && (
+        {requiresDocumentType && (
           <Field label="Document type">
             <select
               value={documentTypeId}
@@ -517,14 +534,19 @@ function SyncProfileDialog({
               ))}
           </select>
         </Field>
-        <Field label="Metadata mapping profile">
-          <input
+        <Field label="Metadata mapping profile (JSON)">
+          <textarea
             value={metadataMappingProfile}
             onChange={(event) => setMetadataMappingProfile(event.target.value)}
-            placeholder="default"
-            className={phase10InputClass}
+            rows={3}
+            className={phase10TextareaClass}
           />
         </Field>
+        {parsedMetadataProfile === null && (
+          <p role="alert" className="self-end text-xs text-rose-700">
+            Metadata mapping profile must be a JSON object.
+          </p>
+        )}
         <Field label="Conflict policy">
           <select
             value={conflictPolicy}

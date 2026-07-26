@@ -24,7 +24,7 @@ import {
   updateNotificationPreferences,
 } from './notificationApi';
 import { getSystemHealth, retryDeadLetterJob } from './systemHealthApi';
-import { executeRetentionCleanup } from './retentionApi';
+import { runRetentionPolicies } from './retentionApi';
 
 const response = <T>(data: T) => ({
   data: { success: true, message: 'OK', data, errors: null },
@@ -50,19 +50,22 @@ describe('Phase 10 API contracts', () => {
           connectionId: 'connection-id',
           status: 'CONNECTED',
           message: 'Connected',
-          siteResolved: true,
-          driveResolved: true,
+          siteId: 'site-id',
+          driveId: 'drive-id',
+          siteRead: true,
+          driveRead: true,
           testedAt: '2026-07-26T01:00:00Z',
         }),
       );
 
     const payload = {
       name: 'Controlled Library',
+      tenantIdReference: 'tenant-reference',
       siteHostname: 'contoso.sharepoint.com',
       sitePath: '/sites/Controlled',
+      libraryName: 'Documents',
       rootFolderPath: 'DocumentCompliance',
       authMode: 'CLIENT_SECRET' as const,
-      replaceClientSecret: 'replacement-only',
     };
     await createSharePointConnection(payload);
     await testSharePointConnection('connection-id');
@@ -77,21 +80,15 @@ describe('Phase 10 API contracts', () => {
       '/integrations/sharepoint/connections/connection-id/test',
     );
     expect(
-      apiClientMock.post.mock.calls.every(([url]) =>
-        String(url).startsWith('/'),
-      ),
+      apiClientMock.post.mock.calls.every(([url]) => String(url).startsWith('/')),
     ).toBe(true);
   });
 
   it('browses only within the selected backend connection and folder cursor', async () => {
-    apiClientMock.get.mockResolvedValue(
-      response({ items: [], nextCursor: null, parent: null }),
-    );
+    apiClientMock.get.mockResolvedValue(response([]));
     const params = {
       connectionId: 'connection-id',
-      parentId: 'folder-id',
-      cursor: 'opaque-cursor',
-      pageSize: 50,
+      parentItemId: 'folder-id',
     };
     await listSharePointFolders(params);
     expect(apiClientMock.get).toHaveBeenCalledWith(
@@ -100,9 +97,9 @@ describe('Phase 10 API contracts', () => {
     );
   });
 
-  it('requires an audited reason for sync cancellation and conflict resolution', async () => {
+  it('uses the canonical no-body cancel route and audited conflict resolution payload', async () => {
     apiClientMock.post.mockResolvedValue(response({ id: 'result-id' }));
-    await cancelSyncJob('job-id', { reason: 'Operator requested cancellation.' });
+    await cancelSyncJob('job-id');
     await resolveSyncConflict('conflict-id', {
       resolution: 'KEEP_LOCAL',
       comment: 'Approved local revision is authoritative.',
@@ -110,7 +107,6 @@ describe('Phase 10 API contracts', () => {
     expect(apiClientMock.post).toHaveBeenNthCalledWith(
       1,
       '/sharepoint/sync-jobs/job-id/cancel',
-      { reason: 'Operator requested cancellation.' },
     );
     expect(apiClientMock.post).toHaveBeenNthCalledWith(
       2,
@@ -138,27 +134,36 @@ describe('Phase 10 API contracts', () => {
 
   it('uses private notification endpoints for unread state and mark-all', async () => {
     apiClientMock.get.mockResolvedValue(response({ unreadCount: 4 }));
-    apiClientMock.post.mockResolvedValue(response({ unreadCount: 0 }));
-    await expect(getNotificationUnreadCount()).resolves.toEqual({ unreadCount: 4 });
-    await expect(markAllNotificationsRead()).resolves.toEqual({ unreadCount: 0 });
-    expect(apiClientMock.get).toHaveBeenCalledWith(
-      '/notifications/unread-count',
-      {},
+    apiClientMock.post.mockResolvedValue(
+      response({ notificationId: null, affectedCount: 4 }),
     );
+    await expect(getNotificationUnreadCount()).resolves.toEqual({ unreadCount: 4 });
+    await expect(markAllNotificationsRead()).resolves.toEqual({
+      notificationId: null,
+      affectedCount: 4,
+    });
+    expect(apiClientMock.get).toHaveBeenCalledWith('/notifications/unread-count', {});
     expect(apiClientMock.post).toHaveBeenCalledWith('/notifications/read-all');
   });
 
-  it('persists quiet hours and channel availability as user preferences', async () => {
+  it('persists quiet hours and channel choices as user preferences', async () => {
     const payload = {
-      items: [],
-      quietHoursEnabled: true,
-      quietHoursStart: '22:00',
-      quietHoursEnd: '07:00',
-      timezone: 'Asia/Makassar',
+      preferences: [
+        {
+          eventType: 'DOCUMENT_UPLOADED' as const,
+          inAppEnabled: true,
+          emailEnabled: false,
+          teamsEnabled: false,
+          telegramEnabled: false,
+          digestMode: 'NONE' as const,
+          quietHoursEnabled: true,
+          quietHoursStart: '22:00',
+          quietHoursEnd: '07:00',
+          timezone: 'Asia/Makassar',
+        },
+      ],
     };
-    apiClientMock.put.mockResolvedValue(
-      response({ ...payload, availableChannels: ['IN_APP'] }),
-    );
+    apiClientMock.put.mockResolvedValue(response([]));
     await updateNotificationPreferences(payload);
     expect(apiClientMock.put).toHaveBeenCalledWith(
       '/notification-preferences',
@@ -166,44 +171,46 @@ describe('Phase 10 API contracts', () => {
     );
   });
 
-  it('loads sanitized system health and retries dead-letter jobs with a reason', async () => {
+  it('loads sanitized system health and retries dead-letter jobs without an unsupported body', async () => {
     apiClientMock.get.mockResolvedValue(
       response({
         status: 'degraded',
-        environment: 'test',
-        version: '1.0.0',
         checkedAt: '2026-07-26T01:00:00Z',
-        components: [],
+        dependencies: [],
+        workers: [],
       }),
     );
     apiClientMock.post.mockResolvedValue(response({ id: 'job-id' }));
     await getSystemHealth();
-    await retryDeadLetterJob('job-id', { reason: 'Dependency was restored.' });
-    expect(apiClientMock.get).toHaveBeenCalledWith('/admin/system-health', {});
+    await retryDeadLetterJob('job-id');
+    expect(apiClientMock.get).toHaveBeenCalledWith('/system-health', {});
     expect(apiClientMock.post).toHaveBeenCalledWith(
       '/admin/dead-letter-jobs/job-id/retry',
-      { reason: 'Dependency was restored.' },
     );
   });
 
   it('starts retention as an explicit dry-run', async () => {
     apiClientMock.post.mockResolvedValue(
       response({
-        jobId: 'cleanup-job',
+        entityType: 'NOTIFICATION',
         dryRun: true,
-        policiesEvaluated: 1,
-        recordsMatched: 12,
-        message: 'Preview queued',
+        scannedCount: 12,
+        eligibleCount: 4,
+        archivedCount: 0,
+        softDeletedCount: 0,
+        permanentlyDeletedCount: 0,
+        legalHoldSkippedCount: 1,
+        warnings: [],
       }),
     );
     const payload = {
-      policyId: 'policy-id',
+      entityType: 'NOTIFICATION' as const,
       dryRun: true,
-      reason: 'Quarterly retention review.',
+      batchSize: 500,
     };
-    await executeRetentionCleanup(payload);
+    await runRetentionPolicies(payload);
     expect(apiClientMock.post).toHaveBeenCalledWith(
-      '/admin/retention-policies/cleanup',
+      '/admin/retention-policies/run',
       payload,
     );
   });

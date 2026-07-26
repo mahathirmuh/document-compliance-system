@@ -85,7 +85,7 @@ export const useSharePointMappingMutations = () => {
         payload,
       }: {
         mappingId: string;
-        payload: Partial<SharePointFolderMappingWrite>;
+        payload: SharePointFolderMappingWrite;
       }) => updateSharePointFolderMapping(mappingId, payload),
       onSuccess: invalidate,
     }),
@@ -100,7 +100,7 @@ export const useSharePointMappingMutations = () => {
         payload,
       }: {
         mappingId: string;
-        payload: Partial<SharePointMetadataMappingWrite>;
+        payload: SharePointMetadataMappingWrite;
       }) => updateSharePointMetadataMapping(mappingId, payload),
       onSuccess: invalidate,
     }),

@@ -15,41 +15,46 @@ interface BrowserLocation {
   path: string;
 }
 
+export interface SharePointBrowserFolder extends SharePointFolderItem {
+  path: string;
+}
+
 export function SharePointFolderBrowser({
   canCreateFolder,
   connectionId,
-  initialPath = '/',
+  initialPath = '',
   onSelect,
 }: {
   connectionId: string;
   initialPath?: string;
   canCreateFolder: boolean;
-  onSelect: (folder: SharePointFolderItem) => void;
+  onSelect: (folder: SharePointBrowserFolder) => void;
 }) {
   const [trail, setTrail] = useState<BrowserLocation[]>([
     { id: null, name: 'Root', path: initialPath },
   ]);
-  const [cursor, setCursor] = useState<string | undefined>();
   const [newFolderName, setNewFolderName] = useState('');
   const current = trail[trail.length - 1]!;
   const queryParams = useMemo(
     () => ({
       connectionId,
-      ...(current.id ? { parentId: current.id } : { path: current.path }),
-      ...(cursor ? { cursor } : {}),
-      pageSize: 50,
+      ...(current.id
+        ? { parentItemId: current.id }
+        : current.path
+          ? { folderPath: current.path }
+          : {}),
     }),
-    [connectionId, current.id, current.path, cursor],
+    [connectionId, current.id, current.path],
   );
   const query = useSharePointFolders(queryParams);
   const mutations = useSharePointMappingMutations();
 
   const openFolder = (folder: SharePointFolderItem): void => {
-    setTrail((items) => [
-      ...items,
-      { id: folder.id, name: folder.name, path: folder.path },
-    ]);
-    setCursor(undefined);
+    const path = `${current.path.replace(/\/+$/, '')}/${folder.name}`.replace(
+      /^\/+/,
+      '',
+    );
+    setTrail((items) => [...items, { id: folder.id, name: folder.name, path }]);
   };
 
   const createFolder = async (): Promise<void> => {
@@ -59,8 +64,7 @@ export function SharePointFolderBrowser({
     }
     const folder = await mutations.createFolder.mutateAsync({
       connectionId,
-      parentId: current.id,
-      parentPath: current.path,
+      parentItemId: current.id,
       name,
     });
     setNewFolderName('');
@@ -86,7 +90,6 @@ export function SharePointFolderBrowser({
               type="button"
               onClick={() => {
                 setTrail((items) => items.slice(0, index + 1));
-                setCursor(undefined);
               }}
               className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-blue-700 hover:bg-blue-50"
             >
@@ -139,14 +142,17 @@ export function SharePointFolderBrowser({
           {getApiErrorMessage(query.error, 'SharePoint folders could not be loaded.')}
         </div>
       )}
-      {query.data && query.data.items.length === 0 && (
+      {query.data && query.data.length === 0 && (
         <Phase10Empty>This folder has no child folders.</Phase10Empty>
       )}
-      {query.data && query.data.items.length > 0 && (
+      {query.data && query.data.length > 0 && (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
-          {query.data.items
-            .filter((item) => item.isFolder)
-            .map((folder) => (
+          {query.data.map((folder) => {
+            const path = `${current.path.replace(/\/+$/, '')}/${folder.name}`.replace(
+              /^\/+/,
+              '',
+            );
+            return (
               <li
                 key={folder.id}
                 className="flex items-center justify-between gap-3 bg-white p-3"
@@ -165,27 +171,19 @@ export function SharePointFolderBrowser({
                       {folder.name}
                     </span>
                     <span className="block truncate text-[11px] text-slate-500">
-                      {folder.path}
+                      {path}
                     </span>
                   </span>
                 </button>
                 <Phase10Action
                   label={`Select ${folder.name}`}
-                  onClick={() => onSelect(folder)}
+                  onClick={() => onSelect({ ...folder, path })}
                   tone="primary"
                 />
               </li>
-            ))}
+            );
+          })}
         </ul>
-      )}
-      {query.data?.nextCursor && (
-        <button
-          type="button"
-          onClick={() => setCursor(query.data?.nextCursor ?? undefined)}
-          className="min-h-10 rounded-xl border border-slate-300 px-4 text-xs font-semibold"
-        >
-          Load more folders
-        </button>
       )}
     </div>
   );

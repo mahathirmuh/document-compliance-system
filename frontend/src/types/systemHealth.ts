@@ -26,11 +26,7 @@ export interface SystemHealthSummary {
   workers: WorkerHealth[];
 }
 
-export type DeadLetterStatus =
-  | 'ACTIVE'
-  | 'RETRY_QUEUED'
-  | 'RETRIED'
-  | 'DISMISSED';
+export type DeadLetterStatus = 'ACTIVE' | 'RETRY_QUEUED' | 'RETRIED' | 'DISMISSED';
 
 export interface DeadLetterJob {
   id: string;

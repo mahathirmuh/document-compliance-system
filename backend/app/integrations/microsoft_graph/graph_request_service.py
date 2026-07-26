@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import httpx
 
+from app.core.request_id import current_request_id
 from app.integrations.microsoft_graph.graph_error_mapper import (
     GraphError,
     map_graph_response,
@@ -87,13 +88,14 @@ class GraphRequestService:
             allow_external_hosts=allow_external_hosts,
         )
         expected = expected_statuses or set(range(200, 300))
+        correlation_id = current_request_id() or str(uuid4())
         refreshed_authentication = False
         force_refresh = False
         attempt = 0
         while True:
             request_headers = {
                 "Accept": "application/json",
-                "client-request-id": str(uuid4()),
+                "client-request-id": correlation_id,
                 "return-client-request-id": "true",
             }
             if json is not None:

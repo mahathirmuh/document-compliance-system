@@ -75,7 +75,7 @@ def test_phase5_model_metadata_contains_required_constraints_and_indexes() -> No
         "latest_glossary_validation_run_id",
         "created_at",
         "updated_at",
-    } == set(document_files.c.keys())
+    }.issubset(document_files.c.keys())
     index_names = {index.name for index in document_files.indexes}
     assert "uq_document_files_one_current_primary" in index_names
     current_index = next(

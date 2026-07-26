@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from http import HTTPStatus
 from math import ceil
 from uuid import UUID
@@ -187,7 +188,7 @@ class NotificationRuleService:
         severity: NotificationSeverity,
         department_id: UUID | None,
         document_type_id: UUID | None,
-    ) -> list[NotificationRule]:
+    ) -> builtins.list[NotificationRule]:
         rules = await self.repository.matching_rules(
             event_type=event_type,
             department_id=department_id,

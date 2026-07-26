@@ -93,6 +93,24 @@ class DeadLetterService:
         failed_at: datetime | None = None,
     ) -> DeadLetterJob:
         timestamp = failed_at or utc_now()
+        sanitized_arguments = _json_safe(arguments)
+        existing = await self.repository.get_open_for_entity(
+            task_name=task_name[:500],
+            entity_type=entity_type[:100],
+            entity_id=entity_id,
+            for_update=True,
+        )
+        if existing is not None:
+            existing.status = DeadLetterStatus.ACTIVE
+            existing.attempts = attempts
+            existing.maximum_attempts = maximum_attempts
+            existing.sanitized_arguments_json = sanitized_arguments
+            existing.error_code = error_code[:100]
+            existing.last_error = safe_error[:2000]
+            existing.last_failed_at = timestamp
+            await self.session.commit()
+            await self.session.refresh(existing)
+            return existing
         job = DeadLetterJob(
             task_name=task_name[:500],
             entity_type=entity_type[:100],
@@ -100,7 +118,7 @@ class DeadLetterService:
             status=DeadLetterStatus.ACTIVE,
             attempts=attempts,
             maximum_attempts=maximum_attempts,
-            sanitized_arguments_json=_json_safe(arguments),
+            sanitized_arguments_json=sanitized_arguments,
             error_code=error_code[:100],
             last_error=safe_error[:2000],
             first_failed_at=timestamp,
@@ -111,6 +129,27 @@ class DeadLetterService:
         await self.session.commit()
         await self.session.refresh(job)
         return job
+
+    async def mark_retried_for_entity(
+        self,
+        *,
+        task_name: str,
+        entity_type: str,
+        entity_id: UUID,
+    ) -> None:
+        job = await self.repository.get_open_for_entity(
+            task_name=task_name,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            for_update=True,
+        )
+        if job is None:
+            return
+        job.status = DeadLetterStatus.RETRIED
+        history = list(job.retry_history_json)
+        history.append({"completedAt": utc_now().isoformat()})
+        job.retry_history_json = history[-100:]
+        await self.session.commit()
 
     async def retry(self, job_id: UUID) -> DeadLetterMutationResponse:
         job = await self._get(job_id, for_update=True)

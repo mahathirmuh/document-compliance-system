@@ -94,6 +94,7 @@ class InAppNotificationRepository:
         *,
         user_id: UUID,
         read_at: datetime,
+        now: datetime,
     ) -> int:
         result = await self.session.execute(
             update(InAppNotification)
@@ -101,6 +102,10 @@ class InAppNotificationRepository:
                 InAppNotification.user_id == user_id,
                 InAppNotification.is_read.is_(False),
                 InAppNotification.dismissed_at.is_(None),
+                (
+                    InAppNotification.expires_at.is_(None)
+                    | (InAppNotification.expires_at > now)
+                ),
             )
             .values(is_read=True, read_at=read_at)
         )

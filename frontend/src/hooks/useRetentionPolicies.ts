@@ -38,8 +38,7 @@ export const useRetentionPolicyMutations = () => {
   };
   return {
     create: useMutation({
-      mutationFn: (payload: RetentionPolicyCreate) =>
-        createRetentionPolicy(payload),
+      mutationFn: (payload: RetentionPolicyCreate) => createRetentionPolicy(payload),
       onSuccess: invalidate,
     }),
     update: useMutation({

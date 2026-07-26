@@ -43,8 +43,57 @@ class SharePointSyncProfileWrite(ApiSchema):
     webhook_enabled: bool = False
     is_active: bool = False
 
+    @field_validator("sync_schedule")
+    @classmethod
+    def validate_sync_schedule(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized or normalized.casefold() == "manual":
+            return None
+        fields = normalized.split()
+        if len(fields) != 5:
+            raise ValueError(
+                "syncSchedule must be a five-field cron expression."
+            )
+        from celery.schedules import crontab
+
+        crontab(
+            minute=fields[0],
+            hour=fields[1],
+            day_of_month=fields[2],
+            month_of_year=fields[3],
+            day_of_week=fields[4],
+        )
+        return " ".join(fields)
+
     @model_validator(mode="after")
     def validate_policy(self) -> SharePointSyncProfileWrite:
+        requirements = {
+            FolderMappingScope.GLOBAL: (False, False, False),
+            FolderMappingScope.DEPARTMENT: (True, False, False),
+            FolderMappingScope.SECTION: (False, True, False),
+            FolderMappingScope.DOCUMENT_TYPE: (False, False, True),
+            FolderMappingScope.DEPARTMENT_DOCUMENT_TYPE: (
+                True,
+                False,
+                True,
+            ),
+            FolderMappingScope.SECTION_DOCUMENT_TYPE: (
+                False,
+                True,
+                True,
+            ),
+        }
+        supplied = (
+            self.department_id is not None,
+            self.section_id is not None,
+            self.document_type_id is not None,
+        )
+        if supplied != requirements[self.scope_type]:
+            raise ValueError(
+                "Sync profile identifiers must match scopeType."
+            )
         if (
             self.direction is SyncDirection.BIDIRECTIONAL
             and self.conflict_policy is None

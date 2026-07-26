@@ -160,8 +160,8 @@ def default_route_rate_limits(
     return (
         RouteRateLimit.compile(
             methods={"POST"},
-            path_pattern=rf"{prefix}/auth/login",
-            name="login",
+            path_pattern=rf"{prefix}/auth/(?:login|refresh)",
+            name="authentication",
             limit=limits["login"],
             window_seconds=60,
         ),
@@ -174,7 +174,10 @@ def default_route_rate_limits(
         ),
         RouteRateLimit.compile(
             methods={"GET", "POST"},
-            path_pattern=rf"{prefix}/(?:reports|compliance-reports|advanced-reports)(?:/.*)?",
+            path_pattern=(
+                rf"{prefix}/(?:(?:reports|compliance-reports|"
+                r"advanced-reports)(?:/.*)?|.*(?:export|generate)(?:/.*)?)"
+            ),
             name="reports",
             limit=limits["reports"],
             window_seconds=3600,
@@ -192,11 +195,21 @@ def default_route_rate_limits(
         RouteRateLimit.compile(
             methods={"POST"},
             path_pattern=(
-                rf"{prefix}/integrations/sharepoint/connections/"
-                r"[^/]+/test"
+                rf"{prefix}/(?:integrations/sharepoint/connections/"
+                r"[^/]+/test|admin/notification-templates/[^/]+/test)"
             ),
             name="sharepoint-connection-test",
             limit=limits["connection_test"],
             window_seconds=60,
+        ),
+        RouteRateLimit.compile(
+            methods={"POST"},
+            path_pattern=(
+                rf"{prefix}/integrations/microsoft-graph/"
+                r"(?:webhook|webhooks|notifications)"
+            ),
+            name="graph-webhook",
+            limit=limits["sync"],
+            window_seconds=3600,
         ),
     )

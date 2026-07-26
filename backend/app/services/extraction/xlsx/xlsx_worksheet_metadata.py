@@ -7,8 +7,9 @@ module.  Relationship targets are retained as strings and are never opened.
 import posixpath
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from xml.etree.ElementTree import iterparse
 from zipfile import BadZipFile, ZipFile
+
+from defusedxml.ElementTree import iterparse
 
 from app.services.extraction.base_extractor import ExtractionError
 

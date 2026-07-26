@@ -8,11 +8,7 @@ export const notificationChannels = [
 ] as const;
 export type NotificationChannel = (typeof notificationChannels)[number];
 
-export type NotificationSeverity =
-  | 'INFORMATION'
-  | 'WARNING'
-  | 'ERROR'
-  | 'CRITICAL';
+export type NotificationSeverity = 'INFORMATION' | 'WARNING' | 'ERROR' | 'CRITICAL';
 
 export const notificationEventTypes = [
   'DOCUMENT_UPLOADED',
@@ -97,21 +93,17 @@ export interface NotificationPreferenceItem {
 }
 
 export interface NotificationPreference extends NotificationPreferenceItem {
-  id: string;
+  id: string | null;
   userId: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface NotificationPreferencesUpdate {
   preferences: readonly NotificationPreferenceItem[];
 }
 
-export type NotificationContentType =
-  | 'PLAIN_TEXT'
-  | 'HTML'
-  | 'MARKDOWN'
-  | 'JSON_CARD';
+export type NotificationContentType = 'PLAIN_TEXT' | 'HTML' | 'MARKDOWN' | 'JSON_CARD';
 
 export interface NotificationTemplate {
   id: string;
@@ -189,10 +181,7 @@ export type NotificationRecipientType =
   | 'TELEGRAM_CHAT';
 
 export type NotificationScopeType =
-  | 'GLOBAL'
-  | 'DEPARTMENT'
-  | 'DOCUMENT_TYPE'
-  | 'DEPARTMENT_DOCUMENT_TYPE';
+  'GLOBAL' | 'DEPARTMENT' | 'DOCUMENT_TYPE' | 'DEPARTMENT_DOCUMENT_TYPE';
 
 export interface NotificationRule {
   id: string;

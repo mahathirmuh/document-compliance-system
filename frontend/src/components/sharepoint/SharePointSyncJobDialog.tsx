@@ -40,7 +40,7 @@ export function SharePointSyncJobDialog({
       title="SharePoint Sync Job"
       {...(job
         ? {
-            description: `${job.profileName ?? 'Direct file operation'} · ${job.jobType.replaceAll('_', ' ')}`,
+            description: `${job.syncProfileId} · ${job.jobType.replaceAll('_', ' ')}`,
           }
         : {})}
       onClose={onClose}
@@ -151,8 +151,8 @@ export function SharePointSyncJobDialog({
                       <tbody className="divide-y divide-slate-100">
                         {itemQuery.data.items.map((item) => (
                           <tr key={item.id}>
-                            <Phase10Cell strong>{item.documentCode ?? '—'}</Phase10Cell>
-                            <Phase10Cell>{item.revisionCode ?? '—'}</Phase10Cell>
+                            <Phase10Cell strong>{item.documentId ?? '—'}</Phase10Cell>
+                            <Phase10Cell>{item.documentRevisionId ?? '—'}</Phase10Cell>
                             <Phase10Cell>{item.remotePath ?? '—'}</Phase10Cell>
                             <Phase10Cell>
                               {item.operation.replaceAll('_', ' ')}

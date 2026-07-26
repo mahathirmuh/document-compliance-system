@@ -2347,6 +2347,15 @@ The example GitHub workflows run backend/frontend lint, typing, tests,
 migration checks, dependency audits, Bandit, npm audit, secret scanning,
 container builds, and Trivy scans. `performance/phase10-load.js` provides a
 rate-aware k6 scenario and does not aggressively load Microsoft Graph.
+Run it against a fully started stack with:
+
+```bash
+BASE_URL=http://localhost:8000 k6 run performance/phase10-load.js
+```
+
+The default probe is `/health/ready`. For an isolated API smoke run where
+workers are intentionally absent, set `HEALTH_PATH=/health/live`; do not use
+that override as a production-readiness substitute.
 
 Automated Graph, SharePoint, email, Teams, and Telegram integration tests use
 mock transports by default. A real Microsoft 365 development tenant,

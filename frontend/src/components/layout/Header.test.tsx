@@ -17,6 +17,10 @@ vi.mock('../../api/authApi', () => ({
   },
 }));
 
+vi.mock('../notifications/NotificationCentre', () => ({
+  NotificationCentre: () => null,
+}));
+
 describe('Header logout', () => {
   it('clears local auth state even when the backend request fails', async () => {
     vi.mocked(authApi.logout).mockRejectedValue(new Error('Offline'));

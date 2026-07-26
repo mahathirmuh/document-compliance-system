@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -52,8 +53,8 @@ class NotificationPreferenceService:
     async def update(
         self,
         payload: NotificationPreferencesUpdateRequest,
-    ) -> list[NotificationPreferenceResponse]:
-        results: list[NotificationPreference] = []
+    ) -> builtins.list[NotificationPreferenceResponse]:
+        results: builtins.list[NotificationPreference] = []
         for item in payload.preferences:
             preference = await self.repository.get_for_user_event(
                 user_id=self.user_id,

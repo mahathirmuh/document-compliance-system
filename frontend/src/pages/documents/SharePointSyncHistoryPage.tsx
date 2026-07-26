@@ -46,8 +46,7 @@ export function SharePointSyncHistoryPage() {
   const query = useSharePointSyncJobs({
     page,
     pageSize: 20,
-    terminal: true,
-    ...(!viewAll && user?.departmentId ? { departmentId: user.departmentId } : {}),
+    status: ['COMPLETED', 'PARTIALLY_COMPLETED', 'FAILED', 'CANCELLED', 'DEAD_LETTER'],
   });
   const mutations = useSharePointSyncMutations();
   const { showToast } = useToast();
@@ -92,6 +91,11 @@ export function SharePointSyncHistoryPage() {
         title="SharePoint Sync History"
         description="Review completed, partial, failed, and cancelled synchronisation attempts with item-level audit history."
       />
+      {!viewAll && user?.departmentId && (
+        <p className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-800">
+          Department scope is enforced by the backend for your assigned department.
+        </p>
+      )}
       {query.isLoading && <Phase8Loading label="Loading SharePoint sync history" />}
       {query.error && (
         <Phase8ErrorAlert
@@ -141,9 +145,7 @@ export function SharePointSyncHistoryPage() {
                           ? formatDateTime(job.failedAt)
                           : '—'}
                     </Phase10Cell>
-                    <Phase10Cell strong>
-                      {job.profileName ?? 'Direct file sync'}
-                    </Phase10Cell>
+                    <Phase10Cell strong>{job.syncProfileId}</Phase10Cell>
                     <Phase10Cell>{job.direction}</Phase10Cell>
                     <Phase10Cell>{job.itemsDiscovered}</Phase10Cell>
                     <Phase10Cell>{job.itemsCreated}</Phase10Cell>

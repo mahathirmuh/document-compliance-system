@@ -18,12 +18,22 @@ import { useToast } from '../../providers/useToast';
 import { useAuthStore } from '../../store/authStore';
 import type { DocumentFileListItem } from '../../types/documentFile';
 import { formatDateTime } from '../../utils/formatters';
-import {
-  Phase10Action,
-  Phase10Dialog,
-  Phase10StatusBadge,
-  ReasonDialog,
-} from '../phase10/Phase10Ui';
+import { Phase10Action, Phase10Dialog, Phase10StatusBadge } from '../phase10/Phase10Ui';
+
+const safeSharePointUrl = (value: string | null): string | null => {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' &&
+      parsed.hostname.toLowerCase().endsWith('.sharepoint.com') &&
+      !parsed.username &&
+      !parsed.password
+      ? parsed.toString()
+      : null;
+  } catch {
+    return null;
+  }
+};
 
 export function DocumentRemotePanel({
   documentFile,
@@ -33,6 +43,8 @@ export function DocumentRemotePanel({
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const canPush = hasPermission('sharepoint:push');
   const canPull = hasPermission('sharepoint:pull');
+  const canSync = hasPermission('sharepoint:sync');
+  const canOpenRemote = hasPermission('sharepoint:view');
   const canViewHistory = hasPermission('sharepoint:view_history');
   const query = useDocumentRemoteStatus(documentFile?.id ?? null);
   const versionsQuery = useDocumentRemoteVersions(
@@ -93,30 +105,18 @@ export function DocumentRemotePanel({
     );
   }
   const remote = query.data;
-  const active = Boolean(remote.activeJobId) || remote.remoteSyncStatus === 'SYNCING';
-  const safeWebUrl =
-    remote.remoteWebUrl?.startsWith('https://') && !remote.remoteWebUrl.includes('@')
-      ? remote.remoteWebUrl
-      : null;
+  const active = ['QUEUED', 'SYNCING'].includes(remote.remoteSyncStatus ?? '');
+  const safeWebUrl = safeSharePointUrl(remote.remoteWebUrl);
 
-  const run = async (reason: string): Promise<void> => {
+  const run = async (): Promise<void> => {
     if (!action) return;
     try {
       if (action === 'push') {
-        await mutations.pushFile.mutateAsync({
-          fileId: documentFile.id,
-          payload: { reason },
-        });
+        await mutations.pushFile.mutateAsync(documentFile.id);
       } else if (action === 'pull') {
-        await mutations.pullFile.mutateAsync({
-          fileId: documentFile.id,
-          payload: { reason },
-        });
+        await mutations.pullFile.mutateAsync(documentFile.id);
       } else {
-        await mutations.reconcileFile.mutateAsync({
-          fileId: documentFile.id,
-          payload: { reason },
-        });
+        await mutations.reconcileFile.mutateAsync(documentFile.id);
       }
       setAction(null);
       showToast({
@@ -143,9 +143,14 @@ export function DocumentRemotePanel({
         <Metric label="Storage Provider" value={remote.storageProvider} />
         <Metric
           label="Remote Sync Status"
-          value={<Phase10StatusBadge status={remote.remoteSyncStatus} />}
+          value={
+            <Phase10StatusBadge status={remote.remoteSyncStatus ?? 'NOT_SYNCED'} />
+          }
         />
-        <Metric label="Connection" value={remote.connectionName ?? 'Not mapped'} />
+        <Metric
+          label="Connection"
+          value={remote.sharepointConnectionId ?? 'Not mapped'}
+        />
         <Metric label="Remote Path" value={remote.remotePath ?? 'Not synced'} />
         <Metric label="Remote Version" value={remote.remoteVersionId ?? '—'} />
         <Metric
@@ -192,7 +197,7 @@ export function DocumentRemotePanel({
             onClick={() => setAction('pull')}
           />
         )}
-        {(canPush || canPull) && remote.remoteItemId && (
+        {canSync && remote.remoteItemId && (
           <Phase10Action
             label="Reconcile"
             icon={RefreshCw}
@@ -200,7 +205,7 @@ export function DocumentRemotePanel({
             onClick={() => setAction('reconcile')}
           />
         )}
-        {safeWebUrl && (
+        {canOpenRemote && safeWebUrl && (
           <a
             href={safeWebUrl}
             target="_blank"
@@ -235,8 +240,9 @@ export function DocumentRemotePanel({
           seconds; conflicting actions are disabled.
         </p>
       )}
-      <ReasonDialog
+      <Phase10Dialog
         open={action !== null}
+        label="Confirm SharePoint file action"
         title={
           action === 'push'
             ? 'Push file to SharePoint?'
@@ -245,21 +251,35 @@ export function DocumentRemotePanel({
               : 'Reconcile local and remote file?'
         }
         description="The backend rechecks permissions, department scope, active jobs, malware status, and conflict policy before transfer."
-        confirmLabel={
-          action === 'push'
-            ? 'Queue Push'
-            : action === 'pull'
-              ? 'Queue Pull'
-              : 'Reconcile'
-        }
-        isPending={
-          mutations.pushFile.isPending ||
-          mutations.pullFile.isPending ||
-          mutations.reconcileFile.isPending
-        }
         onClose={() => setAction(null)}
-        onConfirm={run}
-      />
+        width="max-w-lg"
+      >
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setAction(null)}
+            className="min-h-10 rounded-xl border border-slate-300 px-4 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={
+              mutations.pushFile.isPending ||
+              mutations.pullFile.isPending ||
+              mutations.reconcileFile.isPending
+            }
+            onClick={() => void run()}
+            className="min-h-10 rounded-xl bg-blue-700 px-4 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {action === 'push'
+              ? 'Queue Push'
+              : action === 'pull'
+                ? 'Queue Pull'
+                : 'Reconcile'}
+          </button>
+        </div>
+      </Phase10Dialog>
       <Phase10Dialog
         open={versionsOpen}
         label="SharePoint remote versions"
@@ -281,11 +301,11 @@ export function DocumentRemotePanel({
             )}
           </p>
         )}
-        {versionsQuery.data?.length === 0 && (
+        {versionsQuery.data?.items.length === 0 && (
           <p className="text-sm text-slate-500">No remote versions recorded.</p>
         )}
         <ol className="space-y-3">
-          {versionsQuery.data?.map((version) => (
+          {versionsQuery.data?.items.map((version) => (
             <li
               key={version.id}
               className="rounded-xl border border-slate-200 p-4 text-xs text-slate-600"

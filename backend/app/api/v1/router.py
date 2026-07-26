@@ -3,10 +3,12 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    admin_notifications,
     advanced_reports,
     auth,
     compliance,
     compliance_reports,
+    dead_letter,
     document_export,
     document_file_links,
     document_files,
@@ -17,14 +19,23 @@ from app.api.v1.endpoints import (
     extractions,
     findings,
     glossary,
+    graph_subscriptions,
     health,
     language_detection,
     master_data,
     master_data_transfer,
+    microsoft_graph_webhook,
+    notifications,
     ocr,
+    retention,
     revision_comparisons,
     section_definitions,
+    sharepoint_conflicts,
+    sharepoint_files,
+    sharepoint_integrations,
+    sharepoint_sync,
     similarity,
+    system_health,
 )
 
 api_router = APIRouter()
@@ -106,3 +117,14 @@ api_router.include_router(
     prefix="/master-data",
     tags=["Section Definitions"],
 )
+api_router.include_router(sharepoint_integrations.router)
+api_router.include_router(graph_subscriptions.router)
+api_router.include_router(sharepoint_sync.router)
+api_router.include_router(sharepoint_conflicts.router)
+api_router.include_router(sharepoint_files.router)
+api_router.include_router(microsoft_graph_webhook.router)
+api_router.include_router(notifications.router)
+api_router.include_router(admin_notifications.router)
+api_router.include_router(retention.router)
+api_router.include_router(dead_letter.router)
+api_router.include_router(system_health.router)

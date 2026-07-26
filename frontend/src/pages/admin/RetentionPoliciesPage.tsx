@@ -45,10 +45,10 @@ export function RetentionPoliciesPage() {
         const update: RetentionPolicyUpdate = {
           name: payload.name,
           retentionDays: payload.retentionDays,
-          archiveAfterDays: payload.archiveAfterDays,
-          deleteAfterDays: payload.deleteAfterDays,
-          legalHoldEnabled: payload.legalHoldEnabled,
-          isActive: payload.isActive,
+          archiveAfterDays: payload.archiveAfterDays ?? null,
+          deleteAfterDays: payload.deleteAfterDays ?? null,
+          legalHoldEnabled: payload.legalHoldEnabled ?? false,
+          isActive: payload.isActive ?? true,
         };
         await mutations.update.mutateAsync({
           policyId: target.id,
@@ -155,9 +155,7 @@ export function RetentionPoliciesPage() {
                       {policy.legalHoldEnabled ? 'Enabled' : 'No'}
                     </Phase10Cell>
                     <Phase10Cell>{policy.isActive ? 'Yes' : 'No'}</Phase10Cell>
-                    <Phase10Cell>
-                      {formatDateTime(policy.updatedAt)}
-                    </Phase10Cell>
+                    <Phase10Cell>{formatDateTime(policy.updatedAt)}</Phase10Cell>
                     <td className="px-4 py-3">
                       <div className="flex min-w-max gap-1.5">
                         <Phase10Action
@@ -267,8 +265,8 @@ function RetentionRunDialog({
           />
         </Field>
         <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-          Dry-run is enforced for this action. Legal-hold records are counted as
-          skipped and remain unchanged.
+          Dry-run is enforced for this action. Legal-hold records are counted as skipped
+          and remain unchanged.
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -344,9 +342,7 @@ function RetentionDialog({
             entityType,
             scopeType: scope,
             departmentId: scope.includes('DEPARTMENT') ? departmentId : null,
-            documentTypeId: scope.includes('DOCUMENT_TYPE')
-              ? documentTypeId
-              : null,
+            documentTypeId: scope.includes('DOCUMENT_TYPE') ? documentTypeId : null,
             retentionDays,
             archiveAfterDays: archiveDays === '' ? null : archiveDays,
             deleteAfterDays: deleteDays === '' ? null : deleteDays,

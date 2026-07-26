@@ -21,12 +21,11 @@ import {
   setSyncProfileActive,
   updateSyncProfile,
 } from '../api/sharepointSyncApi';
-import type { SharePointFileActionRequest } from '../types/sharepoint';
 import type {
   SharePointSyncProfileWrite,
   SyncItemListParams,
-  SyncJobActionRequest,
   SyncJobCreate,
+  SyncJobType,
   SyncJobListParams,
   SyncProfileListParams,
 } from '../types/synchronisation';
@@ -118,7 +117,7 @@ export const useDocumentRemoteStatus = (fileId: string | null) => {
     queryFn: ({ signal }) => getDocumentRemoteStatus(fileId ?? '', signal),
     enabled: fileId !== null,
     refetchInterval: (query) =>
-      query.state.data?.activeJobId || query.state.data?.remoteSyncStatus === 'SYNCING'
+      ['QUEUED', 'SYNCING'].includes(query.state.data?.remoteSyncStatus ?? '')
         ? syncPollingMs
         : false,
   });
@@ -128,7 +127,8 @@ export const useDocumentRemoteVersions = (fileId: string | null) => {
   const scope = useDocumentSession();
   return useQuery({
     queryKey: sharePointSyncKeys.remoteVersions(scope, fileId ?? 'none'),
-    queryFn: ({ signal }) => listDocumentRemoteVersions(fileId ?? '', signal),
+    queryFn: ({ signal }) =>
+      listDocumentRemoteVersions(fileId ?? '', { page: 1, pageSize: 100 }, signal),
     enabled: fileId !== null,
   });
 };
@@ -150,7 +150,7 @@ export const useSharePointSyncMutations = () => {
         payload,
       }: {
         profileId: string;
-        payload: Partial<SharePointSyncProfileWrite>;
+        payload: SharePointSyncProfileWrite;
       }) => updateSyncProfile(profileId, payload),
       onSuccess: invalidate,
     }),
@@ -165,8 +165,8 @@ export const useSharePointSyncMutations = () => {
         profileId,
       }: {
         profileId: string;
-        jobType: SyncJobCreate['jobType'];
-      }) => runSyncProfile(profileId, jobType),
+        jobType: SyncJobType;
+      }) => runSyncProfile(profileId, { jobType }),
       onSuccess: invalidate,
     }),
     resetDelta: useMutation({
@@ -179,23 +179,11 @@ export const useSharePointSyncMutations = () => {
       onSuccess: invalidate,
     }),
     cancelJob: useMutation({
-      mutationFn: ({
-        jobId,
-        payload,
-      }: {
-        jobId: string;
-        payload: SyncJobActionRequest;
-      }) => cancelSyncJob(jobId, payload),
+      mutationFn: (jobId: string) => cancelSyncJob(jobId),
       onSuccess: invalidate,
     }),
     retryJob: useMutation({
-      mutationFn: ({
-        jobId,
-        payload,
-      }: {
-        jobId: string;
-        payload: SyncJobActionRequest;
-      }) => retrySyncJob(jobId, payload),
+      mutationFn: (jobId: string) => retrySyncJob(jobId),
       onSuccess: invalidate,
     }),
     exportJob: useMutation({
@@ -203,33 +191,15 @@ export const useSharePointSyncMutations = () => {
         exportSyncJob(jobId, format),
     }),
     pushFile: useMutation({
-      mutationFn: ({
-        fileId,
-        payload,
-      }: {
-        fileId: string;
-        payload: SharePointFileActionRequest;
-      }) => pushDocumentFile(fileId, payload),
+      mutationFn: (fileId: string) => pushDocumentFile(fileId),
       onSuccess: invalidate,
     }),
     pullFile: useMutation({
-      mutationFn: ({
-        fileId,
-        payload,
-      }: {
-        fileId: string;
-        payload: SharePointFileActionRequest;
-      }) => pullDocumentFile(fileId, payload),
+      mutationFn: (fileId: string) => pullDocumentFile(fileId),
       onSuccess: invalidate,
     }),
     reconcileFile: useMutation({
-      mutationFn: ({
-        fileId,
-        payload,
-      }: {
-        fileId: string;
-        payload: SharePointFileActionRequest;
-      }) => reconcileDocumentFile(fileId, payload),
+      mutationFn: (fileId: string) => reconcileDocumentFile(fileId),
       onSuccess: invalidate,
     }),
   } as const;

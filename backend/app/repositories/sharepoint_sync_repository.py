@@ -5,16 +5,20 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from app.models.document_file import DocumentFile
+from app.models.document import Document
+from app.models.document_file import DocumentFile, DocumentFileStatus
+from app.models.document_revision import DocumentRevision
 from app.models.sharepoint_delta_state import SharePointDeltaState
 from app.models.sharepoint_enums import (
     ACTIVE_SYNC_JOB_STATUSES,
     FolderMappingScope,
     SharePointSyncJobStatus,
     SyncDirection,
+    SyncJobType,
 )
 from app.models.sharepoint_sync_item import SharePointSyncItem
 from app.models.sharepoint_sync_job import SharePointSyncJob
@@ -187,6 +191,56 @@ class SharePointSyncRepository:
             .limit(1)
         )
 
+    async def scheduled_profiles_for_update(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[SharePointSyncProfile]:
+        return list(
+            await self.session.scalars(
+                select(SharePointSyncProfile)
+                .where(
+                    SharePointSyncProfile.is_active.is_(True),
+                    SharePointSyncProfile.sync_schedule.is_not(None),
+                    func.length(
+                        func.trim(SharePointSyncProfile.sync_schedule)
+                    )
+                    > 0,
+                )
+                .order_by(
+                    SharePointSyncProfile.created_at.asc(),
+                    SharePointSyncProfile.id.asc(),
+                )
+                .limit(limit)
+                .with_for_update(
+                    of=SharePointSyncProfile,
+                    skip_locked=True,
+                )
+            )
+        )
+
+    async def latest_scheduled_job(
+        self,
+        profile_id: UUID,
+    ) -> SharePointSyncJob | None:
+        return await self.session.scalar(
+            select(SharePointSyncJob)
+            .where(
+                SharePointSyncJob.sync_profile_id == profile_id,
+                SharePointSyncJob.job_type.in_(
+                    (
+                        SyncJobType.SCHEDULED_FULL,
+                        SyncJobType.SCHEDULED_INCREMENTAL,
+                    )
+                ),
+            )
+            .order_by(
+                SharePointSyncJob.requested_at.desc(),
+                SharePointSyncJob.id.desc(),
+            )
+            .limit(1)
+        )
+
     async def list_jobs(
         self,
         *,
@@ -271,6 +325,152 @@ class SharePointSyncRepository:
             .limit(1)
         )
 
+    async def list_profile_document_files(
+        self,
+        profile: SharePointSyncProfile,
+        *,
+        drive_id: str,
+    ) -> list[DocumentFile]:
+        """Return live current files eligible for one outbound profile."""
+
+        statement = (
+            self._profile_document_files_statement(
+                profile,
+                drive_id=drive_id,
+            )
+            .options(
+                joinedload(DocumentFile.document),
+                joinedload(DocumentFile.revision).joinedload(
+                    DocumentRevision.document_status
+                ),
+            )
+            .order_by(DocumentFile.uploaded_at.asc(), DocumentFile.id.asc())
+        )
+        return list(
+            (await self.session.scalars(statement)).unique().all()
+        )
+
+    async def get_profile_revision_by_full_code(
+        self,
+        profile: SharePointSyncProfile,
+        *,
+        full_document_code: str,
+    ) -> DocumentRevision | None:
+        """Resolve an inbound filename only inside the configured scope."""
+
+        statement = (
+            select(DocumentRevision)
+            .join(Document, Document.id == DocumentRevision.document_id)
+            .where(
+                DocumentRevision.full_document_code
+                == full_document_code.strip(),
+                DocumentRevision.deleted_at.is_(None),
+                Document.deleted_at.is_(None),
+                Document.is_archived.is_(False),
+            )
+            .options(joinedload(DocumentRevision.document))
+        )
+        scope_filter = self._profile_document_scope_filter(profile)
+        if scope_filter is None and profile.scope_type is not FolderMappingScope.GLOBAL:
+            return None
+        if scope_filter is not None:
+            statement = statement.where(scope_filter)
+        return await self.session.scalar(statement)
+
+    @classmethod
+    def _profile_document_files_statement(
+        cls,
+        profile: SharePointSyncProfile,
+        *,
+        drive_id: str,
+    ):
+        statement = (
+            select(DocumentFile)
+            .join(Document, Document.id == DocumentFile.document_id)
+            .join(
+                DocumentRevision,
+                DocumentRevision.id == DocumentFile.document_revision_id,
+            )
+            .where(
+                DocumentFile.is_current.is_(True),
+                DocumentFile.is_primary.is_(True),
+                DocumentFile.deleted_at.is_(None),
+                DocumentFile.file_status == DocumentFileStatus.AVAILABLE,
+                DocumentRevision.is_current.is_(True),
+                DocumentRevision.deleted_at.is_(None),
+                Document.deleted_at.is_(None),
+                Document.is_archived.is_(False),
+                or_(
+                    DocumentFile.sharepoint_connection_id.is_(None),
+                    DocumentFile.sharepoint_connection_id
+                    == profile.sharepoint_connection_id,
+                ),
+                or_(
+                    DocumentFile.remote_drive_id.is_(None),
+                    DocumentFile.remote_drive_id == drive_id,
+                ),
+            )
+        )
+        scope_filter = cls._profile_document_scope_filter(profile)
+        if scope_filter is None and profile.scope_type is not FolderMappingScope.GLOBAL:
+            return statement.where(False)
+        if scope_filter is not None:
+            statement = statement.where(scope_filter)
+        return statement
+
+    @staticmethod
+    def _profile_document_scope_filter(
+        profile: SharePointSyncProfile,
+    ):
+        scope = profile.scope_type
+        if scope is FolderMappingScope.GLOBAL:
+            return None
+        if scope is FolderMappingScope.DEPARTMENT:
+            return (
+                Document.department_id == profile.department_id
+                if profile.department_id is not None
+                else None
+            )
+        if scope is FolderMappingScope.SECTION:
+            return (
+                Document.section_id == profile.section_id
+                if profile.section_id is not None
+                else None
+            )
+        if scope is FolderMappingScope.DOCUMENT_TYPE:
+            return (
+                Document.document_type_id == profile.document_type_id
+                if profile.document_type_id is not None
+                else None
+            )
+        if scope is FolderMappingScope.DEPARTMENT_DOCUMENT_TYPE:
+            if (
+                profile.department_id is None
+                or profile.document_type_id is None
+            ):
+                return None
+            return (
+                (Document.department_id == profile.department_id)
+                & (
+                    Document.document_type_id
+                    == profile.document_type_id
+                )
+            )
+        if scope is FolderMappingScope.SECTION_DOCUMENT_TYPE:
+            if (
+                profile.section_id is None
+                or profile.document_type_id is None
+            ):
+                return None
+            return (
+                (Document.section_id == profile.section_id)
+                & (
+                    Document.document_type_id
+                    == profile.document_type_id
+                )
+            )
+        return None
+
     async def list_items(
         self,
         job_id: UUID,
@@ -293,6 +493,21 @@ class SharePointSyncRepository:
             .limit(page_size)
         )
         return list(rows), total
+
+    async def list_all_items(
+        self,
+        job_id: UUID,
+    ) -> list[SharePointSyncItem]:
+        return list(
+            await self.session.scalars(
+                select(SharePointSyncItem)
+                .where(SharePointSyncItem.sync_job_id == job_id)
+                .order_by(
+                    SharePointSyncItem.created_at.asc(),
+                    SharePointSyncItem.id.asc(),
+                )
+            )
+        )
 
     async def get_delta_state(
         self,

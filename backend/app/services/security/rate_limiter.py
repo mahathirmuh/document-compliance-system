@@ -90,9 +90,13 @@ class RedisRateLimiter:
                 key,
                 rule.window_seconds,
             )
-            result = list(raw_result)  # type: ignore[arg-type]
-            count = int(result[0])
-            ttl = max(0, int(result[1]))
+            if (
+                not isinstance(raw_result, (list, tuple))
+                or len(raw_result) != 2
+            ):
+                raise TypeError("Redis returned an invalid rate-limit result.")
+            count = int(raw_result[0])
+            ttl = max(0, int(raw_result[1]))
         except Exception:  # noqa: BLE001 - Redis client errors vary by driver
             if self.fail_open:
                 return RateLimitDecision(

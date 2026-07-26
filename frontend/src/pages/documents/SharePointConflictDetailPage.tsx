@@ -83,7 +83,7 @@ export function SharePointConflictDetailPage() {
       await mutations.assign.mutateAsync({
         conflictId: conflict.id,
         payload: {
-          userId: assignee.trim(),
+          assignedTo: assignee.trim(),
           ...(comment.trim() ? { comment: comment.trim() } : {}),
         },
       });
@@ -120,8 +120,8 @@ export function SharePointConflictDetailPage() {
       {conflict && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Metric label="Document" value={conflict.documentCode ?? '—'} />
-            <Metric label="Revision" value={conflict.revisionCode ?? '—'} />
+            <Metric label="Document" value={conflict.documentId ?? '—'} />
+            <Metric label="Revision" value={conflict.documentRevisionId ?? '—'} />
             <Metric label="Type" value={conflict.conflictType.replaceAll('_', ' ')} />
             <Metric
               label="Status"

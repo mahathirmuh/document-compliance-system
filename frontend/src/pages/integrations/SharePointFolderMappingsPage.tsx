@@ -36,6 +36,10 @@ export function SharePointFolderMappingsPage() {
   const [page, setPage] = useState(1);
   const [target, setTarget] = useState<SharePointFolderMapping | 'create' | null>(null);
   const query = useSharePointFolderMappings({ page, pageSize: 20 });
+  const connections = useSharePointConnections({ page: 1, pageSize: 100 });
+  const departments = useDepartmentOptions();
+  const sections = useSectionOptions();
+  const documentTypes = useDocumentTypeOptions();
   const mutations = useSharePointMappingMutations();
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const canConfigure = hasPermission('sharepoint:configure');
@@ -125,13 +129,28 @@ export function SharePointFolderMappingsPage() {
               <tbody className="divide-y divide-slate-100">
                 {query.data.items.map((mapping) => (
                   <tr key={mapping.id}>
-                    <Phase10Cell strong>{mapping.connectionName ?? '—'}</Phase10Cell>
+                    <Phase10Cell strong>
+                      {connections.data?.items.find(
+                        (item) => item.id === mapping.sharepointConnectionId,
+                      )?.name ?? mapping.sharepointConnectionId}
+                    </Phase10Cell>
                     <Phase10Cell>
                       {mapping.mappingScope.replaceAll('_', ' ')}
                     </Phase10Cell>
-                    <Phase10Cell>{mapping.departmentName ?? '—'}</Phase10Cell>
-                    <Phase10Cell>{mapping.sectionName ?? '—'}</Phase10Cell>
-                    <Phase10Cell>{mapping.documentTypeName ?? '—'}</Phase10Cell>
+                    <Phase10Cell>
+                      {departments.data?.find(
+                        (item) => item.id === mapping.departmentId,
+                      )?.name ?? '—'}
+                    </Phase10Cell>
+                    <Phase10Cell>
+                      {sections.data?.find((item) => item.id === mapping.sectionId)
+                        ?.name ?? '—'}
+                    </Phase10Cell>
+                    <Phase10Cell>
+                      {documentTypes.data?.find(
+                        (item) => item.id === mapping.documentTypeId,
+                      )?.name ?? '—'}
+                    </Phase10Cell>
                     <Phase10Cell>{mapping.remoteFolderPath}</Phase10Cell>
                     <Phase10Cell>{mapping.filenamePattern ?? 'Default'}</Phase10Cell>
                     <Phase10Cell>

@@ -19,6 +19,33 @@ class DeadLetterJobRepository:
         await self.session.flush()
         return job
 
+    async def get_open_for_entity(
+        self,
+        *,
+        task_name: str,
+        entity_type: str,
+        entity_id: UUID | None,
+        for_update: bool = False,
+    ) -> DeadLetterJob | None:
+        statement = (
+            select(DeadLetterJob)
+            .where(
+                DeadLetterJob.task_name == task_name,
+                DeadLetterJob.entity_type == entity_type,
+                (
+                    DeadLetterJob.entity_id.is_(None)
+                    if entity_id is None
+                    else DeadLetterJob.entity_id == entity_id
+                ),
+                DeadLetterJob.status != DeadLetterStatus.DISMISSED,
+            )
+            .order_by(DeadLetterJob.last_failed_at.desc())
+            .limit(1)
+        )
+        if for_update:
+            statement = statement.with_for_update(of=DeadLetterJob)
+        return await self.session.scalar(statement)
+
     async def get_by_id(
         self,
         job_id: UUID,

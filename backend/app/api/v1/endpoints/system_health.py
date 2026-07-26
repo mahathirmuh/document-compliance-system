@@ -34,6 +34,7 @@ EXPECTED_WORKERS = (
     "reporting",
     "sharepoint",
     "notifications",
+    "maintenance",
 )
 
 router = APIRouter(tags=["System Health"])

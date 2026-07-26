@@ -1,11 +1,4 @@
-import {
-  Bell,
-  CheckCheck,
-  CircleAlert,
-  Info,
-  TriangleAlert,
-  X,
-} from 'lucide-react';
+import { Bell, CheckCheck, CircleAlert, Info, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -18,10 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { InAppNotification, NotificationSeverity } from '../../types/notification';
 
 const safeActionUrl = (value: string | null): string | null =>
-  value &&
-  value.startsWith('/') &&
-  !value.startsWith('//') &&
-  !value.includes('\\')
+  value && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')
     ? value
     : null;
 

@@ -1,5 +1,8 @@
 __pycache__/
 *.py[cod]
+**/__pycache__/
+**/*.py[cod]
+app/tests/
 *.sqlite3
 .coverage
 .env

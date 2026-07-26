@@ -61,15 +61,15 @@ export function NotificationRulesPage() {
       if (target && target !== 'create') {
         const update: NotificationRuleUpdate = {
           name: payload.name,
-          severityFilterJson: payload.severityFilterJson,
+          severityFilterJson: payload.severityFilterJson ?? [],
           recipientType: payload.recipientType,
-          recipientValueJson: payload.recipientValueJson,
+          recipientValueJson: payload.recipientValueJson ?? {},
           templateId: payload.templateId,
-          sendImmediately: payload.sendImmediately,
-          digestEnabled: payload.digestEnabled,
-          digestSchedule: payload.digestSchedule,
-          isMandatory: payload.isMandatory,
-          isActive: payload.isActive,
+          sendImmediately: payload.sendImmediately ?? true,
+          digestEnabled: payload.digestEnabled ?? false,
+          digestSchedule: payload.digestSchedule ?? null,
+          isMandatory: payload.isMandatory ?? false,
+          isActive: payload.isActive ?? true,
         };
         await mutations.updateRule.mutateAsync({
           ruleId: target.id,
@@ -254,18 +254,14 @@ function RuleDialog({
     rule?.scopeType ?? 'GLOBAL',
   );
   const [departmentId, setDepartmentId] = useState(rule?.departmentId ?? '');
-  const [documentTypeId, setDocumentTypeId] = useState(
-    rule?.documentTypeId ?? '',
-  );
+  const [documentTypeId, setDocumentTypeId] = useState(rule?.documentTypeId ?? '');
   const [severity, setSeverity] = useState<NotificationSeverity[]>(
     rule ? [...rule.severityFilterJson] : [],
   );
   const [recipientType, setRecipientType] = useState<NotificationRecipientType>(
     rule?.recipientType ?? 'DOCUMENT_CONTROLLER',
   );
-  const [recipientValue, setRecipientValue] = useState(
-    configuredRecipientValues(rule),
-  );
+  const [recipientValue, setRecipientValue] = useState(configuredRecipientValues(rule));
   const [templateId, setTemplateId] = useState(rule?.templateId ?? '');
   const [immediate, setImmediate] = useState(rule?.sendImmediately ?? true);
   const [digestEnabled, setDigestEnabled] = useState(rule?.digestEnabled ?? false);
@@ -307,12 +303,8 @@ function RuleDialog({
             eventType,
             channel,
             scopeType,
-            departmentId: scopeType.includes('DEPARTMENT')
-              ? departmentId
-              : null,
-            documentTypeId: scopeType.includes('DOCUMENT_TYPE')
-              ? documentTypeId
-              : null,
+            departmentId: scopeType.includes('DEPARTMENT') ? departmentId : null,
+            documentTypeId: scopeType.includes('DOCUMENT_TYPE') ? documentTypeId : null,
             severityFilterJson: severity,
             recipientType,
             recipientValueJson: valueKey ? { [valueKey]: values } : {},
@@ -479,24 +471,22 @@ function RuleDialog({
           />
         </Field>
         <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-700 sm:col-span-2">
-          {(['INFORMATION', 'WARNING', 'ERROR', 'CRITICAL'] as const).map(
-            (value) => (
-              <label key={value} className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={severity.includes(value)}
-                  onChange={(event) =>
-                    setSeverity((current) =>
-                      event.target.checked
-                        ? [...current, value]
-                        : current.filter((item) => item !== value),
-                    )
-                  }
-                />{' '}
-                {value}
-              </label>
-            ),
-          )}
+          {(['INFORMATION', 'WARNING', 'ERROR', 'CRITICAL'] as const).map((value) => (
+            <label key={value} className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={severity.includes(value)}
+                onChange={(event) =>
+                  setSeverity((current) =>
+                    event.target.checked
+                      ? [...current, value]
+                      : current.filter((item) => item !== value),
+                  )
+                }
+              />{' '}
+              {value}
+            </label>
+          ))}
         </div>
         <div className="flex flex-wrap gap-4 text-xs font-semibold text-slate-700 sm:col-span-2">
           <label className="flex items-center gap-2">

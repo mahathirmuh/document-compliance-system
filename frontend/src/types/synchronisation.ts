@@ -52,10 +52,7 @@ export type SyncConflictPolicy =
   | 'CREATE_COPY';
 
 export type SyncDeletePolicy =
-  | 'IGNORE_REMOTE_DELETE'
-  | 'ARCHIVE_LOCAL'
-  | 'MARK_MISSING'
-  | 'DELETE_LOCAL_SOFT';
+  'IGNORE_REMOTE_DELETE' | 'ARCHIVE_LOCAL' | 'MARK_MISSING' | 'DELETE_LOCAL_SOFT';
 
 export type SyncScopeType = FolderMappingScope;
 
@@ -78,22 +75,21 @@ export interface SharePointSyncProfileWrite {
   isActive?: boolean;
 }
 
-export interface SharePointSyncProfile
-  extends Required<
-    Pick<
-      SharePointSyncProfileWrite,
-      | 'name'
-      | 'sharepointConnectionId'
-      | 'direction'
-      | 'scopeType'
-      | 'metadataMappingProfile'
-      | 'conflictPolicy'
-      | 'deletePolicy'
-      | 'deltaSyncEnabled'
-      | 'webhookEnabled'
-      | 'isActive'
-    >
-  > {
+export interface SharePointSyncProfile extends Required<
+  Pick<
+    SharePointSyncProfileWrite,
+    | 'name'
+    | 'sharepointConnectionId'
+    | 'direction'
+    | 'scopeType'
+    | 'metadataMappingProfile'
+    | 'conflictPolicy'
+    | 'deletePolicy'
+    | 'deltaSyncEnabled'
+    | 'webhookEnabled'
+    | 'isActive'
+  >
+> {
   id: string;
   description: string | null;
   departmentId: string | null;
@@ -230,11 +226,7 @@ export type SharePointConflictType =
   | 'HASH_MISMATCH'
   | 'VERSION_MISMATCH';
 
-export type SharePointConflictStatus =
-  | 'OPEN'
-  | 'IN_REVIEW'
-  | 'RESOLVED'
-  | 'IGNORED';
+export type SharePointConflictStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'IGNORED';
 export type SharePointConflictResolution =
   | 'KEEP_LOCAL'
   | 'KEEP_REMOTE'
@@ -243,8 +235,7 @@ export type SharePointConflictResolution =
   | 'IGNORE_REMOTE_CHANGE'
   | 'IGNORE_LOCAL_CHANGE';
 
-export interface ConflictVersionSnapshot
-  extends Readonly<Record<string, unknown>> {
+export interface ConflictVersionSnapshot extends Readonly<Record<string, unknown>> {
   filename?: string;
   path?: string;
   sha256Hash?: string;

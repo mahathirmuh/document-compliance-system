@@ -113,7 +113,11 @@ export const listSyncJobs = async (
 ): Promise<SyncJobList> => {
   const { data } = await apiClient.get<ApiResponse<SyncJobList>>(
     `${basePath}/sync-jobs`,
-    { params, ...withSignal(signal) },
+    {
+      params,
+      paramsSerializer: { indexes: null },
+      ...withSignal(signal),
+    },
   );
   return data.data;
 };
@@ -139,18 +143,14 @@ export const getSyncJob = async (
   return data.data;
 };
 
-export const cancelSyncJob = async (
-  jobId: string,
-): Promise<SharePointSyncJob> => {
+export const cancelSyncJob = async (jobId: string): Promise<SharePointSyncJob> => {
   const { data } = await apiClient.post<ApiResponse<SharePointSyncJob>>(
     `${basePath}/sync-jobs/${jobId}/cancel`,
   );
   return data.data;
 };
 
-export const retrySyncJob = async (
-  jobId: string,
-): Promise<SharePointSyncJob> => {
+export const retrySyncJob = async (jobId: string): Promise<SharePointSyncJob> => {
   const { data } = await apiClient.post<ApiResponse<SharePointSyncJob>>(
     `${basePath}/sync-jobs/${jobId}/retry`,
   );
@@ -189,7 +189,11 @@ export const listSyncConflicts = async (
 ): Promise<SyncConflictList> => {
   const { data } = await apiClient.get<ApiResponse<SyncConflictList>>(
     `${basePath}/conflicts`,
-    { params, ...withSignal(signal) },
+    {
+      params,
+      paramsSerializer: { indexes: null },
+      ...withSignal(signal),
+    },
   );
   return data.data;
 };
@@ -241,18 +245,14 @@ export const ignoreSyncConflict = async (
 const documentFileSharePointPath = (fileId: string): string =>
   `/document-files/${fileId}/sharepoint`;
 
-export const pushDocumentFile = async (
-  fileId: string,
-): Promise<SharePointSyncJob> => {
+export const pushDocumentFile = async (fileId: string): Promise<SharePointSyncJob> => {
   const { data } = await apiClient.post<ApiResponse<SharePointSyncJob>>(
     `${documentFileSharePointPath(fileId)}/push`,
   );
   return data.data;
 };
 
-export const pullDocumentFile = async (
-  fileId: string,
-): Promise<SharePointSyncJob> => {
+export const pullDocumentFile = async (fileId: string): Promise<SharePointSyncJob> => {
   const { data } = await apiClient.post<ApiResponse<SharePointSyncJob>>(
     `${documentFileSharePointPath(fileId)}/pull`,
   );

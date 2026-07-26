@@ -8,6 +8,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from app.core.config import get_settings
 from app.database.session import AsyncSessionFactory
+from app.integrations.microsoft_graph.graph_error_mapper import GraphError
 from app.models.sharepoint_enums import (
     SharePointSyncJobStatus,
     SyncItemStatus,
@@ -20,6 +21,9 @@ from app.services.sharepoint.sharepoint_worker_service import (
     SharePointWorkerService,
     TransientSharePointWorkerError,
 )
+from app.services.sharepoint.scheduled_sync_service import (
+    SharePointScheduledSyncService,
+)
 from app.services.sharepoint.subscription_service import (
     GraphSubscriptionRenewalWorkerService,
 )
@@ -30,6 +34,43 @@ from app.workers.celery_app import celery_app
 from app.workers.runtime import run_async
 
 settings = get_settings()
+
+
+@celery_app.task(
+    bind=True,
+    name="app.workers.sharepoint_tasks.schedule_sharepoint_sync_jobs",
+    max_retries=settings.sharepoint_max_retries,
+    soft_time_limit=120,
+    time_limit=180,
+)
+def schedule_sharepoint_sync_jobs(self) -> dict[str, int]:
+    try:
+        return run_async(
+            SharePointScheduledSyncService(settings).dispatch_due()
+        )
+    except Exception as exc:  # noqa: BLE001 - Celery retry boundary
+        retries = int(self.request.retries)
+        if retries >= settings.sharepoint_max_retries:
+            run_async(
+                _record_dead_letter(
+                    task_name=self.name,
+                    entity_type="SharePointScheduleBatch",
+                    entity_id=None,
+                    attempts=retries + 1,
+                    error_code="SHAREPOINT_SCHEDULE_FAILED",
+                )
+            )
+            return {
+                "created": 0,
+                "dispatched": 0,
+                "skipped": 0,
+                "invalid": 0,
+                "failed": 1,
+            }
+        raise self.retry(
+            exc=exc,
+            countdown=min(300, 2 ** (retries + 1)),
+        )
 
 
 async def _record_dead_letter(
@@ -144,7 +185,30 @@ def process_sharepoint_sync_item(
     try:
         status = run_async(service.process_item(identifier))
         return {"itemId": item_id, "status": status.value}
-    except TransientSharePointWorkerError as exc:
+    except (GraphError, OSError, TimeoutError) as exc:
+        transient = not isinstance(exc, GraphError) or exc.status_code in {
+            429,
+            500,
+            502,
+            503,
+            504,
+        }
+        run_async(
+            service.fail_item(
+                identifier,
+                error_code=getattr(
+                    exc,
+                    "code",
+                    "SHAREPOINT_SERVICE_UNAVAILABLE",
+                ),
+                error_message=(
+                    "SharePoint item processing failed at an external "
+                    "service boundary."
+                ),
+            )
+        )
+        if not transient:
+            return {"itemId": item_id, "status": "FAILED"}
         retries = int(self.request.retries)
         if retries >= settings.sharepoint_max_retries:
             run_async(
@@ -161,6 +225,33 @@ def process_sharepoint_sync_item(
             exc=exc,
             countdown=min(300, 2 ** (retries + 1)),
         )
+    except SoftTimeLimitExceeded:
+        run_async(
+            service.fail_item(
+                identifier,
+                error_code="SHAREPOINT_SYNC_TIMEOUT",
+                error_message=(
+                    "SharePoint item processing exceeded its time limit."
+                ),
+            )
+        )
+        return {"itemId": item_id, "status": "FAILED"}
+    except Exception as exc:  # noqa: BLE001 - terminal task boundary
+        run_async(
+            service.fail_item(
+                identifier,
+                error_code=getattr(
+                    exc,
+                    "code",
+                    "SHAREPOINT_SYNC_FAILED",
+                ),
+                error_message=(
+                    "SharePoint item processing failed. Review sanitized "
+                    "worker diagnostics."
+                ),
+            )
+        )
+        return {"itemId": item_id, "status": "FAILED"}
 
 
 @celery_app.task(

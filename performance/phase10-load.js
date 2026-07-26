@@ -16,14 +16,17 @@ export const options = {
 };
 
 const baseUrl = __ENV.BASE_URL || "http://localhost:8000";
+const healthPath = __ENV.HEALTH_PATH || "/health/ready";
 
 export default function () {
   const headers = {};
   if (__ENV.ACCESS_TOKEN) {
     headers.Authorization = `Bearer ${__ENV.ACCESS_TOKEN}`;
   }
-  const health = http.get(`${baseUrl}/health/ready`);
-  check(health, { "readiness is healthy": (response) => response.status === 200 });
+  const health = http.get(`${baseUrl}${healthPath}`);
+  check(health, {
+    "health endpoint is healthy": (response) => response.status === 200,
+  });
 
   if (__ENV.ACCESS_TOKEN) {
     const notifications = http.get(`${baseUrl}/api/v1/notifications?limit=20`, {

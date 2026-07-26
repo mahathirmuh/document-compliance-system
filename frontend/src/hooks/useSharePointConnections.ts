@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  createGraphSubscription,
   createSharePointConnection,
+  deleteGraphSubscription,
   disableGraphSubscription,
   disableSharePointConnection,
   getSharePointConnection,
@@ -13,9 +15,13 @@ import {
   updateSharePointConnection,
 } from '../api/sharepointApi';
 import type {
+  GraphSubscriptionCreate,
+  GraphSubscriptionDisableRequest,
   GraphSubscriptionListParams,
+  GraphSubscriptionRenewRequest,
+  SharePointConnectionCreate,
   SharePointConnectionListParams,
-  SharePointConnectionWrite,
+  SharePointConnectionUpdate,
 } from '../types/sharepoint';
 import { useDocumentSession } from './useDocumentSession';
 
@@ -79,7 +85,7 @@ export const useSharePointConnectionMutations = () => {
   };
   return {
     create: useMutation({
-      mutationFn: (payload: SharePointConnectionWrite) =>
+      mutationFn: (payload: SharePointConnectionCreate) =>
         createSharePointConnection(payload),
       onSuccess: invalidate,
     }),
@@ -89,7 +95,7 @@ export const useSharePointConnectionMutations = () => {
         payload,
       }: {
         connectionId: string;
-        payload: Partial<SharePointConnectionWrite>;
+        payload: SharePointConnectionUpdate;
       }) => updateSharePointConnection(connectionId, payload),
       onSuccess: invalidate,
     }),
@@ -106,12 +112,33 @@ export const useSharePointConnectionMutations = () => {
         updateSharePointConnection(connectionId, { isDefault: true }),
       onSuccess: invalidate,
     }),
+    createSubscription: useMutation({
+      mutationFn: (payload: GraphSubscriptionCreate) =>
+        createGraphSubscription(payload),
+      onSuccess: invalidate,
+    }),
     renewSubscription: useMutation({
-      mutationFn: renewGraphSubscription,
+      mutationFn: ({
+        payload,
+        subscriptionId,
+      }: {
+        subscriptionId: string;
+        payload: GraphSubscriptionRenewRequest;
+      }) => renewGraphSubscription(subscriptionId, payload),
       onSuccess: invalidate,
     }),
     disableSubscription: useMutation({
-      mutationFn: disableGraphSubscription,
+      mutationFn: ({
+        payload,
+        subscriptionId,
+      }: {
+        subscriptionId: string;
+        payload: GraphSubscriptionDisableRequest;
+      }) => disableGraphSubscription(subscriptionId, payload),
+      onSuccess: invalidate,
+    }),
+    deleteSubscription: useMutation({
+      mutationFn: deleteGraphSubscription,
       onSuccess: invalidate,
     }),
   } as const;

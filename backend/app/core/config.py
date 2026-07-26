@@ -1,9 +1,12 @@
 """Environment-backed application configuration."""
 
+import base64
+import binascii
 import json
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
@@ -1056,6 +1059,35 @@ class Settings(BaseSettings):
                 or not self.encryption_key.get_secret_value()
             ):
                 raise ValueError("ENCRYPTION_KEY is required in production.")
+            try:
+                encryption_key = base64.b64decode(
+                    self.encryption_key.get_secret_value(),
+                    validate=True,
+                )
+            except (binascii.Error, ValueError) as exc:
+                raise ValueError(
+                    "ENCRYPTION_KEY must be valid base64 in production."
+                ) from exc
+            if len(encryption_key) not in {16, 24, 32}:
+                raise ValueError(
+                    "ENCRYPTION_KEY must decode to a valid AES key length."
+                )
+            if (
+                self.redis_password is None
+                or not self.redis_password.get_secret_value()
+            ):
+                raise ValueError("REDIS_PASSWORD is required in production.")
+            if (
+                urlparse(self.celery_broker_url).password is None
+                or urlparse(self.celery_result_backend).password is None
+            ):
+                raise ValueError(
+                    "Production Celery Redis URLs must include authentication."
+                )
+            if self.redis_key_prefix.casefold().endswith(":development"):
+                raise ValueError(
+                    "Production Redis keys require a non-development namespace."
+                )
             if self.log_format != "json":
                 raise ValueError("LOG_FORMAT=json is required in production.")
             if (

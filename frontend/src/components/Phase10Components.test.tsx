@@ -13,22 +13,15 @@ import { SharePointFolderBrowser } from './sharepoint/SharePointFolderBrowser';
 const mocks = vi.hoisted(() => ({
   createFolder: vi.fn(),
   folders: {
-    data: {
-      items: [
-        {
-          id: 'folder-id',
-          name: 'Controlled',
-          path: '/DocumentCompliance/Controlled',
-          parentId: null,
-          isFolder: true,
-          size: null,
-          childCount: 2,
-          lastModifiedAt: null,
-        },
-      ],
-      nextCursor: null,
-      parent: null,
-    },
+    data: [
+      {
+        id: 'folder-id',
+        name: 'Controlled',
+        webUrl: null,
+        parentReference: null,
+        childCount: 2,
+      },
+    ],
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -98,7 +91,13 @@ const mocks = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   versions: {
-    data: [],
+    data: {
+      items: [],
+      page: 1,
+      pageSize: 50,
+      totalItems: 0,
+      totalPages: 0,
+    },
     isLoading: false,
     error: null,
   },
@@ -172,23 +171,20 @@ describe('Phase 10 components', () => {
     render(
       <SharePointFolderBrowser
         connectionId="connection-id"
+        initialPath="DocumentCompliance"
         canCreateFolder={false}
         onSelect={onSelect}
       />,
     );
-    expect(screen.getByText('/DocumentCompliance/Controlled')).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Select Controlled' }),
-    );
-    expect(onSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'folder-id' }),
-    );
+    expect(screen.getByText('DocumentCompliance/Controlled')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Select Controlled' }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'folder-id' }));
     expect(screen.queryByLabelText('New folder name')).not.toBeInTheDocument();
   });
 
   it('creates a folder only when creation permission is passed', async () => {
     mocks.createFolder.mockResolvedValue({
-      ...mocks.folders.data.items[0],
+      ...mocks.folders.data[0],
       id: 'new-folder',
       name: 'New Folder',
     });
@@ -201,12 +197,11 @@ describe('Phase 10 components', () => {
     );
     await userEvent.type(screen.getByLabelText('New folder name'), 'New Folder');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(mocks.createFolder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectionId: 'connection-id',
-        name: 'New Folder',
-      }),
-    );
+    expect(mocks.createFolder).toHaveBeenCalledWith({
+      connectionId: 'connection-id',
+      parentItemId: null,
+      name: 'New Folder',
+    });
   });
 
   it('shows unread notifications and marks all as read', async () => {
@@ -224,7 +219,7 @@ describe('Phase 10 components', () => {
     expect(mocks.markAllRead).toHaveBeenCalledTimes(1);
   });
 
-  it('loads remote metadata and requires a reason before pushing', async () => {
+  it('loads remote metadata and confirms a push through the backend', async () => {
     useAuthStore
       .getState()
       .setAuth(
@@ -240,23 +235,14 @@ describe('Phase 10 components', () => {
         <DocumentRemotePanel documentFile={physicalFileFixture} />
       </MemoryRouter>,
     );
-    expect(screen.getByText('Controlled Library')).toBeInTheDocument();
+    expect(screen.getByText('connection-id')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open in SharePoint' })).toHaveAttribute(
       'href',
       'https://contoso.sharepoint.com/sites/controlled/file.pdf',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Push to SharePoint' }));
     await userEvent.click(screen.getByRole('button', { name: 'Queue Push' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('at least 5 characters');
-    await userEvent.type(
-      screen.getByLabelText('Audit reason'),
-      'Approved controlled upload.',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Queue Push' }));
-    expect(mocks.pushFile).toHaveBeenCalledWith({
-      fileId: physicalFileFixture.id,
-      payload: { reason: 'Approved controlled upload.' },
-    });
+    expect(mocks.pushFile).toHaveBeenCalledWith(physicalFileFixture.id);
   });
 
   it('blocks every remote action for a quarantined file', () => {
@@ -274,6 +260,8 @@ describe('Phase 10 components', () => {
     expect(
       screen.queryByRole('button', { name: 'Push to SharePoint' }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open in SharePoint' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Open in SharePoint' }),
+    ).not.toBeInTheDocument();
   });
 });

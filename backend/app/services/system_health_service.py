@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.worker_heartbeat import WorkerHeartbeatState
 from app.repositories.worker_heartbeat_repository import (
     WorkerHeartbeatRepository,
 )
@@ -150,7 +151,10 @@ class SystemHealthService:
                     queue_name=heartbeat.queue_name,
                     status=(
                         HealthComponentStatus.HEALTHY
-                        if age <= self.worker_stale_seconds
+                        if (
+                            heartbeat.state == WorkerHeartbeatState.ACTIVE
+                            and age <= self.worker_stale_seconds
+                        )
                         else HealthComponentStatus.UNHEALTHY
                     ),
                     last_heartbeat_at=timestamp,

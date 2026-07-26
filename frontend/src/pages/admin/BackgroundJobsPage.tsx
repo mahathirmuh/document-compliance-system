@@ -17,15 +17,9 @@ import {
   ReasonDialog,
   phase10InputClass,
 } from '../../components/phase10/Phase10Ui';
-import {
-  useDeadLetterJobs,
-  useDeadLetterMutations,
-} from '../../hooks/useSystemHealth';
+import { useDeadLetterJobs, useDeadLetterMutations } from '../../hooks/useSystemHealth';
 import { useToast } from '../../providers/useToast';
-import type {
-  DeadLetterJob,
-  DeadLetterStatus,
-} from '../../types/systemHealth';
+import type { DeadLetterJob, DeadLetterStatus } from '../../types/systemHealth';
 import { formatDateTime } from '../../utils/formatters';
 
 export function BackgroundJobsPage() {
@@ -181,8 +175,7 @@ export function BackgroundJobsPage() {
                           icon={ArchiveX}
                           tone="danger"
                           disabled={
-                            job.status === 'DISMISSED' ||
-                            mutations.dismiss.isPending
+                            job.status === 'DISMISSED' || mutations.dismiss.isPending
                           }
                           onClick={() => setDismissTarget(job)}
                         />

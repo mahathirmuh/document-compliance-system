@@ -35,8 +35,9 @@ export function NotificationTemplatesPage() {
   const [page, setPage] = useState(1);
   const [target, setTarget] = useState<NotificationTemplate | 'create' | null>(null);
   const [testTarget, setTestTarget] = useState<NotificationTemplate | null>(null);
-  const [testResult, setTestResult] =
-    useState<NotificationTemplateTestResult | null>(null);
+  const [testResult, setTestResult] = useState<NotificationTemplateTestResult | null>(
+    null,
+  );
   const query = useNotificationTemplates({ page, pageSize: 20 });
   const mutations = useNotificationMutations();
   const { showToast } = useToast();
@@ -46,11 +47,11 @@ export function NotificationTemplatesPage() {
       if (target && target !== 'create') {
         const update: NotificationTemplateUpdate = {
           name: payload.name,
-          subjectTemplate: payload.subjectTemplate,
+          subjectTemplate: payload.subjectTemplate ?? null,
           bodyTemplate: payload.bodyTemplate,
-          contentType: payload.contentType,
-          isDefault: payload.isDefault,
-          isActive: payload.isActive,
+          contentType: payload.contentType ?? 'PLAIN_TEXT',
+          isDefault: payload.isDefault ?? false,
+          isActive: payload.isActive ?? true,
         };
         await mutations.updateTemplate.mutateAsync({
           templateId: target.id,
@@ -271,9 +272,7 @@ export function NotificationTemplatesPage() {
                 disabled={mutations.testTemplate.isPending}
                 className="min-h-10 rounded-xl bg-blue-700 px-4 text-xs font-semibold text-white disabled:opacity-50"
               >
-                {mutations.testTemplate.isPending
-                  ? 'Rendering…'
-                  : 'Render Preview'}
+                {mutations.testTemplate.isPending ? 'Rendering…' : 'Render Preview'}
               </button>
             </div>
           </form>

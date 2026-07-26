@@ -50,8 +50,9 @@ describe('Phase 10 navigation permissions', () => {
         'notifications:manage_templates',
         'notifications:manage_rules',
         'notifications:view_deliveries',
-        'settings:view',
-        'settings:update',
+        'system_health:view',
+        'background_jobs:manage',
+        'retention_policies:manage',
       ],
       'SUPER_ADMIN',
     );

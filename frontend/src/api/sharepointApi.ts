@@ -208,7 +208,11 @@ export const listGraphSubscriptions = async (
 ): Promise<GraphSubscriptionList> => {
   const { data } = await apiClient.get<ApiResponse<GraphSubscriptionList>>(
     `${basePath}/subscriptions`,
-    { params, ...withSignal(signal) },
+    {
+      params,
+      paramsSerializer: { indexes: null },
+      ...withSignal(signal),
+    },
   );
   return data.data;
 };
@@ -248,9 +252,9 @@ export const disableGraphSubscription = async (
 export const deleteGraphSubscription = async (
   subscriptionId: string,
 ): Promise<GraphSubscriptionDeleteResult> => {
-  const { data } = await apiClient.post<
-    ApiResponse<GraphSubscriptionDeleteResult>
-  >(`${basePath}/subscriptions/${subscriptionId}/delete`);
+  const { data } = await apiClient.post<ApiResponse<GraphSubscriptionDeleteResult>>(
+    `${basePath}/subscriptions/${subscriptionId}/delete`,
+  );
   return data.data;
 };
 

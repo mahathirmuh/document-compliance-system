@@ -11,7 +11,7 @@ RUN pip download \
         --no-deps \
         --only-binary=:all: \
         --index-url "${PYTORCH_CPU_INDEX_URL}" \
-        "torch==2.10.0" \
+        "torch==2.13.0" \
     && pip wheel \
         --wheel-dir /wheels \
         --find-links /wheels \

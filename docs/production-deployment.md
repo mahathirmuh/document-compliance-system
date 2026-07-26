@@ -13,6 +13,12 @@ Redis, and an HTTPS Nginx edge.
 - local multilingual models mounted read-only
 - Entra certificate/secret supplied outside the image
 
+Production validation also requires a non-empty Redis password, an
+environment-specific Redis key namespace, authenticated Celery broker/result
+URLs (URL-encode the same password), and a base64-encoded AES key of 16, 24,
+or preferably 32 random bytes. Keep these values in the protected deployment
+secret store; never commit them.
+
 ## Deployment sequence
 
 ```sh
@@ -50,4 +56,3 @@ Keep the prior immutable images and migration compatibility notes. If a
 deployment fails, stop new workers, roll back application images, and downgrade
 only when the migration documentation confirms data-safe reversal. Restore from
 the last tested backup when downgrade cannot preserve data.
-

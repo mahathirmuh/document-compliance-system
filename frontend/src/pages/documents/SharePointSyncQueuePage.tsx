@@ -11,9 +11,9 @@ import { MasterDataPageHeader } from '../../components/master-data/MasterDataPag
 import {
   Phase10Action,
   Phase10Cell,
+  Phase10Dialog,
   Phase10Empty,
   Phase10StatusBadge,
-  ReasonDialog,
 } from '../../components/phase10/Phase10Ui';
 import { SharePointSyncJobDialog } from '../../components/sharepoint/SharePointSyncJobDialog';
 import {
@@ -41,25 +41,28 @@ export function SharePointSyncQueuePage() {
   const query = useSharePointSyncJobs({
     page,
     pageSize: 20,
-    terminal: false,
-    ...(!viewAll && user?.departmentId ? { departmentId: user.departmentId } : {}),
+    status: [
+      'QUEUED',
+      'AUTHENTICATING',
+      'DISCOVERING',
+      'COMPARING',
+      'TRANSFERRING',
+      'UPDATING_METADATA',
+      'RESOLVING_CONFLICTS',
+      'PERSISTING',
+      'CANCEL_REQUESTED',
+    ],
   });
   const mutations = useSharePointSyncMutations();
   const { showToast } = useToast();
 
-  const submitAction = async (reason: string): Promise<void> => {
+  const submitAction = async (): Promise<void> => {
     if (!action) return;
     try {
       if (action.type === 'cancel') {
-        await mutations.cancelJob.mutateAsync({
-          jobId: action.job.id,
-          payload: { reason },
-        });
+        await mutations.cancelJob.mutateAsync(action.job.id);
       } else {
-        await mutations.retryJob.mutateAsync({
-          jobId: action.job.id,
-          payload: { reason },
-        });
+        await mutations.retryJob.mutateAsync(action.job.id);
       }
       showToast({
         tone: 'success',
@@ -130,9 +133,7 @@ export function SharePointSyncQueuePage() {
                 {query.data.items.map((job) => (
                   <tr key={job.id}>
                     <Phase10Cell>{formatDateTime(job.requestedAt)}</Phase10Cell>
-                    <Phase10Cell strong>
-                      {job.profileName ?? 'Direct file sync'}
-                    </Phase10Cell>
+                    <Phase10Cell strong>{job.syncProfileId}</Phase10Cell>
                     <Phase10Cell>{job.direction}</Phase10Cell>
                     <Phase10Cell>{job.jobType.replaceAll('_', ' ')}</Phase10Cell>
                     <Phase10Cell>
@@ -209,19 +210,36 @@ export function SharePointSyncQueuePage() {
           onClose={() => setDetail(null)}
         />
       )}
-      <ReasonDialog
+      <Phase10Dialog
         open={action !== null}
+        label="Confirm SharePoint sync action"
         title={action?.type === 'cancel' ? 'Cancel sync job?' : 'Retry sync job?'}
         description={
           action?.type === 'cancel'
             ? 'Cancellation is cooperative and preserves item history.'
             : 'Retry creates an audited attempt and does not bypass conflict policy.'
         }
-        confirmLabel={action?.type === 'cancel' ? 'Request Cancellation' : 'Retry Sync'}
-        isPending={mutations.cancelJob.isPending || mutations.retryJob.isPending}
         onClose={() => setAction(null)}
-        onConfirm={submitAction}
-      />
+        width="max-w-lg"
+      >
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setAction(null)}
+            className="min-h-10 rounded-xl border border-slate-300 px-4 text-xs font-semibold"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            disabled={mutations.cancelJob.isPending || mutations.retryJob.isPending}
+            onClick={() => void submitAction()}
+            className="min-h-10 rounded-xl bg-blue-700 px-4 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {action?.type === 'cancel' ? 'Request Cancellation' : 'Retry Sync'}
+          </button>
+        </div>
+      </Phase10Dialog>
     </div>
   );
 }

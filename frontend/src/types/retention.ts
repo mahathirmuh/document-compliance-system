@@ -15,10 +15,7 @@ export const retentionEntityTypes = [
 export type RetentionEntityType = (typeof retentionEntityTypes)[number];
 
 export type RetentionScopeType =
-  | 'GLOBAL'
-  | 'DEPARTMENT'
-  | 'DOCUMENT_TYPE'
-  | 'DEPARTMENT_DOCUMENT_TYPE';
+  'GLOBAL' | 'DEPARTMENT' | 'DOCUMENT_TYPE' | 'DEPARTMENT_DOCUMENT_TYPE';
 
 export interface RetentionPolicy {
   id: string;

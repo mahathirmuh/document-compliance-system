@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,20 @@ from app.integrations.microsoft_graph.graph_request_service import (
 from app.integrations.microsoft_graph.graph_retry_policy import (
     GraphRetryPolicy,
 )
+from app.integrations.microsoft_graph.graph_token_cache import GraphTokenCache
+
+_GRAPH_TOKEN_CACHE = GraphTokenCache()
+
+
+@lru_cache(maxsize=32)
+def _shared_rate_limits(
+    tenant_id: str,
+    client_id: str,
+    maximum_concurrency: int,
+) -> GraphRateLimitService:
+    """Bound aggregate Graph concurrency per app registration in this process."""
+
+    return GraphRateLimitService(maximum_concurrency=maximum_concurrency)
 
 
 def _secret_value(value: Any) -> str | None:
@@ -89,7 +104,10 @@ def create_graph_client(
         ),
     )
     requests = GraphRequestService(
-        auth_provider=MsalGraphAuthProvider(config),
+        auth_provider=MsalGraphAuthProvider(
+            config,
+            token_cache=_GRAPH_TOKEN_CACHE,
+        ),
         base_url=str(
             getattr(
                 settings,
@@ -101,10 +119,10 @@ def create_graph_client(
             getattr(settings, "microsoft_graph_timeout_seconds", 60)
         ),
         retry_policy=retry,
-        rate_limits=GraphRateLimitService(
-            maximum_concurrency=int(
-                getattr(settings, "sharepoint_worker_concurrency", 4)
-            )
+        rate_limits=_shared_rate_limits(
+            tenant_id.strip().lower(),
+            client_id.strip().lower(),
+            int(getattr(settings, "sharepoint_worker_concurrency", 4)),
         ),
         http_client=http_client,
     )

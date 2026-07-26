@@ -13,6 +13,12 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.api.v1.endpoints.system_health import (
     get_additional_health_probes,
 )
+from app.api.v1.endpoints.admin_notifications import (
+    get_notification_retry_publisher,
+)
+from app.api.v1.endpoints.dead_letter import (
+    get_dead_letter_retry_publisher,
+)
 from app.api.v1.endpoints.system_health import (
     public_router as public_health_router,
 )
@@ -99,6 +105,16 @@ def _health_probes(
             "authMode": settings.microsoft_graph_auth_mode.upper(),
         }
 
+    async def malware_scanner_check() -> dict[str, object]:
+        reader, writer = await asyncio.open_connection(
+            settings.clamav_host,
+            settings.clamav_port,
+        )
+        del reader
+        writer.close()
+        await writer.wait_closed()
+        return {"scanner": settings.malware_scanner, "connected": True}
+
     return (
         DependencyProbe(name="redis", check=redis_check),
         DependencyProbe(name="storage", check=storage_check),
@@ -108,6 +124,12 @@ def _health_probes(
             check=graph_configuration_check,
             mandatory=settings.microsoft_graph_enabled,
             enabled=settings.microsoft_graph_enabled,
+        ),
+        DependencyProbe(
+            name="malware_scanner",
+            check=malware_scanner_check,
+            mandatory=settings.malware_scanning_enabled,
+            enabled=settings.malware_scanning_enabled,
         ),
     )
 
@@ -236,6 +258,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     application.dependency_overrides[get_additional_health_probes] = lambda: (
         _health_probes(app_settings, redis_client)
+    )
+    from app.workers.notification_tasks import (
+        get_runtime_notification_retry_publisher,
+    )
+    from app.workers.maintenance_tasks import (
+        get_runtime_dead_letter_retry_publisher,
+    )
+
+    application.dependency_overrides[get_notification_retry_publisher] = (
+        get_runtime_notification_retry_publisher
+    )
+    application.dependency_overrides[get_dead_letter_retry_publisher] = (
+        get_runtime_dead_letter_retry_publisher
     )
     configure_opentelemetry(
         TracingConfiguration(

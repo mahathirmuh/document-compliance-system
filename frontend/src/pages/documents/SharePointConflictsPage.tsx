@@ -25,7 +25,6 @@ import { useToast } from '../../providers/useToast';
 import { useAuthStore } from '../../store/authStore';
 import type {
   SharePointConflictStatus,
-  SharePointConflictType,
   SharePointSyncConflict,
 } from '../../types/synchronisation';
 import { formatDateTime } from '../../utils/formatters';
@@ -33,10 +32,8 @@ import { formatDateTime } from '../../utils/formatters';
 export function SharePointConflictsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<SharePointConflictStatus | ''>('OPEN');
-  const [type, setType] = useState<SharePointConflictType | ''>('');
   const [assignTarget, setAssignTarget] = useState<SharePointSyncConflict | null>(null);
   const [assignee, setAssignee] = useState('');
-  const user = useAuthStore((state) => state.user);
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const viewAll = hasPermission('sharepoint:view_all_departments');
   const canResolve = hasPermission('sharepoint:resolve_conflicts');
@@ -44,8 +41,6 @@ export function SharePointConflictsPage() {
     page,
     pageSize: 20,
     ...(status ? { status } : {}),
-    ...(type ? { conflictType: type } : {}),
-    ...(!viewAll && user?.departmentId ? { departmentId: user.departmentId } : {}),
   });
   const mutations = useSharePointConflictMutations();
   const { showToast } = useToast();
@@ -55,7 +50,7 @@ export function SharePointConflictsPage() {
     try {
       await mutations.assign.mutateAsync({
         conflictId: assignTarget.id,
-        payload: { userId: assignee.trim() },
+        payload: { assignedTo: assignee.trim() },
       });
       setAssignTarget(null);
       setAssignee('');
@@ -76,7 +71,7 @@ export function SharePointConflictsPage() {
         title="SharePoint Conflicts"
         description="Review changes that cannot be reconciled automatically. Manual policy never overwrites either side before an audited decision."
       />
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
         <Phase8FilterField label="Status">
           <select
             value={status}
@@ -94,33 +89,7 @@ export function SharePointConflictsPage() {
             ))}
           </select>
         </Phase8FilterField>
-        <Phase8FilterField label="Conflict type">
-          <select
-            value={type}
-            onChange={(event) => {
-              setType(event.target.value as SharePointConflictType | '');
-              setPage(1);
-            }}
-            className={phase10InputClass}
-          >
-            <option value="">All conflict types</option>
-            {[
-              'BOTH_MODIFIED',
-              'LOCAL_DELETED_REMOTE_MODIFIED',
-              'REMOTE_DELETED_LOCAL_MODIFIED',
-              'METADATA_CONFLICT',
-              'PATH_CONFLICT',
-              'DUPLICATE_REMOTE_ITEM',
-              'HASH_MISMATCH',
-              'VERSION_MISMATCH',
-            ].map((value) => (
-              <option key={value} value={value}>
-                {value.replaceAll('_', ' ')}
-              </option>
-            ))}
-          </select>
-        </Phase8FilterField>
-        <div className="self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600 lg:col-span-2">
+        <div className="self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
           Scope: {viewAll ? 'All permitted departments' : 'Assigned department only'}
         </div>
       </div>
@@ -145,8 +114,8 @@ export function SharePointConflictsPage() {
                 <tr>
                   {[
                     'Detected At',
-                    'Document Code',
-                    'Revision',
+                    'Document ID',
+                    'Revision ID',
                     'Conflict Type',
                     'Local Modified',
                     'Remote Modified',
@@ -167,8 +136,8 @@ export function SharePointConflictsPage() {
                 {query.data.items.map((conflict) => (
                   <tr key={conflict.id}>
                     <Phase10Cell>{formatDateTime(conflict.detectedAt)}</Phase10Cell>
-                    <Phase10Cell strong>{conflict.documentCode ?? '—'}</Phase10Cell>
-                    <Phase10Cell>{conflict.revisionCode ?? '—'}</Phase10Cell>
+                    <Phase10Cell strong>{conflict.documentId ?? '—'}</Phase10Cell>
+                    <Phase10Cell>{conflict.documentRevisionId ?? '—'}</Phase10Cell>
                     <Phase10Cell>
                       {conflict.conflictType.replaceAll('_', ' ')}
                     </Phase10Cell>

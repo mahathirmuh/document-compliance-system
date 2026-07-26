@@ -49,7 +49,12 @@ class SharePointMetadataService:
                 value,
                 ensure_ascii=False,
                 separators=(",", ":"),
+                sort_keys=True,
             ),
+            "IDENTITY": lambda value: value,
+            "TRIM": lambda value: str(value).strip(),
+            "UPPERCASE": lambda value: str(value).strip().upper(),
+            "LOWERCASE": lambda value: str(value).strip().lower(),
         }
         for code, transformer in (custom_transformers or {}).items():
             normalized = code.strip().upper()

@@ -21,7 +21,7 @@ jobs:
           cache: pip
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
       - run: pip-audit -r backend/requirements.txt --progress-spinner=off
-      - run: bandit -r backend/app -x backend/app/tests -q
+      - run: bandit -r backend/app -x backend/app/tests -q -ll
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -43,4 +43,3 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
-

@@ -1,5 +1,7 @@
 """Seed the default Phase 8 three-language section catalog idempotently."""
 
+# ruff: noqa: E402 -- this executable adds the backend root before app imports.
+
 from __future__ import annotations
 
 import asyncio

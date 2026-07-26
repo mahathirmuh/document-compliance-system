@@ -131,9 +131,10 @@ export const testNotificationTemplate = async (
   templateId: string,
   payload: NotificationTemplateTestRequest,
 ): Promise<NotificationTemplateTestResult> => {
-  const { data } = await apiClient.post<
-    ApiResponse<NotificationTemplateTestResult>
-  >(`/admin/notification-templates/${templateId}/test`, payload);
+  const { data } = await apiClient.post<ApiResponse<NotificationTemplateTestResult>>(
+    `/admin/notification-templates/${templateId}/test`,
+    payload,
+  );
   return data.data;
 };
 

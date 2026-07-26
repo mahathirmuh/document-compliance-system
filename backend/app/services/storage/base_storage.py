@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import Any, BinaryIO, TypedDict
+from typing import Any, BinaryIO, ClassVar, TypedDict
 
 
 class StorageSaveResult(TypedDict):
@@ -16,13 +16,13 @@ class StorageSaveResult(TypedDict):
 class BaseStorage(ABC):
     """Minimal private-storage interface used by document services."""
 
-    provider_name = "unknown"
-    supports_versioning = False
-    supports_restore = False
-    supports_move = True
-    supports_copy = True
-    supports_remote_metadata = False
-    supports_delta_sync = False
+    provider_name: ClassVar[str] = "unknown"
+    supports_versioning: ClassVar[bool] = False
+    supports_restore: ClassVar[bool] = False
+    supports_move: ClassVar[bool] = True
+    supports_copy: ClassVar[bool] = True
+    supports_remote_metadata: ClassVar[bool] = False
+    supports_delta_sync: ClassVar[bool] = False
 
     @abstractmethod
     async def save(

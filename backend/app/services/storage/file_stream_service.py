@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 from app.services.storage.base_storage import (
     BaseStorage,
@@ -35,6 +35,18 @@ class _LimitedReader:
             )
         return chunk
 
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.source.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self.source.tell()
+
+    def readable(self) -> bool:
+        return self.source.readable()
+
+    def seekable(self) -> bool:
+        return self.source.seekable()
+
 
 class FileStreamService:
     """Bound upload writes and avoid blocking download reads."""
@@ -50,7 +62,7 @@ class FileStreamService:
         if max_bytes <= 0:
             raise ValueError("max_bytes must be positive.")
         limited = _LimitedReader(source, max_bytes)
-        return await storage.save(limited, storage_key)
+        return await storage.save(cast(BinaryIO, limited), storage_key)
 
     @staticmethod
     async def iter_storage(

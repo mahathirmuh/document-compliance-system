@@ -9,8 +9,7 @@ export const sharePointConnectionStatuses = [
   'UNAVAILABLE',
   'DISABLED',
 ] as const;
-export type SharePointConnectionStatus =
-  (typeof sharePointConnectionStatuses)[number];
+export type SharePointConnectionStatus = (typeof sharePointConnectionStatuses)[number];
 
 export type SharePointAuthMode = 'CLIENT_SECRET' | 'CERTIFICATE';
 
@@ -166,16 +165,14 @@ export interface SharePointMappingListParams {
   connectionId?: string;
   includeInactive?: boolean;
 }
-export type SharePointFolderMappingList =
-  PaginatedData<SharePointFolderMapping>;
+export type SharePointFolderMappingList = PaginatedData<SharePointFolderMapping>;
 
 export const metadataMappingDirections = [
   'OUTBOUND',
   'INBOUND',
   'BIDIRECTIONAL',
 ] as const;
-export type MetadataMappingDirection =
-  (typeof metadataMappingDirections)[number];
+export type MetadataMappingDirection = (typeof metadataMappingDirections)[number];
 
 export const metadataMappingDataTypes = [
   'STRING',
@@ -188,8 +185,7 @@ export const metadataMappingDataTypes = [
   'USER_DISPLAY_NAME',
   'JSON_STRING',
 ] as const;
-export type MetadataMappingDataType =
-  (typeof metadataMappingDataTypes)[number];
+export type MetadataMappingDataType = (typeof metadataMappingDataTypes)[number];
 
 export interface SharePointMetadataMapping {
   id: string;
@@ -218,16 +214,10 @@ export interface SharePointMetadataMappingWrite {
   isActive?: boolean;
 }
 
-export type SharePointMetadataMappingList =
-  PaginatedData<SharePointMetadataMapping>;
+export type SharePointMetadataMappingList = PaginatedData<SharePointMetadataMapping>;
 
 export type GraphSubscriptionStatus =
-  | 'ACTIVE'
-  | 'EXPIRING'
-  | 'EXPIRED'
-  | 'RENEWAL_FAILED'
-  | 'DISABLED'
-  | 'DELETED';
+  'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'RENEWAL_FAILED' | 'DISABLED' | 'DELETED';
 
 export interface GraphSubscription {
   id: string;
@@ -280,11 +270,19 @@ export interface GraphSubscriptionDeleteResult {
 }
 
 export type DocumentStorageProvider = 'LOCAL' | 'SHAREPOINT' | 'HYBRID';
+export type RemoteSyncStatus =
+  | 'NOT_SYNCED'
+  | 'QUEUED'
+  | 'SYNCING'
+  | 'SYNCED'
+  | 'CONFLICT'
+  | 'FAILED'
+  | 'REMOTE_MISSING';
 
 export interface DocumentRemoteStatus {
   documentFileId: string;
   storageProvider: string;
-  remoteSyncStatus: string | null;
+  remoteSyncStatus: RemoteSyncStatus | null;
   sharepointConnectionId: string | null;
   remoteDriveId: string | null;
   remoteItemId: string | null;

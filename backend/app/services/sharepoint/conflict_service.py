@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.sharepoint_enums import (
     SyncConflictResolution,
     SyncConflictStatus,
@@ -180,7 +181,7 @@ class SharePointConflictService(SharePointServiceBase):
 
             process_sharepoint_sync_item.apply_async(
                 args=[str(item.id)],
-                queue="sharepoint",
+                queue=get_settings().sharepoint_queue_name,
                 task_id=str(uuid4()),
             )
         return SharePointConflictResponse.model_validate(conflict)

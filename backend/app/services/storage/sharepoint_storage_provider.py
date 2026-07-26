@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import PurePosixPath
-from typing import Any, BinaryIO, ClassVar
+from typing import Any, BinaryIO, ClassVar, cast
 from uuid import UUID
 
 from app.integrations.microsoft_graph.graph_error_mapper import GraphError
@@ -106,7 +106,7 @@ class SharePointStorageProvider(BaseStorage):
             ):
                 output.write(chunk)
             output.seek(0)
-            return output
+            return cast(BinaryIO, output)
         except Exception:
             output.close()
             raise

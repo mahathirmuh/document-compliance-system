@@ -10,8 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.database.session import AsyncSessionFactory
 from app.models.data_retention_policy import RetentionEntityType
 from app.models.worker_heartbeat import WorkerHeartbeatState
+from app.services.maintenance.retention_handlers import (
+    create_default_retention_handlers,
+)
 from app.services.retention.contracts import RetentionEntityHandler
 from app.services.retention.retention_service import RetentionService
+from app.services.storage.base_storage import BaseStorage
+from app.services.storage.storage_factory import get_storage
 from app.services.worker_heartbeat_service import WorkerHeartbeatService
 
 
@@ -25,9 +30,11 @@ class MaintenanceWorkerService:
         ]
         | None = None,
         session_factory: async_sessionmaker[AsyncSession] = AsyncSessionFactory,
+        storage: BaseStorage | None = None,
     ) -> None:
-        self.handlers = dict(handlers or {})
+        self.handlers = dict(handlers) if handlers is not None else None
         self.session_factory = session_factory
+        self.storage = storage
 
     async def cleanup(
         self,
@@ -36,16 +43,24 @@ class MaintenanceWorkerService:
         dry_run: bool,
         batch_size: int,
     ) -> dict[str, Any]:
-        if entity_type not in self.handlers:
-            return {
-                "entityType": entity_type.value,
-                "status": "SKIPPED",
-                "reason": "RETENTION_JOB_FAILED",
-            }
         async with self.session_factory() as session:
+            handlers = (
+                self.handlers
+                if self.handlers is not None
+                else create_default_retention_handlers(
+                    session,
+                    storage=self.storage or get_storage(),
+                )
+            )
+            if entity_type not in handlers:
+                return {
+                    "entityType": entity_type.value,
+                    "status": "SKIPPED",
+                    "reason": "RETENTION_JOB_FAILED",
+                }
             result = await RetentionService(
                 session,
-                handlers=self.handlers,
+                handlers=handlers,
             ).run(
                 entity_type=entity_type,
                 dry_run=dry_run,

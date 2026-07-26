@@ -18,7 +18,7 @@ from app.repositories.data_retention_policy_repository import (
 from app.schemas.retention import RetentionRunResponse
 from app.services.notification.errors import notification_error
 from app.services.retention.contracts import RetentionEntityHandler
-from app.utils.datetime import utc_now
+from app.utils.datetime import ensure_utc, utc_now
 
 
 class RetentionAuditSink(Protocol):
@@ -86,6 +86,7 @@ class RetentionService:
             scanned += len(candidates)
             remaining -= len(candidates)
             for candidate in candidates:
+                candidate_created_at = ensure_utc(candidate.created_at)
                 if policy.legal_hold_enabled or candidate.legal_hold:
                     legal_hold_skipped += 1
                     continue
@@ -101,11 +102,11 @@ class RetentionService:
                     archive_cutoff is not None
                     and handler.supports_archive
                     and not candidate.archived
-                    and candidate.created_at <= archive_cutoff
+                    and candidate_created_at <= archive_cutoff
                 ):
                     await handler.archive(candidate)
                     archived += 1
-                if candidate.created_at > delete_cutoff:
+                if candidate_created_at > delete_cutoff:
                     continue
                 if handler.supports_soft_delete and not candidate.soft_deleted:
                     await handler.soft_delete(candidate)

@@ -143,7 +143,14 @@ class SharePointUploadService:
         upload_url = session.get("uploadUrl")
         if not isinstance(upload_url, str) or not upload_url:
             raise ValueError("Graph did not return an upload session URL.")
-        offset = 0
+        offset = self._next_expected_offset(
+            session,
+            default_offset=0,
+            file_size=file_size,
+        )
+        if offset:
+            await asyncio.to_thread(source.seek, offset)
+        stalled_responses = 0
         while offset < file_size:
             remaining = file_size - offset
             requested = min(self.chunk_size_bytes, remaining)
@@ -174,7 +181,30 @@ class SharePointUploadService:
             payload = response.json()
             if not isinstance(payload, dict):
                 raise TypeError("Graph returned an invalid upload response.")
-            offset = end + 1
+            if response.status_code in {200, 201}:
+                if end + 1 != file_size:
+                    raise ValueError(
+                        "Graph finalized the upload before the source ended."
+                    )
+                offset = end + 1
+            else:
+                next_offset = self._next_expected_offset(
+                    payload,
+                    default_offset=end + 1,
+                    file_size=file_size,
+                )
+                stalled_responses = (
+                    stalled_responses + 1
+                    if next_offset <= offset
+                    else 0
+                )
+                if stalled_responses > 3:
+                    raise ValueError(
+                        "Graph upload session did not advance."
+                    )
+                if next_offset != end + 1:
+                    await asyncio.to_thread(source.seek, next_offset)
+                offset = next_offset
             if progress_callback is not None:
                 result = progress_callback(
                     UploadProgress(
@@ -192,6 +222,37 @@ class SharePointUploadService:
                     )
                 return payload
         raise ValueError("Graph upload session did not return final metadata.")
+
+    @staticmethod
+    def _next_expected_offset(
+        payload: dict[str, Any],
+        *,
+        default_offset: int,
+        file_size: int,
+    ) -> int:
+        ranges = payload.get("nextExpectedRanges")
+        if ranges is None:
+            return default_offset
+        if (
+            not isinstance(ranges, list)
+            or not ranges
+            or not isinstance(ranges[0], str)
+        ):
+            raise ValueError(
+                "Graph returned invalid upload continuation ranges."
+            )
+        start = ranges[0].partition("-")[0]
+        try:
+            offset = int(start)
+        except ValueError as exc:
+            raise ValueError(
+                "Graph returned an invalid upload continuation offset."
+            ) from exc
+        if offset < 0 or offset > file_size:
+            raise ValueError(
+                "Graph returned an upload continuation offset outside the file."
+            )
+        return offset
 
     @staticmethod
     def session_expired(

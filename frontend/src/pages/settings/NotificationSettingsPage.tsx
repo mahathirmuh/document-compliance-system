@@ -110,9 +110,7 @@ export function NotificationSettingsPage() {
           className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-700 px-4 text-xs font-semibold text-white disabled:opacity-50"
         >
           <Save className="size-4" aria-hidden="true" />
-          {mutations.updatePreferences.isPending
-            ? 'Saving…'
-            : 'Save Preferences'}
+          {mutations.updatePreferences.isPending ? 'Saving…' : 'Save Preferences'}
         </button>
       </div>
       {query.isLoading && <Phase8Loading label="Loading notification preferences" />}
@@ -265,8 +263,8 @@ export function NotificationSettingsPage() {
             </table>
           </div>
           <p className="rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">
-            Production channel availability and mandatory system-critical delivery
-            are enforced by the authenticated backend.
+            Production channel availability and mandatory system-critical delivery are
+            enforced by the authenticated backend.
           </p>
         </>
       )}

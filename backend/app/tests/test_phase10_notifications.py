@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.authorization import AuditAction
 from app.core.exceptions import ApplicationError
@@ -31,6 +31,12 @@ from app.services.notification.channels.base_notification_channel import (
 )
 from app.services.notification.channels.graph_email_notification_channel import (
     GraphEmailNotificationChannel,
+)
+from app.services.notification.channels.teams_notification_channel import (
+    TeamsNotificationChannel,
+)
+from app.services.notification.channels.telegram_notification_channel import (
+    TelegramNotificationChannel,
 )
 from app.services.notification.contracts import (
     DeliveryResult,
@@ -89,6 +95,36 @@ class FakeNotificationPublisher:
         return "queued-id"
 
 
+class FakeTeamsClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def post_json(
+        self,
+        *,
+        url: str,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+    ) -> str:
+        self.calls.append(
+            {
+                "url": url,
+                "payload": payload,
+                "timeout": timeout_seconds,
+            }
+        )
+        return "teams-message-id"
+
+
+class FakeTelegramClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    async def send_message(self, *, chat_id: str, text: str) -> str:
+        self.calls.append({"chatId": chat_id, "text": text})
+        return "telegram-message-id"
+
+
 class FailingTelegramChannel(BaseNotificationChannel):
     channel = NotificationChannel.TELEGRAM
 
@@ -118,6 +154,28 @@ def _email_message(reference: str = "recipient@example.com") -> NotificationMess
         body="<p>Ready</p>",
         content_type=NotificationContentType.HTML,
         severity=NotificationSeverity.INFORMATION,
+    )
+
+
+def _plain_message(
+    *,
+    channel: NotificationChannel,
+    recipient_type: NotificationRecipientType,
+    reference: str,
+    subject: str = "System notice",
+    body: str = "The background task completed.",
+) -> NotificationMessage:
+    return NotificationMessage(
+        event_type=NotificationEventType.SYSTEM_WORKER_UNAVAILABLE,
+        channel=channel,
+        recipient=ResolvedRecipient(
+            recipient_type=recipient_type,
+            reference=reference,
+        ),
+        subject=subject,
+        body=body,
+        content_type=NotificationContentType.PLAIN_TEXT,
+        severity=NotificationSeverity.WARNING,
     )
 
 
@@ -203,6 +261,70 @@ async def test_graph_adapter_rejects_arbitrary_recipient() -> None:
 
 
 @pytest.mark.asyncio
+async def test_teams_and_telegram_adapters_are_mocked_and_bounded() -> None:
+    teams_client = FakeTeamsClient()
+    teams = TeamsNotificationChannel(
+        teams_client,
+        enabled=True,
+        mode="incoming_webhook",
+        webhook_url="https://hooks.example.test/secret-path",
+        timeout_seconds=4,
+    )
+    teams_result = await teams.send(
+        _plain_message(
+            channel=NotificationChannel.TEAMS,
+            recipient_type=NotificationRecipientType.TEAMS_CHANNEL,
+            reference="configured-webhook",
+            subject="s" * 700,
+            body="b" * 7000,
+        )
+    )
+    assert teams_result.succeeded is True
+    card_body = teams_client.calls[0]["payload"]["attachments"][0]["content"]["body"]
+    assert len(card_body[0]["text"]) == 500
+    assert len(card_body[1]["text"]) == 5000
+
+    telegram_client = FakeTelegramClient()
+    telegram = TelegramNotificationChannel(
+        telegram_client,
+        enabled=True,
+        default_chat_id=None,
+    )
+    telegram_result = await telegram.send(
+        _plain_message(
+            channel=NotificationChannel.TELEGRAM,
+            recipient_type=NotificationRecipientType.TELEGRAM_CHAT,
+            reference="trusted-chat",
+            subject="s" * 700,
+            body="b" * 5000,
+        )
+    )
+    assert telegram_result.succeeded is True
+    assert telegram_client.calls[0]["chatId"] == "trusted-chat"
+    assert len(telegram_client.calls[0]["text"]) <= 4002
+
+
+@pytest.mark.asyncio
+async def test_disabled_notification_channel_does_not_call_provider() -> None:
+    client = FakeTelegramClient()
+    result = await TelegramNotificationChannel(
+        client,
+        enabled=False,
+        default_chat_id="configured-chat",
+    ).send(
+        _plain_message(
+            channel=NotificationChannel.TELEGRAM,
+            recipient_type=NotificationRecipientType.TELEGRAM_CHAT,
+            reference="trusted-chat",
+        )
+    )
+    assert result.succeeded is False
+    assert result.error_code == "NOTIFICATION_CHANNEL_DISABLED"
+    assert result.retryable is False
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
 async def test_failed_dispatch_is_retry_scheduled_and_audited_without_body(
     session_factory,
 ) -> None:
@@ -232,6 +354,48 @@ async def test_failed_dispatch_is_retry_scheduled_and_audited_without_body(
     assert audit is not None
     assert audit.action == AuditAction.FAIL_NOTIFICATION
     assert "sensitive body" not in str(audit.new_values_json)
+
+
+@pytest.mark.asyncio
+async def test_retry_exhaustion_records_each_failure_without_payload(
+    session_factory,
+) -> None:
+    message = _plain_message(
+        channel=NotificationChannel.TELEGRAM,
+        recipient_type=NotificationRecipientType.TELEGRAM_CHAT,
+        reference="trusted-chat",
+        body="private retry payload",
+    )
+    async with session_factory() as session:
+        service = NotificationDispatchService(
+            session,
+            channels={NotificationChannel.TELEGRAM: FailingTelegramChannel()},
+            maximum_attempts=2,
+            retry_base_seconds=1,
+        )
+        delivery = await service.dispatch(message, template_id=None)
+        retried = await service.retry_existing(delivery.id, message)
+        audit_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(AuditLog.entity_id == delivery.id)
+            )
+            or 0
+        )
+        audit_values = list(
+            await session.scalars(
+                select(AuditLog).where(AuditLog.entity_id == delivery.id)
+            )
+        )
+    assert retried.status.value == "FAILED"
+    assert retried.attempt_count == 2
+    assert retried.error_code == "NOTIFICATION_RETRY_EXHAUSTED"
+    assert audit_count == 2
+    assert all(
+        "private retry payload" not in str(item.new_values_json)
+        for item in audit_values
+    )
 
 
 @pytest.mark.asyncio
@@ -269,6 +433,55 @@ async def test_in_app_mutation_is_strictly_user_owned(
             user_id=owner.id,
         ).mark_read(notification_id)
         assert result.notification_id == notification_id
+
+
+@pytest.mark.asyncio
+async def test_unread_count_and_read_all_are_user_scoped_and_ignore_expired(
+    session_factory,
+    create_user,
+) -> None:
+    owner = await create_user(email="read-all-owner@example.com")
+    other = await create_user(email="read-all-other@example.com")
+    async with session_factory() as session:
+        session.add_all(
+            [
+                InAppNotification(
+                    user_id=owner.id,
+                    event_type=NotificationEventType.DOCUMENT_UPLOADED,
+                    title="Current",
+                    message="Visible unread notification.",
+                    severity=NotificationSeverity.INFORMATION,
+                ),
+                InAppNotification(
+                    user_id=owner.id,
+                    event_type=NotificationEventType.DOCUMENT_UPLOADED,
+                    title="Expired",
+                    message="Expired unread notification.",
+                    severity=NotificationSeverity.INFORMATION,
+                    expires_at=datetime.now(UTC) - timedelta(minutes=1),
+                ),
+                InAppNotification(
+                    user_id=other.id,
+                    event_type=NotificationEventType.DOCUMENT_UPLOADED,
+                    title="Other",
+                    message="Another user's unread notification.",
+                    severity=NotificationSeverity.INFORMATION,
+                ),
+            ]
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        service = NotificationService(session, user_id=owner.id)
+        assert (await service.unread_count()).unread_count == 1
+        assert (await service.mark_all_read()).affected_count == 1
+        assert (await service.unread_count()).unread_count == 0
+        assert (
+            await NotificationService(
+                session,
+                user_id=other.id,
+            ).unread_count()
+        ).unread_count == 1
 
 
 @pytest.mark.asyncio

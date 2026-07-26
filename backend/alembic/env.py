@@ -3,7 +3,7 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -18,6 +18,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+_MIGRATION_ADVISORY_LOCK_KEY = 7_315_100_001
 
 
 def get_database_url() -> str:
@@ -41,15 +42,38 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        compare_type=True,
-        compare_server_default=True,
-    )
+    locked = False
+    if connection.dialect.name == "postgresql":
+        locked = bool(
+            connection.scalar(
+                text("SELECT pg_try_advisory_lock(:lock_key)"),
+                {"lock_key": _MIGRATION_ADVISORY_LOCK_KEY},
+            )
+        )
+        if not locked:
+            raise RuntimeError(
+                "Another database migration process already holds the lock."
+            )
+        # Session-level advisory locks survive this commit. Ending the implicit
+        # SELECT transaction lets Alembic own and commit its DDL transaction.
+        connection.commit()
+    try:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+        )
 
-    with context.begin_transaction():
-        context.run_migrations()
+        with context.begin_transaction():
+            context.run_migrations()
+    finally:
+        if locked:
+            connection.execute(
+                text("SELECT pg_advisory_unlock(:lock_key)"),
+                {"lock_key": _MIGRATION_ADVISORY_LOCK_KEY},
+            )
+            connection.commit()
 
 
 async def run_async_migrations() -> None:

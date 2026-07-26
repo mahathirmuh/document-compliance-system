@@ -163,8 +163,7 @@ export const useNotificationMutations = () => {
       onSuccess: invalidate,
     }),
     createRule: useMutation({
-      mutationFn: (payload: NotificationRuleCreate) =>
-        createNotificationRule(payload),
+      mutationFn: (payload: NotificationRuleCreate) => createNotificationRule(payload),
       onSuccess: invalidate,
     }),
     updateRule: useMutation({

@@ -4,14 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.config import get_settings
 from app.models.data_retention_policy import RetentionEntityType
 from app.services.maintenance.maintenance_worker_service import (
     MaintenanceWorkerService,
+)
+from app.services.maintenance.runtime import (
+    CeleryDeadLetterRetryPublisher,
+    create_dead_letter_retry_publisher,
 )
 from app.workers.celery_app import celery_app
 from app.workers.runtime import run_async
 
 _service = MaintenanceWorkerService()
+_dead_letter_retry_publisher = create_dead_letter_retry_publisher(
+    get_settings(),
+    celery=celery_app,
+)
 
 
 def configure_maintenance_worker_service(
@@ -21,6 +30,12 @@ def configure_maintenance_worker_service(
 
     global _service
     _service = service
+
+
+def get_runtime_dead_letter_retry_publisher() -> CeleryDeadLetterRetryPublisher:
+    """Expose the allowlisted publisher to the admin API dependency."""
+
+    return _dead_letter_retry_publisher
 
 
 def _cleanup(

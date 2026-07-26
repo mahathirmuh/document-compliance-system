@@ -23,6 +23,12 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // React Compiler adoption is intentionally separate from Phase 10.
+      // Keep the established dialog/query state lifecycle unchanged while
+      // retaining rules-of-hooks and exhaustive-deps from the same preset.
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/static-components': 'off',
       '@typescript-eslint/consistent-type-imports': [
         'error',
         {

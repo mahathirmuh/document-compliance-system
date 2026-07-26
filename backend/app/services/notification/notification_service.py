@@ -88,9 +88,11 @@ class NotificationService:
         return NotificationMutationResponse(notification_id=notification.id)
 
     async def mark_all_read(self) -> NotificationMutationResponse:
+        now = utc_now()
         affected = await self.repository.mark_all_read(
             user_id=self.user_id,
-            read_at=utc_now(),
+            read_at=now,
+            now=now,
         )
         await self.session.commit()
         return NotificationMutationResponse(affected_count=affected)

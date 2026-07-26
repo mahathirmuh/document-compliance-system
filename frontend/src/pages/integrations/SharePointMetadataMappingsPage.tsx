@@ -25,6 +25,8 @@ import { useAuthStore } from '../../store/authStore';
 import {
   metadataMappingDataTypes,
   metadataMappingDirections,
+  type MetadataMappingDataType,
+  type MetadataMappingDirection,
   type SharePointMetadataMapping,
   type SharePointMetadataMappingWrite,
 } from '../../types/sharepoint';
@@ -35,6 +37,7 @@ export function SharePointMetadataMappingsPage() {
     null,
   );
   const query = useSharePointMetadataMappings({ page, pageSize: 20 });
+  const connections = useSharePointConnections({ page: 1, pageSize: 100 });
   const mutations = useSharePointMappingMutations();
   const canConfigure = useAuthStore((state) =>
     state.hasPermission('sharepoint:configure'),
@@ -132,13 +135,24 @@ export function SharePointMetadataMappingsPage() {
               <tbody className="divide-y divide-slate-100">
                 {query.data.items.map((mapping) => (
                   <tr key={mapping.id}>
-                    <Phase10Cell strong>{mapping.connectionName ?? '—'}</Phase10Cell>
+                    <Phase10Cell strong>
+                      {connections.data?.items.find(
+                        (item) => item.id === mapping.sharepointConnectionId,
+                      )?.name ?? mapping.sharepointConnectionId}
+                    </Phase10Cell>
                     <Phase10Cell>{mapping.documentField}</Phase10Cell>
                     <Phase10Cell>{mapping.sharepointFieldInternalName}</Phase10Cell>
                     <Phase10Cell>{mapping.dataType.replaceAll('_', ' ')}</Phase10Cell>
                     <Phase10Cell>{mapping.direction}</Phase10Cell>
                     <Phase10Cell>{mapping.isRequired ? 'Yes' : 'No'}</Phase10Cell>
-                    <Phase10Cell>{mapping.defaultValue ?? '—'}</Phase10Cell>
+                    <Phase10Cell>
+                      {mapping.defaultValue === null ||
+                      mapping.defaultValue === undefined
+                        ? '—'
+                        : typeof mapping.defaultValue === 'string'
+                          ? mapping.defaultValue
+                          : JSON.stringify(mapping.defaultValue)}
+                    </Phase10Cell>
                     <Phase10Cell>{mapping.transformerCode ?? 'Default'}</Phase10Cell>
                     <Phase10Cell>
                       {mapping.isActive ? 'Active' : 'Disabled'}
@@ -212,10 +226,20 @@ function MetadataMappingDialog({
   const [sharePointField, setSharePointField] = useState(
     mapping?.sharepointFieldInternalName ?? '',
   );
-  const [dataType, setDataType] = useState(mapping?.dataType ?? 'STRING');
-  const [direction, setDirection] = useState(mapping?.direction ?? 'OUTBOUND');
+  const [dataType, setDataType] = useState<MetadataMappingDataType>(
+    mapping?.dataType ?? 'STRING',
+  );
+  const [direction, setDirection] = useState<MetadataMappingDirection>(
+    mapping?.direction ?? 'OUTBOUND',
+  );
   const [required, setRequired] = useState(mapping?.isRequired ?? false);
-  const [defaultValue, setDefaultValue] = useState(mapping?.defaultValue ?? '');
+  const [defaultValue, setDefaultValue] = useState(
+    mapping?.defaultValue === null || mapping?.defaultValue === undefined
+      ? ''
+      : typeof mapping.defaultValue === 'string'
+        ? mapping.defaultValue
+        : JSON.stringify(mapping.defaultValue),
+  );
   const [transformer, setTransformer] = useState(mapping?.transformerCode ?? '');
   const [active, setActive] = useState(mapping?.isActive ?? true);
   const valid =
@@ -238,6 +262,14 @@ function MetadataMappingDialog({
           if (!valid) {
             return;
           }
+          const normalizedDefault = defaultValue.trim();
+          const parsedDefault = !normalizedDefault
+            ? null
+            : dataType === 'INTEGER'
+              ? Number(normalizedDefault)
+              : dataType === 'BOOLEAN'
+                ? normalizedDefault.toLowerCase() === 'true'
+                : normalizedDefault;
           void onSave({
             sharepointConnectionId: connectionId,
             documentField: documentField.trim(),
@@ -245,7 +277,7 @@ function MetadataMappingDialog({
             dataType,
             direction,
             isRequired: required,
-            defaultValue: defaultValue.trim() || null,
+            defaultValue: parsedDefault,
             transformerCode: transformer.trim() || null,
             isActive: active,
           });
@@ -292,9 +324,7 @@ function MetadataMappingDialog({
           <select
             value={dataType}
             onChange={(event) =>
-              setDataType(
-                event.target.value as SharePointMetadataMappingWrite['dataType'],
-              )
+              setDataType(event.target.value as MetadataMappingDataType)
             }
             className={phase10InputClass}
           >
@@ -309,9 +339,7 @@ function MetadataMappingDialog({
           <select
             value={direction}
             onChange={(event) =>
-              setDirection(
-                event.target.value as SharePointMetadataMappingWrite['direction'],
-              )
+              setDirection(event.target.value as MetadataMappingDirection)
             }
             className={phase10InputClass}
           >

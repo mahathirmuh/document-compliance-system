@@ -6,13 +6,22 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
+from app.core.config import get_settings
+from app.services.notification.notification_retry_service import (
+    NotificationRetryPublisher,
+)
+from app.services.notification.runtime import create_notification_runtime
 from app.services.notification.notification_worker_service import (
     NotificationWorkerService,
 )
 from app.workers.celery_app import celery_app
 from app.workers.runtime import run_async
 
-_service = NotificationWorkerService()
+_runtime = create_notification_runtime(
+    get_settings(),
+    celery=celery_app,
+)
+_service = _runtime.worker_service
 
 
 def configure_notification_worker_service(
@@ -22,6 +31,12 @@ def configure_notification_worker_service(
 
     global _service
     _service = service
+
+
+def get_runtime_notification_retry_publisher() -> NotificationRetryPublisher:
+    """Expose the same Redis-backed publisher to the admin API dependency."""
+
+    return _runtime.retry_publisher
 
 
 @celery_app.task(

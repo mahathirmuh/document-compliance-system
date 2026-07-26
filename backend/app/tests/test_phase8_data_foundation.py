@@ -113,17 +113,20 @@ def test_validation_rule_legacy_fields_populate_phase8_fields() -> None:
     assert rule.partially_compliant_score == 65
 
 
-def test_phase8_migration_precedes_the_phase9_single_head() -> None:
+def test_phase8_migration_precedes_phase9_and_phase10_single_head() -> None:
     config = Config("alembic.ini")
     scripts = ScriptDirectory.from_config(config)
     phase8_revision = scripts.get_revision("20260726_0008")
     phase9_revision = scripts.get_revision("20260726_0009")
+    phase10_revision = scripts.get_revision("20260726_0010")
 
-    assert scripts.get_current_head() == "20260726_0009"
+    assert scripts.get_current_head() == "20260726_0010"
     assert phase8_revision is not None
     assert phase8_revision.down_revision == "20260725_0007"
     assert phase9_revision is not None
     assert phase9_revision.down_revision == "20260726_0008"
+    assert phase10_revision is not None
+    assert phase10_revision.down_revision == "20260726_0009"
 
 
 def test_heading_normalization_and_regex_guardrails() -> None:

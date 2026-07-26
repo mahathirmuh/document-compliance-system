@@ -6,9 +6,10 @@ import base64
 import hashlib
 import tempfile
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, BinaryIO, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -43,6 +44,7 @@ from app.models.document_file import (
     DocumentFileStatus,
     RemoteSyncStatus,
 )
+from app.models.document_revision import DocumentRevision
 from app.models.sharepoint_connection import SharePointConnection
 from app.models.sharepoint_enums import (
     DeletePolicy,
@@ -58,7 +60,11 @@ from app.models.sharepoint_file_version import SharePointFileVersion
 from app.models.sharepoint_sync_conflict import SharePointSyncConflict
 from app.models.sharepoint_sync_item import SharePointSyncItem
 from app.models.sharepoint_sync_job import SharePointSyncJob
+from app.models.sharepoint_sync_profile import SharePointSyncProfile
 from app.repositories.document_file_repository import DocumentFileRepository
+from app.repositories.document_revision_repository import (
+    DocumentRevisionRepository,
+)
 from app.repositories.sharepoint_conflict_repository import (
     SharePointConflictRepository,
 )
@@ -79,6 +85,7 @@ from app.services.secrets.encryption_service import (
 )
 from app.services.security_scanning.base_malware_scanner import (
     BaseMalwareScanner,
+    MalwareScanResult,
     MalwareScannerFailPolicy,
 )
 from app.services.security_scanning.clamav_malware_scanner import (
@@ -91,9 +98,6 @@ from app.services.sharepoint.delta_state_service import (
     SharePointDeltaStateService,
 )
 from app.services.sharepoint.graph_factory import create_graph_client
-from app.services.sharepoint.metadata_transformer import (
-    SharePointMetadataTransformer,
-)
 from app.services.sharepoint.sync_engine import (
     LocalSyncState,
     RemoteSyncState,
@@ -101,6 +105,7 @@ from app.services.sharepoint.sync_engine import (
     SyncBaseline,
 )
 from app.services.storage.base_storage import BaseStorage
+from app.services.storage.local_storage import LocalStorage
 from app.services.storage.storage_factory import StorageFactory
 from app.services.storage.storage_path_service import StoragePathService
 from app.utils.datetime import utc_now
@@ -108,6 +113,16 @@ from app.utils.datetime import utc_now
 
 class TransientSharePointWorkerError(RuntimeError):
     """Infrastructure failure eligible for bounded Celery retry."""
+
+
+@dataclass(slots=True)
+class _DownloadedRemoteArtifact:
+    source: BinaryIO
+    metadata: dict[str, Any]
+    versions: list[dict[str, Any]]
+    sha256_hash: str
+    size: int
+    scan: MalwareScanResult
 
 
 class SharePointWorkerService:
@@ -123,8 +138,11 @@ class SharePointWorkerService:
     ) -> None:
         self.settings = settings
         self.session_factory = session_factory
-        self.local_storage = local_storage or StorageFactory.get_storage(
-            settings
+        # Inbound sync must write only to the durable local leg. Passing a
+        # HybridStorage here would mirror the downloaded content back to
+        # SharePoint and cause a second, unintended remote mutation.
+        self.local_storage = local_storage or LocalStorage(
+            settings.storage_root
         )
         self.paths = StoragePathService(settings)
         self.malware_scanner = malware_scanner or self._scanner(settings)
@@ -139,6 +157,8 @@ class SharePointWorkerService:
             snapshot = await self._claim_job(job_id, worker_reference)
             if snapshot is None:
                 return SharePointSyncJobStatus.FAILED
+            if isinstance(snapshot, SharePointSyncJobStatus):
+                return snapshot
             job_type, file_id = snapshot
             if job_type is SyncJobType.SINGLE_FILE_PUSH:
                 if file_id is None:
@@ -211,26 +231,48 @@ class SharePointWorkerService:
                 if profile is not None
                 else DeletePolicy.IGNORE_REMOTE_DELETE
             )
+            document_id = item.document_id
+            revision_id = item.document_revision_id
+            remote_drive_id = item.remote_drive_id
+            remote_item_id = item.remote_item_id
             item.status = SyncItemStatus.PROCESSING
             item.started_at = utc_now()
             await session.commit()
         if file_id is None:
-            async with self.session_factory() as session:
-                item = await SharePointSyncRepository(session).get_item(
-                    item_id,
-                    for_update=True,
+            if (
+                operation is SyncItemOperation.CREATE_LOCAL
+                and document_id is not None
+                and revision_id is not None
+                and remote_drive_id
+                and remote_item_id
+            ):
+                await self._create_local_file(
+                    job_id=job.id,
+                    sync_item_id=item_id,
+                    document_id=document_id,
+                    revision_id=revision_id,
+                    drive_id=remote_drive_id,
+                    item_id=remote_item_id,
                 )
-                if item is None:
-                    return SyncItemStatus.FAILED
-                item.status = SyncItemStatus.FAILED
-                item.error_code = "SHAREPOINT_INBOUND_MAPPING_REQUIRED"
-                item.error_message = (
-                    "Remote item cannot be mapped to an internal document."
-                )
-                item.completed_at = utc_now()
-                await session.commit()
-                return item.status
-        if operation in {
+            else:
+                async with self.session_factory() as session:
+                    item = await SharePointSyncRepository(session).get_item(
+                        item_id,
+                        for_update=True,
+                    )
+                    if item is None:
+                        return SyncItemStatus.FAILED
+                    item.status = SyncItemStatus.FAILED
+                    item.error_code = "SHAREPOINT_INBOUND_MAPPING_REQUIRED"
+                    item.error_message = (
+                        "Remote item cannot be mapped to an internal document."
+                    )
+                    item.completed_at = utc_now()
+                    await session.commit()
+                    failed_status = item.status
+                await self._refresh_parent_job(job.id)
+                return failed_status
+        elif operation in {
             SyncItemOperation.CREATE_REMOTE,
             SyncItemOperation.UPDATE_REMOTE,
         }:
@@ -246,6 +288,8 @@ class SharePointWorkerService:
             )
         elif operation is SyncItemOperation.UPDATE_LOCAL:
             await self._pull_file(job.id, file_id)
+        elif operation is SyncItemOperation.UPDATE_REMOTE_METADATA:
+            await self._push_metadata(job.id, file_id)
         elif operation is SyncItemOperation.REMOTE_DELETE_DETECTED:
             await self._apply_remote_delete_policy(
                 job_id=job.id,
@@ -273,7 +317,9 @@ class SharePointWorkerService:
             )
             item.completed_at = utc_now()
             await session.commit()
-            return item.status
+            final_status = item.status
+        await self._refresh_parent_job(job.id)
+        return final_status
 
     async def reconcile_file(
         self,
@@ -352,11 +398,43 @@ class SharePointWorkerService:
             job.error_message = error_message[:2000]
             await session.commit()
 
+    async def fail_item(
+        self,
+        item_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        parent_job_id: UUID | None = None
+        async with self.session_factory() as session:
+            item = await SharePointSyncRepository(session).get_item(
+                item_id,
+                for_update=True,
+            )
+            if item is None or item.status in {
+                SyncItemStatus.COMPLETED,
+                SyncItemStatus.CANCELLED,
+                SyncItemStatus.DEAD_LETTER,
+            }:
+                return
+            item.status = SyncItemStatus.FAILED
+            item.completed_at = utc_now()
+            item.error_code = error_code[:100]
+            item.error_message = error_message[:2000]
+            parent_job_id = item.sync_job_id
+            await session.commit()
+        if parent_job_id is not None:
+            await self._refresh_parent_job(parent_job_id)
+
     async def _claim_job(
         self,
         job_id: UUID,
         worker_reference: str,
-    ) -> tuple[SyncJobType, UUID | None] | None:
+    ) -> (
+        tuple[SyncJobType, UUID | None]
+        | SharePointSyncJobStatus
+        | None
+    ):
         async with self.session_factory() as session:
             repository = SharePointSyncRepository(session)
             job = await repository.get_job(job_id, for_update=True)
@@ -367,17 +445,34 @@ class SharePointWorkerService:
                 job.cancelled_at = utc_now()
                 job.progress = 100
                 await session.commit()
-                return None
+                return job.status
             if job.status in {
                 SharePointSyncJobStatus.COMPLETED,
+                SharePointSyncJobStatus.PARTIALLY_COMPLETED,
                 SharePointSyncJobStatus.CANCELLED,
+                SharePointSyncJobStatus.DEAD_LETTER,
             }:
-                return job.job_type, self._file_scope(job)
+                return job.status
+            summary = dict(job.result_summary_json or {})
+            claimed_by = summary.get("workerReference")
+            if (
+                job.status in {
+                    SharePointSyncJobStatus.AUTHENTICATING,
+                    SharePointSyncJobStatus.DISCOVERING,
+                    SharePointSyncJobStatus.COMPARING,
+                    SharePointSyncJobStatus.TRANSFERRING,
+                    SharePointSyncJobStatus.UPDATING_METADATA,
+                    SharePointSyncJobStatus.RESOLVING_CONFLICTS,
+                    SharePointSyncJobStatus.PERSISTING,
+                }
+                and claimed_by
+                and claimed_by != worker_reference
+            ):
+                return job.status
             job.status = SharePointSyncJobStatus.AUTHENTICATING
             job.progress = 5
             job.current_stage = "Authenticating with Microsoft Graph"
             job.started_at = job.started_at or utc_now()
-            summary = dict(job.result_summary_json or {})
             summary["workerReference"] = worker_reference
             job.result_summary_json = summary
             await session.commit()
@@ -418,6 +513,10 @@ class SharePointWorkerService:
                 )
             remote_path = join_remote_path(remote_folder, remote_filename)
             storage_key = document_file.storage_key
+            storage_provider = str(document_file.storage_provider).upper()
+            was_linked = bool(
+                getattr(document_file, "remote_item_id", None)
+            )
             file_size = document_file.file_size
             job.status = SharePointSyncJobStatus.TRANSFERRING
             job.progress = 25
@@ -432,7 +531,17 @@ class SharePointWorkerService:
                     drive_id=self._drive_id(connection),
                     folder_path=remote_folder,
                 )
-            stream = await self.local_storage.open(storage_key)
+            source_storage = self.local_storage
+            close_source_storage = False
+            if not await source_storage.exists(storage_key):
+                if storage_provider.endswith(("SHAREPOINT", "HYBRID")):
+                    source_storage = StorageFactory.get_storage(self.settings)
+                    close_source_storage = True
+                else:
+                    raise FileNotFoundError(
+                        "The local synchronization source is unavailable."
+                    )
+            stream = await source_storage.open(storage_key)
             try:
                 upload = await SharePointUploadService(
                     graph,
@@ -480,10 +589,17 @@ class SharePointWorkerService:
                 )
             finally:
                 stream.close()
+                if close_source_storage:
+                    await source_storage.close()
             if mappings:
-                fields = self._mapped_fields(document_file, mappings)
+                metadata_service = SharePointMetadataService(graph)
+                fields = self._mapped_fields(
+                    document_file,
+                    mappings,
+                    metadata_service=metadata_service,
+                )
                 if fields:
-                    await SharePointMetadataService(graph).update_fields(
+                    await metadata_service.update_fields(
                         drive_id=self._drive_id(connection),
                         item_id=self._remote_id(upload),
                         fields=fields,
@@ -515,13 +631,20 @@ class SharePointWorkerService:
                 metadata=upload,
                 versions=versions,
             )
-            job.status = SharePointSyncJobStatus.COMPLETED
-            job.progress = 100
-            job.current_stage = "Completed"
-            job.completed_at = utc_now()
-            job.items_discovered = max(1, job.items_discovered)
-            job.items_processed = max(1, job.items_processed)
-            job.items_updated = max(1, job.items_updated)
+            if self._standalone_job(job):
+                job.status = SharePointSyncJobStatus.COMPLETED
+                job.progress = 100
+                job.current_stage = "Completed"
+                job.completed_at = utc_now()
+                job.items_discovered = max(1, job.items_discovered)
+                job.items_processed = max(1, job.items_processed)
+                if was_linked:
+                    job.items_updated = max(1, job.items_updated)
+                else:
+                    job.items_created = max(1, job.items_created)
+            else:
+                job.status = SharePointSyncJobStatus.TRANSFERRING
+                job.current_stage = "Processing SharePoint sync items"
             await session.commit()
 
     async def _pull_file(self, job_id: UUID, file_id: UUID) -> None:
@@ -540,39 +663,15 @@ class SharePointWorkerService:
             job.current_stage = "Downloading file from SharePoint"
             await session.commit()
 
-        graph = create_graph_client(self.settings)
-        temporary = tempfile.SpooledTemporaryFile(  # noqa: SIM115
-            max_size=8 * 1024 * 1024,
-            mode="w+b",
+        artifact = await self._download_remote_artifact(
+            drive_id=drive_id,
+            item_id=item_id,
         )
-        digest = hashlib.sha256()
-        size = 0
-        try:
-            remote = await SharePointFileService(graph).get_metadata(
-                drive_id=drive_id,
-                item_id=item_id,
-            )
-            async for chunk in SharePointDownloadService(graph).stream(
-                drive_id=drive_id,
-                item_id=item_id,
-            ):
-                temporary.write(chunk)
-                digest.update(chunk)
-                size += len(chunk)
-            temporary.seek(0)
-            scan = await self.malware_scanner.scan(
-                self._temporary_chunks(temporary),
-                filename=str(remote.get("name") or ""),
-            )
-            temporary.seek(0)
-            if not scan.allowed:
-                raise ValueError("FILE_QUARANTINED")
-            versions = await SharePointFileService(graph).list_versions(
-                drive_id=drive_id,
-                item_id=item_id,
-            )
-        finally:
-            await graph.close()
+        temporary = artifact.source
+        remote = artifact.metadata
+        versions = artifact.versions
+        scan = artifact.scan
+        size = artifact.size
         remote_name = str(
             remote.get("name") or document_file.original_filename
         )
@@ -617,7 +716,7 @@ class SharePointWorkerService:
                         old.detected_mime_type,
                     ),
                     file_size=size,
-                    sha256_hash=digest.hexdigest(),
+                    sha256_hash=artifact.sha256_hash,
                     storage_provider="HYBRID",
                     storage_key=storage_key,
                     storage_bucket=None,
@@ -652,13 +751,17 @@ class SharePointWorkerService:
                     metadata=remote,
                     versions=versions,
                 )
-                job.status = SharePointSyncJobStatus.COMPLETED
-                job.progress = 100
-                job.current_stage = "Completed"
-                job.completed_at = utc_now()
-                job.items_discovered = max(1, job.items_discovered)
-                job.items_processed = max(1, job.items_processed)
-                job.items_created = max(1, job.items_created)
+                if self._standalone_job(job):
+                    job.status = SharePointSyncJobStatus.COMPLETED
+                    job.progress = 100
+                    job.current_stage = "Completed"
+                    job.completed_at = utc_now()
+                    job.items_discovered = max(1, job.items_discovered)
+                    job.items_processed = max(1, job.items_processed)
+                    job.items_created = max(1, job.items_created)
+                else:
+                    job.status = SharePointSyncJobStatus.TRANSFERRING
+                    job.current_stage = "Processing SharePoint sync items"
                 await session.commit()
         except Exception:
             if stored and await self.local_storage.exists(storage_key):
@@ -666,6 +769,244 @@ class SharePointWorkerService:
             raise
         finally:
             temporary.close()
+
+    async def _download_remote_artifact(
+        self,
+        *,
+        drive_id: str,
+        item_id: str,
+    ) -> _DownloadedRemoteArtifact:
+        graph = create_graph_client(self.settings)
+        temporary = tempfile.SpooledTemporaryFile(  # noqa: SIM115
+            max_size=8 * 1024 * 1024,
+            mode="w+b",
+        )
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            try:
+                remote = await SharePointFileService(graph).get_metadata(
+                    drive_id=drive_id,
+                    item_id=item_id,
+                )
+                async for chunk in SharePointDownloadService(graph).stream(
+                    drive_id=drive_id,
+                    item_id=item_id,
+                ):
+                    temporary.write(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+                temporary.seek(0)
+                scan = await self.malware_scanner.scan(
+                    self._temporary_chunks(temporary),
+                    filename=str(remote.get("name") or ""),
+                )
+                temporary.seek(0)
+                if not scan.allowed:
+                    raise ValueError("FILE_QUARANTINED")
+                versions = await SharePointFileService(
+                    graph
+                ).list_versions(
+                    drive_id=drive_id,
+                    item_id=item_id,
+                )
+                return _DownloadedRemoteArtifact(
+                    source=cast(BinaryIO, temporary),
+                    metadata=remote,
+                    versions=versions,
+                    sha256_hash=digest.hexdigest(),
+                    size=size,
+                    scan=scan,
+                )
+            finally:
+                await graph.close()
+        except BaseException:
+            temporary.close()
+            raise
+
+    async def _create_local_file(
+        self,
+        *,
+        job_id: UUID,
+        sync_item_id: UUID,
+        document_id: UUID,
+        revision_id: UUID,
+        drive_id: str,
+        item_id: str,
+    ) -> None:
+        artifact = await self._download_remote_artifact(
+            drive_id=drive_id,
+            item_id=item_id,
+        )
+        remote_name = str(
+            artifact.metadata.get("name") or "sharepoint-document"
+        )
+        sanitized = self.paths.sanitize_filename(remote_name)
+        extension = PurePosixPath(sanitized).suffix.lower().lstrip(".")
+        if extension not in {"pdf", "docx", "xlsx"}:
+            artifact.source.close()
+            raise ValueError("Remote SharePoint file type is unsupported.")
+        new_file_id = uuid4()
+        storage_key = self.paths.original_key(
+            document_id,
+            revision_id,
+            new_file_id,
+            sanitized,
+        )
+        stored = False
+        try:
+            await self.local_storage.save(artifact.source, storage_key)
+            stored = True
+            async with self.session_factory() as session:
+                job = await SharePointSyncRepository(session).get_job(
+                    job_id,
+                    for_update=True,
+                )
+                item = await SharePointSyncRepository(session).get_item(
+                    sync_item_id,
+                    for_update=True,
+                )
+                revision = await DocumentRevisionRepository(
+                    session
+                ).get_by_id(
+                    revision_id,
+                    document_id=document_id,
+                )
+                if job is None or item is None or revision is None:
+                    raise ValueError(
+                        "Inbound SharePoint mapping no longer exists."
+                    )
+                files = DocumentFileRepository(session)
+                old = await files.get_current_by_revision(
+                    revision_id,
+                    for_update=True,
+                )
+                if old is not None:
+                    await files.prepare_replacement(
+                        old,
+                        replaced_at=utc_now(),
+                    )
+                new_file = DocumentFile(
+                    id=new_file_id,
+                    document_id=document_id,
+                    document_revision_id=revision_id,
+                    original_filename=remote_name,
+                    sanitized_filename=sanitized,
+                    file_extension=extension,
+                    mime_type=self._remote_mime(
+                        artifact.metadata,
+                        "application/octet-stream",
+                    ),
+                    detected_mime_type=self._remote_mime(
+                        artifact.metadata,
+                        "application/octet-stream",
+                    ),
+                    file_size=artifact.size,
+                    sha256_hash=artifact.sha256_hash,
+                    storage_provider="HYBRID",
+                    storage_key=storage_key,
+                    storage_bucket=None,
+                    file_status=DocumentFileStatus.AVAILABLE,
+                    is_primary=True,
+                    is_current=True,
+                    uploaded_by=job.requested_by,
+                    metadata_json={
+                        "sharePointInbound": True,
+                        "malwareScanStatus": artifact.scan.status.value,
+                    },
+                )
+                self._apply_remote_metadata(
+                    new_file,
+                    connection_id=job.sharepoint_connection_id,
+                    drive_id=drive_id,
+                    remote_path=str(
+                        artifact.metadata.get(
+                            "parentReference",
+                            {},
+                        ).get("path", "")
+                    ),
+                    metadata=artifact.metadata,
+                )
+                await files.create(new_file)
+                if old is not None:
+                    await files.link_replacement(
+                        old,
+                        replacement_id=new_file.id,
+                    )
+                item.document_file_id = new_file.id
+                await self._record_version(
+                    session,
+                    document_file=new_file,
+                    job_id=job.id,
+                    metadata=artifact.metadata,
+                    versions=artifact.versions,
+                )
+                await session.commit()
+        except Exception:
+            if stored and await self.local_storage.exists(storage_key):
+                await self.local_storage.delete(storage_key)
+            raise
+        finally:
+            artifact.source.close()
+
+    async def _push_metadata(self, job_id: UUID, file_id: UUID) -> None:
+        async with self.session_factory() as session:
+            job, connection, document_file = await self._job_context(
+                session,
+                job_id,
+                file_id,
+            )
+            remote_item_id = getattr(
+                document_file,
+                "remote_item_id",
+                None,
+            )
+            if not remote_item_id:
+                raise ValueError(
+                    "Document file has no SharePoint metadata target."
+                )
+            mappings = await SharePointMappingRepository(
+                session
+            ).active_metadata_for_connection(connection.id)
+            await session.commit()
+        graph = create_graph_client(self.settings)
+        try:
+            metadata_service = SharePointMetadataService(graph)
+            fields = self._mapped_fields(
+                document_file,
+                mappings,
+                metadata_service=metadata_service,
+            )
+            if fields:
+                await metadata_service.update_fields(
+                    drive_id=self._drive_id(connection),
+                    item_id=remote_item_id,
+                    fields=fields,
+                )
+        finally:
+            await graph.close()
+        async with self.session_factory() as session:
+            job = await SharePointSyncRepository(session).get_job(
+                job_id,
+                for_update=True,
+            )
+            document_file = await DocumentFileRepository(session).get_by_id(
+                file_id,
+                for_update=True,
+            )
+            if job is None or document_file is None:
+                return
+            document_file.remote_sync_status = RemoteSyncStatus.SYNCED
+            document_file.last_synced_at = utc_now()
+            if self._standalone_job(job):
+                job.status = SharePointSyncJobStatus.COMPLETED
+                job.progress = 100
+                job.current_stage = "SharePoint metadata updated"
+                job.completed_at = utc_now()
+            else:
+                job.status = SharePointSyncJobStatus.TRANSFERRING
+                job.current_stage = "Processing SharePoint sync items"
+            await session.commit()
 
     async def _reconcile_file(self, job_id: UUID, file_id: UUID) -> None:
         async with self.session_factory() as session:
@@ -694,9 +1035,7 @@ class SharePointWorkerService:
                 page_size=1,
             )
             baseline_hash = (
-                versions[0].local_sha256_hash
-                if versions
-                else document_file.sha256_hash
+                versions[0].local_sha256_hash if versions else None
             )
             local_hash = document_file.sha256_hash
             local_modified_at = document_file.uploaded_at
@@ -741,9 +1080,13 @@ class SharePointWorkerService:
                 deleted="deleted" in remote,
                 content_hash=self._remote_hash(remote),
             ),
-            baseline=SyncBaseline(
-                local_content_hash=baseline_hash,
-                remote_etag=baseline_etag,
+            baseline=(
+                SyncBaseline(
+                    local_content_hash=baseline_hash,
+                    remote_etag=versions[0].remote_etag,
+                )
+                if versions
+                else None
             ),
         )
         if decision.operation is SyncItemOperation.UPDATE_REMOTE:
@@ -887,22 +1230,26 @@ class SharePointWorkerService:
                     RemoteSyncStatus.REMOTE_MISSING
                 )
                 stage = "Local file soft-deleted by remote-delete policy"
-            job.status = SharePointSyncJobStatus.COMPLETED
-            job.progress = 100
-            job.current_stage = stage
-            job.completed_at = utc_now()
-            job.items_discovered = 1
-            job.items_processed = 1
-            job.items_updated = (
-                0
-                if delete_policy is DeletePolicy.IGNORE_REMOTE_DELETE
-                else 1
-            )
-            job.items_skipped = (
-                1
-                if delete_policy is DeletePolicy.IGNORE_REMOTE_DELETE
-                else 0
-            )
+            if self._standalone_job(job):
+                job.status = SharePointSyncJobStatus.COMPLETED
+                job.progress = 100
+                job.current_stage = stage
+                job.completed_at = utc_now()
+                job.items_discovered = 1
+                job.items_processed = 1
+                job.items_updated = (
+                    0
+                    if delete_policy is DeletePolicy.IGNORE_REMOTE_DELETE
+                    else 1
+                )
+                job.items_skipped = (
+                    1
+                    if delete_policy is DeletePolicy.IGNORE_REMOTE_DELETE
+                    else 0
+                )
+            else:
+                job.status = SharePointSyncJobStatus.TRANSFERRING
+                job.current_stage = "Processing SharePoint sync items"
             await session.commit()
 
     async def _record_reconciliation_conflict(
@@ -1097,6 +1444,7 @@ class SharePointWorkerService:
             job.progress = 45
             job.current_stage = "Comparing discovered SharePoint items"
             discovered = skipped = conflicted = failed = 0
+            seen_file_ids: set[UUID] = set()
             for remote in result.items:
                 if "folder" in remote:
                     continue
@@ -1113,16 +1461,48 @@ class SharePointWorkerService:
                         item_id=item_id,
                     )
                 )
+                matched_revision: DocumentRevision | None = None
+                if (
+                    document_file is None
+                    and not deleted
+                    and job.direction is not SyncDirection.OUTBOUND
+                ):
+                    (
+                        matched_revision,
+                        document_file,
+                    ) = await self._resolve_inbound_target(
+                        session,
+                        repository=repository,
+                        profile=current_profile,
+                        connection_id=job.sharepoint_connection_id,
+                        drive_id=drive_id,
+                        item_id=item_id,
+                        remote=remote,
+                    )
+                if document_file is not None:
+                    seen_file_ids.add(document_file.id)
                 baseline_hash: str | None = None
                 decision_operation: SyncItemOperation
                 conflict_type: SyncConflictType | None = None
+                create_copy = False
                 if document_file is None:
-                    decision_operation = (
-                        SyncItemOperation.SKIP
-                        if deleted
-                        or job.direction is SyncDirection.OUTBOUND
-                        else SyncItemOperation.CREATE_LOCAL
+                    decision = SharePointSyncEngine().decide(
+                        direction=job.direction,
+                        conflict_policy=current_profile.conflict_policy,
+                        local=None,
+                        remote=RemoteSyncState(
+                            item_id=item_id,
+                            etag=remote_etag,
+                            modified_at=self._parse_datetime(
+                                remote.get("lastModifiedDateTime")
+                            ),
+                            path=self._remote_path(remote),
+                            deleted=deleted,
+                            content_hash=self._remote_hash(remote),
+                        ),
+                        baseline=None,
                     )
+                    decision_operation = decision.operation
                 else:
                     versions, _ = await SharePointFileVersionRepository(
                         session
@@ -1132,9 +1512,7 @@ class SharePointWorkerService:
                         page_size=1,
                     )
                     baseline_hash = (
-                        versions[0].local_sha256_hash
-                        if versions
-                        else document_file.sha256_hash
+                        versions[0].local_sha256_hash if versions else None
                     )
                     decision = SharePointSyncEngine().decide(
                         direction=job.direction,
@@ -1159,17 +1537,18 @@ class SharePointWorkerService:
                             deleted=deleted,
                             content_hash=self._remote_hash(remote),
                         ),
-                        baseline=SyncBaseline(
-                            local_content_hash=baseline_hash,
-                            remote_etag=getattr(
-                                document_file,
-                                "remote_etag",
-                                None,
-                            ),
+                        baseline=(
+                            SyncBaseline(
+                                local_content_hash=baseline_hash,
+                                remote_etag=versions[0].remote_etag,
+                            )
+                            if versions
+                            else None
                         ),
                     )
                     decision_operation = decision.operation
                     conflict_type = decision.conflict_type
+                    create_copy = decision.create_copy
                 local_hash = (
                     document_file.sha256_hash
                     if document_file is not None
@@ -1187,6 +1566,7 @@ class SharePointWorkerService:
                     continue
                 is_unmapped = (
                     document_file is None
+                    and matched_revision is None
                     and decision_operation is SyncItemOperation.CREATE_LOCAL
                 )
                 item_status = (
@@ -1207,12 +1587,20 @@ class SharePointWorkerService:
                     document_id=(
                         document_file.document_id
                         if document_file is not None
-                        else None
+                        else (
+                            matched_revision.document_id
+                            if matched_revision is not None
+                            else None
+                        )
                     ),
                     document_revision_id=(
                         document_file.document_revision_id
                         if document_file is not None
-                        else None
+                        else (
+                            matched_revision.id
+                            if matched_revision is not None
+                            else None
+                        )
                     ),
                     document_file_id=(
                         document_file.id
@@ -1248,6 +1636,15 @@ class SharePointWorkerService:
                         "deleted": deleted,
                         "name": remote.get("name"),
                         "deletePolicy": current_profile.delete_policy.value,
+                        **(
+                            {
+                                "safeCopySuffix": (
+                                    f"conflict-{str(job.id)[:8]}"
+                                )
+                            }
+                            if create_copy
+                            else {}
+                        ),
                     },
                     completed_at=(
                         utc_now()
@@ -1293,6 +1690,23 @@ class SharePointWorkerService:
                     failed += 1
                 else:
                     queued_item_ids.append(item.id)
+            (
+                local_item_ids,
+                local_discovered,
+                local_skipped,
+                local_conflicted,
+            ) = await self._plan_local_profile_items(
+                session,
+                repository=repository,
+                job=job,
+                profile=current_profile,
+                drive_id=drive_id,
+                seen_file_ids=seen_file_ids,
+            )
+            queued_item_ids.extend(local_item_ids)
+            discovered += local_discovered
+            skipped += local_skipped
+            conflicted += local_conflicted
             job.items_discovered = discovered
             job.items_skipped = skipped
             job.items_conflicted = conflicted
@@ -1328,8 +1742,15 @@ class SharePointWorkerService:
             }
             await session.commit()
 
-        for item_id in queued_item_ids:
-            await self.process_item(item_id)
+        for index, queued_item_id in enumerate(queued_item_ids):
+            if await self._cancel_job_if_requested(
+                job_id,
+                queued_item_ids[index:],
+            ):
+                return
+            await self.process_item(queued_item_id)
+        if await self._cancel_job_if_requested(job_id, []):
+            return
 
         async with self.session_factory() as session:
             repository = SharePointSyncRepository(session)
@@ -1424,6 +1845,373 @@ class SharePointWorkerService:
                     "state encryption is unavailable."
                 )
             await session.commit()
+
+    async def _cancel_job_if_requested(
+        self,
+        job_id: UUID,
+        remaining_item_ids: list[UUID],
+    ) -> bool:
+        async with self.session_factory() as session:
+            repository = SharePointSyncRepository(session)
+            job = await repository.get_job(job_id, for_update=True)
+            if (
+                job is None
+                or job.status
+                not in {
+                    SharePointSyncJobStatus.CANCEL_REQUESTED,
+                    SharePointSyncJobStatus.CANCELLED,
+                }
+            ):
+                return False
+            now = utc_now()
+            for item_id in remaining_item_ids:
+                item = await repository.get_item(item_id, for_update=True)
+                if item is not None and item.status is SyncItemStatus.QUEUED:
+                    item.status = SyncItemStatus.CANCELLED
+                    item.completed_at = now
+            job.status = SharePointSyncJobStatus.CANCELLED
+            job.cancelled_at = job.cancelled_at or now
+            job.progress = 100
+            job.current_stage = "Cancelled"
+            await session.commit()
+            return True
+
+    async def _refresh_parent_job(self, job_id: UUID) -> None:
+        async with self.session_factory() as session:
+            repository = SharePointSyncRepository(session)
+            job = await repository.get_job(job_id, for_update=True)
+            if job is None or self._standalone_job(job):
+                return
+            if job.status in {
+                SharePointSyncJobStatus.CANCEL_REQUESTED,
+                SharePointSyncJobStatus.CANCELLED,
+                SharePointSyncJobStatus.DEAD_LETTER,
+            }:
+                return
+            items = await repository.list_all_items(job_id)
+            if any(
+                item.status
+                in {
+                    SyncItemStatus.QUEUED,
+                    SyncItemStatus.PROCESSING,
+                }
+                for item in items
+            ):
+                job.status = SharePointSyncJobStatus.TRANSFERRING
+                job.current_stage = "Processing SharePoint sync items"
+                await session.commit()
+                return
+            terminal_statuses = {
+                SyncItemStatus.COMPLETED,
+                SyncItemStatus.SKIPPED,
+                SyncItemStatus.CONFLICT,
+                SyncItemStatus.FAILED,
+                SyncItemStatus.CANCELLED,
+                SyncItemStatus.DEAD_LETTER,
+            }
+            job.items_discovered = max(job.items_discovered, len(items))
+            job.items_processed = sum(
+                item.status in terminal_statuses for item in items
+            )
+            job.items_failed = sum(
+                item.status
+                in {
+                    SyncItemStatus.FAILED,
+                    SyncItemStatus.DEAD_LETTER,
+                }
+                for item in items
+            )
+            job.items_conflicted = sum(
+                item.status is SyncItemStatus.CONFLICT for item in items
+            )
+            job.items_skipped = sum(
+                item.status is SyncItemStatus.SKIPPED for item in items
+            )
+            job.items_created = sum(
+                item.status is SyncItemStatus.COMPLETED
+                and item.operation
+                in {
+                    SyncItemOperation.CREATE_LOCAL,
+                    SyncItemOperation.CREATE_REMOTE,
+                }
+                for item in items
+            )
+            job.items_updated = sum(
+                item.status is SyncItemStatus.COMPLETED
+                and item.operation
+                in {
+                    SyncItemOperation.UPDATE_LOCAL,
+                    SyncItemOperation.UPDATE_REMOTE,
+                    SyncItemOperation.UPDATE_LOCAL_METADATA,
+                    SyncItemOperation.UPDATE_REMOTE_METADATA,
+                    SyncItemOperation.REMOTE_DELETE_DETECTED,
+                }
+                for item in items
+            )
+            job.status = (
+                SharePointSyncJobStatus.PARTIALLY_COMPLETED
+                if job.items_failed or job.items_conflicted
+                else SharePointSyncJobStatus.COMPLETED
+            )
+            job.progress = 100
+            job.current_stage = (
+                "Some changes require review or mapping"
+                if job.status is SharePointSyncJobStatus.PARTIALLY_COMPLETED
+                else "Completed"
+            )
+            job.completed_at = utc_now()
+            await session.commit()
+
+    async def _resolve_inbound_target(
+        self,
+        session: AsyncSession,
+        *,
+        repository: SharePointSyncRepository,
+        profile: SharePointSyncProfile,
+        connection_id: UUID,
+        drive_id: str,
+        item_id: str,
+        remote: dict[str, Any],
+    ) -> tuple[DocumentRevision | None, DocumentFile | None]:
+        """Map an inbound item only when an exact scoped revision is known."""
+
+        candidates: list[str] = []
+        list_item = remote.get("listItem")
+        fields = (
+            list_item.get("fields")
+            if isinstance(list_item, dict)
+            else None
+        )
+        if isinstance(fields, dict):
+            for key in (
+                "FullDocumentCode",
+                "fullDocumentCode",
+                "DocumentCode",
+            ):
+                value = fields.get(key)
+                if isinstance(value, str) and value.strip():
+                    candidates.append(value.strip())
+        remote_name = remote.get("name")
+        if isinstance(remote_name, str) and remote_name.strip():
+            candidates.append(PurePosixPath(remote_name.strip()).stem)
+
+        seen: set[str] = set()
+        files = DocumentFileRepository(session)
+        for candidate in candidates:
+            normalized = candidate.casefold()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            revision = await repository.get_profile_revision_by_full_code(
+                profile,
+                full_document_code=candidate,
+            )
+            if revision is None:
+                continue
+            current = await files.get_current_by_revision(
+                revision.id,
+                for_update=True,
+            )
+            if (
+                current is not None
+                and current.remote_item_id is not None
+                and current.remote_item_id != item_id
+            ):
+                return None, None
+            if current is not None:
+                current.sharepoint_connection_id = connection_id
+                current.remote_drive_id = drive_id
+                current.remote_item_id = item_id
+                current.remote_path = self._remote_path(remote)
+                current.remote_sync_status = RemoteSyncStatus.PENDING
+            return revision, current
+        return None, None
+
+    async def _plan_local_profile_items(
+        self,
+        session: AsyncSession,
+        *,
+        repository: SharePointSyncRepository,
+        job: SharePointSyncJob,
+        profile: SharePointSyncProfile,
+        drive_id: str,
+        seen_file_ids: set[UUID],
+    ) -> tuple[list[UUID], int, int, int]:
+        """Add local-only and locally changed files to the durable job plan."""
+
+        if job.direction is SyncDirection.INBOUND:
+            return [], 0, 0, 0
+        queued: list[UUID] = []
+        discovered = skipped = conflicted = 0
+        engine = SharePointSyncEngine()
+        for document_file in await repository.list_profile_document_files(
+            profile,
+            drive_id=drive_id,
+        ):
+            if document_file.id in seen_file_ids:
+                continue
+            versions, _ = await SharePointFileVersionRepository(
+                session
+            ).list_page(
+                document_file.id,
+                page=1,
+                page_size=1,
+            )
+            baseline = (
+                SyncBaseline(
+                    local_content_hash=versions[0].local_sha256_hash,
+                    remote_etag=versions[0].remote_etag,
+                )
+                if versions
+                else None
+            )
+            remote_item_id = getattr(
+                document_file,
+                "remote_item_id",
+                None,
+            )
+            decision = engine.decide(
+                direction=job.direction,
+                conflict_policy=profile.conflict_policy,
+                local=LocalSyncState(
+                    document_file_id=str(document_file.id),
+                    content_hash=document_file.sha256_hash,
+                    modified_at=document_file.uploaded_at,
+                    path=getattr(document_file, "remote_path", None),
+                ),
+                remote=(
+                    RemoteSyncState(
+                        item_id=remote_item_id,
+                        etag=getattr(document_file, "remote_etag", None),
+                        modified_at=getattr(
+                            document_file,
+                            "remote_last_modified_at",
+                            None,
+                        ),
+                        path=getattr(document_file, "remote_path", None),
+                        content_hash=None,
+                    )
+                    if remote_item_id
+                    else None
+                ),
+                baseline=baseline,
+            )
+            key = engine.idempotency_key(
+                sync_profile_id=str(job.sync_profile_id),
+                remote_item_id=(
+                    remote_item_id or f"local:{document_file.id}"
+                ),
+                remote_etag=getattr(
+                    document_file,
+                    "remote_etag",
+                    None,
+                ),
+                local_content_hash=document_file.sha256_hash,
+                operation=decision.operation,
+            )
+            if await repository.get_item_by_idempotency(key) is not None:
+                skipped += 1
+                continue
+            status = (
+                SyncItemStatus.SKIPPED
+                if decision.operation is SyncItemOperation.SKIP
+                else (
+                    SyncItemStatus.CONFLICT
+                    if decision.operation is SyncItemOperation.CONFLICT
+                    else SyncItemStatus.QUEUED
+                )
+            )
+            item = SharePointSyncItem(
+                sync_job_id=job.id,
+                document_id=document_file.document_id,
+                document_revision_id=document_file.document_revision_id,
+                document_file_id=document_file.id,
+                remote_drive_id=drive_id,
+                remote_item_id=remote_item_id,
+                remote_path=getattr(document_file, "remote_path", None),
+                operation=decision.operation,
+                status=status,
+                idempotency_key=key,
+                local_hash_before=(
+                    versions[0].local_sha256_hash if versions else None
+                ),
+                local_hash_after=document_file.sha256_hash,
+                remote_etag_before=(
+                    versions[0].remote_etag if versions else None
+                ),
+                remote_etag_after=getattr(
+                    document_file,
+                    "remote_etag",
+                    None,
+                ),
+                remote_size=getattr(document_file, "remote_size", None),
+                metadata_json={
+                    "source": "local-profile-scan",
+                    **(
+                        {
+                            "safeCopySuffix": (
+                                f"conflict-{str(job.id)[:8]}"
+                            )
+                        }
+                        if decision.create_copy
+                        else {}
+                    ),
+                },
+                completed_at=(
+                    utc_now()
+                    if status
+                    in {
+                        SyncItemStatus.SKIPPED,
+                        SyncItemStatus.CONFLICT,
+                    }
+                    else None
+                ),
+            )
+            await repository.add_item(item)
+            discovered += 1
+            if status is SyncItemStatus.SKIPPED:
+                skipped += 1
+            elif status is SyncItemStatus.CONFLICT:
+                conflicted += 1
+                conflict = SharePointSyncConflict(
+                    sync_job_id=job.id,
+                    sync_item_id=item.id,
+                    document_id=document_file.document_id,
+                    document_revision_id=(
+                        document_file.document_revision_id
+                    ),
+                    document_file_id=document_file.id,
+                    remote_item_id=remote_item_id,
+                    conflict_type=(
+                        decision.conflict_type
+                        or SyncConflictType.VERSION_MISMATCH
+                    ),
+                    local_version_json={
+                        "sha256": document_file.sha256_hash,
+                        "baselineSha256": (
+                            versions[0].local_sha256_hash
+                            if versions
+                            else None
+                        ),
+                    },
+                    remote_version_json={
+                        "eTag": getattr(
+                            document_file,
+                            "remote_etag",
+                            None,
+                        ),
+                        "size": getattr(
+                            document_file,
+                            "remote_size",
+                            None,
+                        ),
+                    },
+                )
+                await SharePointConflictRepository(session).add(conflict)
+                item.conflict_id = conflict.id
+            else:
+                queued.append(item.id)
+        return queued, discovered, skipped, conflicted
 
     async def _job_context(
         self,
@@ -1551,6 +2339,8 @@ class SharePointWorkerService:
     def _mapped_fields(
         document_file: DocumentFile,
         mappings: list[Any],
+        *,
+        metadata_service: SharePointMetadataService,
     ) -> dict[str, Any]:
         values = {
             "baseDocumentCode": document_file.document.base_document_code,
@@ -1563,7 +2353,6 @@ class SharePointWorkerService:
             ),
         }
         fields: dict[str, Any] = {}
-        transformer = SharePointMetadataTransformer()
         for mapping in mappings:
             value = values.get(mapping.document_field)
             if value is None:
@@ -1574,10 +2363,10 @@ class SharePointWorkerService:
                 )
             if value is not None:
                 fields[mapping.sharepoint_field_internal_name] = (
-                    transformer.transform(
+                    metadata_service.transform(
+                        mapping.transformer_code
+                        or mapping.data_type.value,
                         value,
-                        data_type=mapping.data_type,
-                        transformer_code=mapping.transformer_code,
                     )
                 )
         return fields
@@ -1617,6 +2406,14 @@ class SharePointWorkerService:
             return UUID(str(value)) if value else None
         except ValueError:
             return None
+
+    @staticmethod
+    def _standalone_job(job: SharePointSyncJob) -> bool:
+        return job.job_type in {
+            SyncJobType.SINGLE_FILE_PUSH,
+            SyncJobType.SINGLE_FILE_PULL,
+            SyncJobType.RECONCILIATION,
+        }
 
     async def _final_status(
         self,

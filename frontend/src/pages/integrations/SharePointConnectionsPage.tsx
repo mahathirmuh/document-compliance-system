@@ -35,7 +35,7 @@ import { useToast } from '../../providers/useToast';
 import { useAuthStore } from '../../store/authStore';
 import type {
   SharePointConnection,
-  SharePointConnectionWrite,
+  SharePointConnectionCreate,
 } from '../../types/sharepoint';
 import { formatDateTime } from '../../utils/formatters';
 
@@ -53,7 +53,7 @@ export function SharePointConnectionsPage() {
   const canTest = hasPermission('sharepoint:test_connection');
   const { showToast } = useToast();
 
-  const save = async (payload: SharePointConnectionWrite): Promise<void> => {
+  const save = async (payload: SharePointConnectionCreate): Promise<void> => {
     try {
       if (target?.mode === 'edit' && target.connection) {
         await mutations.update.mutateAsync({
@@ -192,7 +192,7 @@ export function SharePointConnectionsPage() {
                         {connection.sitePath}
                       </span>
                     </Phase10Cell>
-                    <Phase10Cell>{connection.libraryName ?? 'Unresolved'}</Phase10Cell>
+                    <Phase10Cell>{connection.libraryName}</Phase10Cell>
                     <Phase10Cell>{connection.rootFolderPath}</Phase10Cell>
                     <Phase10Cell>
                       {connection.authMode.replaceAll('_', ' ')}
@@ -314,7 +314,7 @@ function ConnectionDialog({
   connection: SharePointConnection | null;
   pending: boolean;
   onClose: () => void;
-  onSave: (payload: SharePointConnectionWrite) => Promise<void>;
+  onSave: (payload: SharePointConnectionCreate) => Promise<void>;
 }) {
   const [name, setName] = useState(connection?.name ?? '');
   const [description, setDescription] = useState(connection?.description ?? '');
@@ -332,12 +332,15 @@ function ConnectionDialog({
   const [authMode, setAuthMode] = useState<'CLIENT_SECRET' | 'CERTIFICATE'>(
     connection?.authMode ?? 'CLIENT_SECRET',
   );
-  const [replaceSecret, setReplaceSecret] = useState('');
-  const [replaceCertificate, setReplaceCertificate] = useState('');
-  const [replaceCertificatePassword, setReplaceCertificatePassword] = useState('');
   const [isDefault, setIsDefault] = useState(connection?.isDefault ?? false);
   const readOnly = mode === 'view';
-  const valid = name.trim() && hostname.trim() && sitePath.trim() && rootPath.trim();
+  const valid =
+    name.trim() &&
+    tenantReference.trim() &&
+    hostname.trim() &&
+    sitePath.trim() &&
+    libraryName.trim() &&
+    rootPath.trim();
 
   return (
     <Phase10Dialog
@@ -363,19 +366,15 @@ function ConnectionDialog({
           void onSave({
             name: name.trim(),
             description: description.trim() || null,
-            tenantIdReference: tenantReference.trim() || null,
+            tenantIdReference: tenantReference.trim(),
             siteHostname: hostname.trim(),
             sitePath: sitePath.trim(),
             siteId: siteId.trim() || null,
             driveId: driveId.trim() || null,
-            libraryName: libraryName.trim() || null,
+            libraryName: libraryName.trim(),
             rootFolderPath: rootPath.trim(),
             authMode,
             isDefault,
-            ...(replaceSecret ? { replaceClientSecret: replaceSecret } : {}),
-            ...(replaceCertificate
-              ? { replaceCertificate, replaceCertificatePassword }
-              : {}),
           });
         }}
       >
@@ -467,39 +466,13 @@ function ConnectionDialog({
           />
           Default connection
         </label>
-        {!readOnly && authMode === 'CLIENT_SECRET' && (
-          <Field label="Replace Client Secret">
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={replaceSecret}
-              onChange={(event) => setReplaceSecret(event.target.value)}
-              placeholder="Leave blank to keep existing secret"
-              className={phase10InputClass}
-            />
-          </Field>
-        )}
-        {!readOnly && authMode === 'CERTIFICATE' && (
-          <>
-            <Field label="Replace Certificate">
-              <textarea
-                value={replaceCertificate}
-                onChange={(event) => setReplaceCertificate(event.target.value)}
-                placeholder="Leave blank to keep existing certificate"
-                rows={3}
-                className={phase10TextareaClass}
-              />
-            </Field>
-            <Field label="Replacement Certificate Password">
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={replaceCertificatePassword}
-                onChange={(event) => setReplaceCertificatePassword(event.target.value)}
-                className={phase10InputClass}
-              />
-            </Field>
-          </>
+        {!readOnly && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-800 sm:col-span-2">
+            Microsoft application credentials are managed by the production secret
+            provider and are never loaded into or submitted by this form. Rotate the
+            client secret or certificate externally, restart the API if required, then
+            use <strong>Test Connection</strong>.
+          </div>
         )}
         <div className="sm:col-span-2">
           <Field label="Description">
