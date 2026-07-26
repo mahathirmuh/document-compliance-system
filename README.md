@@ -407,11 +407,14 @@ internal company documents.
 | `VITE_DOCUMENT_MAX_FILE_SIZE_MB`          | `50`                         | Client-side single-file validation limit           |
 | `VITE_DOCUMENT_BATCH_MAX_FILES`           | `50`                         | Client-side batch file-count limit                 |
 | `VITE_DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB`   | `500`                        | Client-side aggregate batch limit                  |
-| `POSTGRES_DB`                             | `document_compliance`        | PostgreSQL database                                |
-| `POSTGRES_USER`                           | `document_compliance`        | PostgreSQL user                                    |
-| `POSTGRES_PASSWORD`                       | replace-required placeholder | Database password                                  |
-| `DATABASE_HOST`                           | `localhost`                  | Host-run PostgreSQL hostname                       |
-| `DATABASE_PORT`                           | `5432`                       | PostgreSQL connection port                         |
+| `POSTGRES_DB`                             | `document_compliance`        | Bundled PostgreSQL database                        |
+| `POSTGRES_USER`                           | `document_compliance`        | Bundled PostgreSQL user                            |
+| `POSTGRES_PASSWORD`                       | replace-required placeholder | Bundled PostgreSQL password                        |
+| `DATABASE_NAME`                           | value of `POSTGRES_DB`       | Application database; may target an external DB    |
+| `DATABASE_USER`                           | value of `POSTGRES_USER`     | Application database user                          |
+| `DATABASE_PASSWORD`                       | value of `POSTGRES_PASSWORD` | Optional separate application database password    |
+| `DATABASE_HOST`                           | `postgres`                   | Application PostgreSQL hostname                    |
+| `DATABASE_PORT`                           | `5432`                       | Application PostgreSQL port                        |
 | `DATABASE_ECHO`                           | `false`                      | SQLAlchemy SQL logging                             |
 | `BACKEND_CORS_ORIGINS`                    | `http://localhost:5173`      | Comma-separated allowed origins                    |
 | `JWT_SECRET_KEY`                          | replace-required placeholder | JWT signing secret; at least 32 random characters  |
@@ -536,7 +539,11 @@ Phase 8 validation, matching, and export limits:
 | `COMPLIANCE_EXPORT_MAX_ROWS`                  | `200000`     | Maximum compliance rows per export                   |
 | `FINDING_BULK_ACTION_MAX_ITEMS`               | `100`        | Maximum atomic finding bulk-action size              |
 
-Docker Compose changes `DATABASE_HOST` to the internal `postgres` hostname.
+Docker Compose honors `DATABASE_HOST` and `DATABASE_PORT`. Use `postgres` for
+the bundled database or set an external hostname. `DATABASE_NAME`,
+`DATABASE_USER`, and `DATABASE_PASSWORD` default to the corresponding
+`POSTGRES_*` values, so the bundled and application targets can be separated
+without changing the local PostgreSQL container.
 `BACKEND_CORS_ORIGINS` can contain multiple comma-separated origins without
 spaces.
 
@@ -2072,9 +2079,11 @@ backend container after changing Compose environment values.
 `docker compose ps`, and inspect `docker compose logs backend`. The health probe
 uses `API_V1_PREFIX`, so keep the frontend API base path aligned with it.
 
-**The backend cannot connect to PostgreSQL.** For a host-run backend,
-`DATABASE_HOST` should normally be `localhost`. Compose overrides it with
-`postgres`. Check `docker compose logs postgres`.
+**The backend cannot connect to PostgreSQL.** Use `DATABASE_HOST=postgres` for
+the bundled Compose database, `DATABASE_HOST=localhost` for a backend process
+running directly on the host, or the actual hostname for an external database.
+Confirm `DATABASE_NAME`, `DATABASE_USER`, and the selected password, then check
+`docker compose logs backend`.
 
 **The worker cannot connect to Redis.** In Compose, use the service hostname
 `redis`; for a host-run worker, normally use `localhost`. Check

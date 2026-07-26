@@ -45,8 +45,11 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
       API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
+      DATABASE_HOST: ${DATABASE_HOST:-postgres}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_NAME: ${DATABASE_NAME:-${POSTGRES_DB:-document_compliance}}
+      DATABASE_USER: ${DATABASE_USER:-${POSTGRES_USER:-document_compliance}}
+      DATABASE_PASSWORD: "${DATABASE_PASSWORD:-${POSTGRES_PASSWORD:?Set DATABASE_PASSWORD or POSTGRES_PASSWORD in .env}}"
       POSTGRES_DB: ${POSTGRES_DB:-document_compliance}
       POSTGRES_USER: ${POSTGRES_USER:-document_compliance}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
@@ -802,14 +805,13 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     command:
-      [
-        "celery",
-        "-A",
-        "app.workers.celery_app",
-        "beat",
-        "--loglevel=INFO",
-        "--schedule=/app/storage/celerybeat/celerybeat-schedule",
-      ]
+      - sh
+      - -ec
+      - >-
+        mkdir -p /app/storage/celerybeat &&
+        exec celery -A app.workers.celery_app beat
+        --loglevel=INFO
+        --schedule=/app/storage/celerybeat/celerybeat-schedule
     environment:
       <<: *backend_environment
     volumes:

@@ -46,9 +46,18 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     database_host: str = "localhost"
     database_port: int = Field(default=5432, ge=1, le=65535)
-    postgres_db: str = "document_compliance"
-    postgres_user: str = "document_compliance"
-    postgres_password: SecretStr | None = None
+    postgres_db: str = Field(
+        default="document_compliance",
+        validation_alias=AliasChoices("DATABASE_NAME", "POSTGRES_DB"),
+    )
+    postgres_user: str = Field(
+        default="document_compliance",
+        validation_alias=AliasChoices("DATABASE_USER", "POSTGRES_USER"),
+    )
+    postgres_password: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_PASSWORD", "POSTGRES_PASSWORD"),
+    )
     database_echo: bool = False
     db_pool_size: int = Field(default=20, ge=1, le=200)
     db_max_overflow: int = Field(default=20, ge=0, le=500)

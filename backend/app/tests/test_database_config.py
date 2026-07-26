@@ -121,6 +121,25 @@ def test_component_database_url_safely_encodes_password(
     assert parsed_url.password == "p@ss:/?#word"
 
 
+def test_application_database_environment_overrides_local_postgres_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("POSTGRES_DB", "local_container")
+    monkeypatch.setenv("POSTGRES_USER", "local_user")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "local_password")
+    monkeypatch.setenv("DATABASE_NAME", "external-application")
+    monkeypatch.setenv("DATABASE_USER", "application_user")
+    monkeypatch.setenv("DATABASE_PASSWORD", "application_password")
+
+    settings = Settings()
+
+    assert settings.postgres_db == "external-application"
+    assert settings.postgres_user == "application_user"
+    assert settings.postgres_password is not None
+    assert settings.postgres_password.get_secret_value() == "application_password"
+
+
 def test_api_prefix_is_fixed_for_phase_one() -> None:
     with pytest.raises(ValidationError, match="fixed at '/api/v1'"):
         Settings(

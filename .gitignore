@@ -55,6 +55,7 @@ storage/documents/deleted/*
 !storage/documents/deleted/.gitkeep
 storage/logs/*
 !storage/logs/.gitkeep
+storage/celerybeat/*
 
 # Local OCR and language models: keep layout, never commit model binaries
 models/ocr/*
