@@ -1,0 +1,6 @@
+-r requirements.txt
+ruff==0.12.7
+mypy==1.17.1
+pip-audit==2.9.0
+bandit==1.8.6
+types-redis==4.6.0.20241004

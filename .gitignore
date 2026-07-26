@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+!.env.development.example
+!.env.production.example
 
 # Python
 __pycache__/
@@ -81,3 +83,11 @@ Desktop.ini
 # Docker overrides and local tooling
 docker-compose.override.yml
 .docker/
+
+# Production secrets and generated backups
+deploy/secrets/*
+!deploy/secrets/empty.pem
+!deploy/secrets/.gitkeep
+backups/
+*.dump
+*.sha256

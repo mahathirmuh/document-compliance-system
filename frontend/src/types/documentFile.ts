@@ -1,5 +1,6 @@
 import type { DocumentUserSummary } from './document';
 import type { PaginatedData } from './masterData';
+import type { DocumentStorageProvider, RemoteSyncStatus } from './sharepoint';
 
 export const supportedDocumentExtensions = ['pdf', 'docx', 'xlsx'] as const;
 
@@ -13,8 +14,10 @@ export const supportedDocumentMimeTypes = {
 
 export const documentFileStatuses = [
   'UPLOADING',
+  'PENDING_SCAN',
   'AVAILABLE',
   'QUARANTINED',
+  'SCAN_FAILED',
   'REPLACED',
   'DELETED',
   'FAILED',
@@ -33,8 +36,25 @@ export interface DocumentFileListItem {
   detectedMimeType: string;
   fileSize: number;
   sha256Hash: string;
-  storageProvider: string;
+  storageProvider: DocumentStorageProvider;
   fileStatus: DocumentFileStatus;
+  sharepointConnectionId?: string | null;
+  remoteDriveId?: string | null;
+  remoteItemId?: string | null;
+  remoteParentItemId?: string | null;
+  remotePath?: string | null;
+  remoteWebUrl?: string | null;
+  remoteEtag?: string | null;
+  remoteCtag?: string | null;
+  remoteVersionId?: string | null;
+  remoteLastModifiedAt?: string | null;
+  remoteLastModifiedBy?: string | null;
+  remoteSize?: number | null;
+  remoteMimeType?: string | null;
+  remoteSyncStatus?: RemoteSyncStatus;
+  lastSyncedAt?: string | null;
+  syncErrorCode?: string | null;
+  syncErrorMessage?: string | null;
   isPrimary: boolean;
   isCurrent: boolean;
   uploadedBy: DocumentUserSummary | null;

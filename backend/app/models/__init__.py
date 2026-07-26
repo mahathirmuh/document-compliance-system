@@ -20,6 +20,12 @@ from app.models.compliance_enums import (
 )
 from app.models.compliance_job import ComplianceJob
 from app.models.compliance_run import ComplianceRun
+from app.models.data_retention_policy import (
+    DataRetentionPolicy,
+    RetentionEntityType,
+    RetentionScopeType,
+)
+from app.models.dead_letter_job import DeadLetterJob
 from app.models.department import Department
 from app.models.detected_section import DetectedSection
 from app.models.document import Document
@@ -68,6 +74,9 @@ from app.models.glossary_term import GlossaryTerm
 from app.models.glossary_term_variant import GlossaryTermVariant
 from app.models.glossary_translation import GlossaryTranslation
 from app.models.glossary_validation_run import GlossaryValidationRun
+from app.models.graph_subscription import GraphSubscription
+from app.models.graph_webhook_event import GraphWebhookEvent
+from app.models.in_app_notification import InAppNotification
 from app.models.language_block_result import (
     LanguageBlockResult,
     LanguageCode,
@@ -86,6 +95,10 @@ from app.models.language_detection_run import (
     LanguageDetectionRun,
     LanguageDetectionRunStatus,
 )
+from app.models.notification_delivery import NotificationDelivery
+from app.models.notification_preference import NotificationPreference
+from app.models.notification_rule import NotificationRule
+from app.models.notification_template import NotificationTemplate
 from app.models.ocr_block import OCRBlock
 from app.models.ocr_job import (
     ACTIVE_OCR_JOB_STATUSES,
@@ -128,6 +141,15 @@ from app.models.section_alias import SectionAlias
 from app.models.section_alias_profile import SectionAliasProfile
 from app.models.section_definition import SectionDefinition
 from app.models.section_language_result import SectionLanguageResult
+from app.models.sharepoint_connection import SharePointConnection
+from app.models.sharepoint_delta_state import SharePointDeltaState
+from app.models.sharepoint_file_version import SharePointFileVersion
+from app.models.sharepoint_folder_mapping import SharePointFolderMapping
+from app.models.sharepoint_metadata_mapping import SharePointMetadataMapping
+from app.models.sharepoint_sync_conflict import SharePointSyncConflict
+from app.models.sharepoint_sync_item import SharePointSyncItem
+from app.models.sharepoint_sync_job import SharePointSyncJob
+from app.models.sharepoint_sync_profile import SharePointSyncProfile
 from app.models.similarity_enums import (
     ACTIVE_SIMILARITY_JOB_STATUSES,
     TERMINAL_SIMILARITY_JOB_STATUSES,
@@ -158,6 +180,7 @@ from app.models.upload_session_item import (
 from app.models.user import User
 from app.models.validation_finding import ValidationFinding
 from app.models.validation_rule import ValidationRule
+from app.models.worker_heartbeat import WorkerHeartbeat, WorkerHeartbeatState
 
 __all__ = [
     "ACTIVE_COMPLIANCE_JOB_STATUSES",
@@ -181,6 +204,8 @@ __all__ = [
     "ComplianceRunStatus",
     "ComplianceStatus",
     "ConsistencyStatus",
+    "DataRetentionPolicy",
+    "DeadLetterJob",
     "Department",
     "DetectedSection",
     "Document",
@@ -224,6 +249,9 @@ __all__ = [
     "GlossaryValidationRun",
     "GlossaryValidationStatus",
     "GlossaryVariantType",
+    "GraphSubscription",
+    "GraphWebhookEvent",
+    "InAppNotification",
     "LanguageBlockResult",
     "LanguageCode",
     "LanguageContainerSummary",
@@ -235,6 +263,10 @@ __all__ = [
     "LanguageEligibilityReason",
     "LanguageEligibilityStatus",
     "LanguageSourceType",
+    "NotificationDelivery",
+    "NotificationPreference",
+    "NotificationRule",
+    "NotificationTemplate",
     "OCRBlock",
     "OCRJob",
     "OCRJobStatus",
@@ -252,6 +284,8 @@ __all__ = [
     "ReportScheduleType",
     "ReportSnapshot",
     "ReportSnapshotStatus",
+    "RetentionEntityType",
+    "RetentionScopeType",
     "RevisionChange",
     "RevisionChangeType",
     "RevisionComparison",
@@ -270,6 +304,15 @@ __all__ = [
     "SectionLanguagePresenceStatus",
     "SectionLanguageResult",
     "SectionSimilaritySummary",
+    "SharePointConnection",
+    "SharePointDeltaState",
+    "SharePointFileVersion",
+    "SharePointFolderMapping",
+    "SharePointMetadataMapping",
+    "SharePointSyncConflict",
+    "SharePointSyncItem",
+    "SharePointSyncJob",
+    "SharePointSyncProfile",
     "SimilarityAnalysisStatus",
     "SimilarityCategory",
     "SimilarityJob",
@@ -291,4 +334,6 @@ __all__ = [
     "User",
     "ValidationFinding",
     "ValidationRule",
+    "WorkerHeartbeat",
+    "WorkerHeartbeatState",
 ]

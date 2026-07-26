@@ -7,7 +7,11 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
-from app.models.document_file import DocumentFileStatus
+from app.models.document_file import (
+    DocumentFileStatus,
+    DocumentStorageProvider,
+    RemoteSyncStatus,
+)
 from app.schemas.base import ApiSchema
 from app.schemas.common import PaginationData
 from app.schemas.document_revision import UserReference
@@ -33,7 +37,19 @@ class DocumentFileListItem(ApiSchema):
     detected_mime_type: str
     file_size: int = Field(ge=0)
     sha256_hash: str
-    storage_provider: str
+    storage_provider: DocumentStorageProvider
+    sharepoint_connection_id: UUID | None = None
+    remote_path: str | None = None
+    remote_version_id: str | None = None
+    remote_last_modified_at: datetime | None = None
+    remote_last_modified_by: str | None = None
+    remote_size: int | None = Field(default=None, ge=0)
+    remote_mime_type: str | None = None
+    remote_sync_status: RemoteSyncStatus = RemoteSyncStatus.NOT_SYNCED
+    last_synced_at: datetime | None = None
+    sync_error_code: str | None = None
+    sync_error_message: str | None = None
+    remote_web_url_available: bool = False
     file_status: DocumentFileStatus
     is_primary: bool
     is_current: bool
@@ -88,4 +104,3 @@ class DocumentFileReplaceRequest(ApiSchema):
 
 class DocumentFileListResponse(PaginationData[DocumentFileListItem]):
     """Paginated upload history."""
-

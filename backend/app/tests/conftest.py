@@ -6,7 +6,7 @@ os.environ["DATABASE_URL"] = (
     "postgresql+asyncpg://test_user:test_password@localhost:5432/test_compliance"
 )
 os.environ["APP_ENV"] = "test"
-os.environ["APP_VERSION"] = "0.9.0"
+os.environ["APP_VERSION"] = "1.0.0"
 os.environ["MASTER_DATA_IMPORT_MAX_ROWS"] = "5000"
 os.environ["MASTER_DATA_EXPORT_MAX_ROWS"] = "50000"
 os.environ["DEFAULT_COMPANY_CODE"] = "MTI"

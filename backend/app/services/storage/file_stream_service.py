@@ -25,9 +25,7 @@ class _LimitedReader:
     def read(self, size: int = -1) -> bytes:
         remaining_with_probe = self.max_bytes - self.total + 1
         requested = (
-            remaining_with_probe
-            if size < 0
-            else min(size, remaining_with_probe)
+            remaining_with_probe if size < 0 else min(size, remaining_with_probe)
         )
         chunk = self.source.read(requested)
         self.total += len(chunk)

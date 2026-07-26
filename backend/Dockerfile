@@ -33,6 +33,7 @@ RUN apt-get update \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
+        tini \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir /wheels/* \
     && addgroup --system app \
@@ -51,4 +52,5 @@ USER app
 
 EXPOSE 8000
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

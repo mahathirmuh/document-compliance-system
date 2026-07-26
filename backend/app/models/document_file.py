@@ -49,11 +49,30 @@ _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 class DocumentFileStatus(StrEnum):
     UPLOADING = "UPLOADING"
+    PENDING_SCAN = "PENDING_SCAN"
     AVAILABLE = "AVAILABLE"
     QUARANTINED = "QUARANTINED"
+    SCAN_FAILED = "SCAN_FAILED"
     REPLACED = "REPLACED"
     DELETED = "DELETED"
     FAILED = "FAILED"
+
+
+class DocumentStorageProvider(StrEnum):
+    LOCAL = "LOCAL"
+    SHAREPOINT = "SHAREPOINT"
+    HYBRID = "HYBRID"
+
+
+class RemoteSyncStatus(StrEnum):
+    NOT_SYNCED = "NOT_SYNCED"
+    PENDING = "PENDING"
+    SYNCING = "SYNCING"
+    SYNCED = "SYNCED"
+    CONFLICT = "CONFLICT"
+    FAILED = "FAILED"
+    REMOTE_MISSING = "REMOTE_MISSING"
+    DISABLED = "DISABLED"
 
 
 def _enum_values(enum_class: type[StrEnum]) -> list[str]:
@@ -77,6 +96,20 @@ class DocumentFile(Base):
             "length(sha256_hash) = 64",
             name="sha256_length",
         ),
+        CheckConstraint(
+            "storage_provider IN ('LOCAL', 'SHAREPOINT', 'HYBRID')",
+            name="storage_provider_valid",
+        ),
+        CheckConstraint(
+            "remote_size IS NULL OR remote_size >= 0",
+            name="remote_size_nonnegative",
+        ),
+        CheckConstraint(
+            "remote_sync_status IN "
+            "('NOT_SYNCED', 'PENDING', 'SYNCING', 'SYNCED', 'CONFLICT', "
+            "'FAILED', 'REMOTE_MISSING', 'DISABLED')",
+            name="remote_sync_status_valid",
+        ),
         Index("ix_document_files_document_id", "document_id"),
         Index(
             "ix_document_files_document_revision_id",
@@ -84,6 +117,13 @@ class DocumentFile(Base):
         ),
         Index("ix_document_files_sha256_hash", "sha256_hash"),
         Index("ix_document_files_file_status", "file_status"),
+        Index("ix_document_files_storage_provider", "storage_provider"),
+        Index(
+            "ix_document_files_sharepoint_connection_id",
+            "sharepoint_connection_id",
+        ),
+        Index("ix_document_files_remote_item_id", "remote_item_id"),
+        Index("ix_document_files_remote_sync_status", "remote_sync_status"),
         Index("ix_document_files_is_current", "is_current"),
         Index("ix_document_files_uploaded_at", "uploaded_at"),
         Index(
@@ -115,8 +155,7 @@ class DocumentFile(Base):
             "document_revision_id",
             unique=True,
             postgresql_where=text(
-                "is_current IS TRUE AND is_primary IS TRUE "
-                "AND deleted_at IS NULL"
+                "is_current IS TRUE AND is_primary IS TRUE AND deleted_at IS NULL"
             ),
             sqlite_where=text(
                 "is_current = 1 AND is_primary = 1 AND deleted_at IS NULL"
@@ -155,17 +194,45 @@ class DocumentFile(Base):
     )
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     sha256_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    storage_provider: Mapped[str] = mapped_column(
+    storage_provider: Mapped[DocumentStorageProvider] = mapped_column(
         String(50),
         nullable=False,
-        default="local",
-        server_default="local",
+        default=DocumentStorageProvider.LOCAL,
+        server_default=DocumentStorageProvider.LOCAL.value,
     )
     storage_key: Mapped[str] = mapped_column(String(1000), nullable=False)
     storage_bucket: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
+    sharepoint_connection_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("sharepoint_connections.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    remote_drive_id: Mapped[str | None] = mapped_column(String(1000))
+    remote_item_id: Mapped[str | None] = mapped_column(String(1000))
+    remote_parent_item_id: Mapped[str | None] = mapped_column(String(1000))
+    remote_path: Mapped[str | None] = mapped_column(String(2000))
+    remote_web_url: Mapped[str | None] = mapped_column(Text)
+    remote_etag: Mapped[str | None] = mapped_column(String(1000))
+    remote_ctag: Mapped[str | None] = mapped_column(String(1000))
+    remote_version_id: Mapped[str | None] = mapped_column(String(500))
+    remote_last_modified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    remote_last_modified_by: Mapped[str | None] = mapped_column(String(500))
+    remote_size: Mapped[int | None] = mapped_column(BigInteger)
+    remote_mime_type: Mapped[str | None] = mapped_column(String(255))
+    remote_sync_status: Mapped[RemoteSyncStatus] = mapped_column(
+        String(50),
+        nullable=False,
+        default=RemoteSyncStatus.NOT_SYNCED,
+        server_default=RemoteSyncStatus.NOT_SYNCED.value,
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_error_code: Mapped[str | None] = mapped_column(String(100))
+    sync_error_message: Mapped[str | None] = mapped_column(Text)
     file_status: Mapped[DocumentFileStatus] = mapped_column(
         Enum(
             DocumentFileStatus,
@@ -230,10 +297,7 @@ class DocumentFile(Base):
         Uuid(as_uuid=True),
         ForeignKey(
             "extraction_runs.id",
-            name=(
-                "fk_document_files_latest_extraction_run_id_"
-                "extraction_runs"
-            ),
+            name=("fk_document_files_latest_extraction_run_id_extraction_runs"),
             ondelete="SET NULL",
             use_alter=True,
         ),
@@ -266,10 +330,7 @@ class DocumentFile(Base):
         Uuid(as_uuid=True),
         ForeignKey(
             "compliance_runs.id",
-            name=(
-                "fk_document_files_latest_compliance_run_id_"
-                "compliance_runs"
-            ),
+            name=("fk_document_files_latest_compliance_run_id_compliance_runs"),
             ondelete="SET NULL",
             use_alter=True,
         ),
@@ -365,9 +426,7 @@ class DocumentFile(Base):
         foreign_keys=[latest_ocr_run_id],
         post_update=True,
     )
-    latest_language_detection_run: Mapped[
-        LanguageDetectionRun | None
-    ] = relationship(
+    latest_language_detection_run: Mapped[LanguageDetectionRun | None] = relationship(
         foreign_keys=[latest_language_detection_run_id],
         post_update=True,
     )
@@ -389,16 +448,12 @@ class DocumentFile(Base):
         foreign_keys=[latest_similarity_run_id],
         post_update=True,
     )
-    glossary_validation_runs: Mapped[list[GlossaryValidationRun]] = (
-        relationship(
-            foreign_keys="GlossaryValidationRun.document_file_id",
-            passive_deletes=True,
-            order_by="GlossaryValidationRun.created_at",
-        )
+    glossary_validation_runs: Mapped[list[GlossaryValidationRun]] = relationship(
+        foreign_keys="GlossaryValidationRun.document_file_id",
+        passive_deletes=True,
+        order_by="GlossaryValidationRun.created_at",
     )
-    latest_glossary_validation_run: Mapped[
-        GlossaryValidationRun | None
-    ] = relationship(
+    latest_glossary_validation_run: Mapped[GlossaryValidationRun | None] = relationship(
         foreign_keys=[latest_glossary_validation_run_id],
         post_update=True,
     )
@@ -416,3 +471,13 @@ class DocumentFile(Base):
         if not _SHA256_PATTERN.fullmatch(normalized):
             raise ValueError("SHA-256 hash must be 64 lowercase hex digits.")
         return normalized
+
+    @validates("storage_provider")
+    def normalize_storage_provider(
+        self,
+        _: str,
+        value: DocumentStorageProvider | str,
+    ) -> DocumentStorageProvider:
+        if isinstance(value, DocumentStorageProvider):
+            return value
+        return DocumentStorageProvider(value.strip().upper())

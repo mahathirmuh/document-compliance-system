@@ -30,6 +30,7 @@ import { DocumentSummaryCard } from '../../components/documents/DocumentSummaryC
 import { RevisionBadge } from '../../components/documents/RevisionBadge';
 import { SharePointLink } from '../../components/documents/SharePointLink';
 import { ConfirmationDialog } from '../../components/master-data/ConfirmationDialog';
+import { DocumentRemotePanel } from '../../components/sharepoint/DocumentRemotePanel';
 import { useDocument } from '../../hooks/useDocument';
 import { useLatestCompliance } from '../../hooks/useCompliance';
 import { useLatestGlossaryValidation } from '../../hooks/useGlossaryValidation';
@@ -52,6 +53,7 @@ type DetailTab =
   | 'intelligence'
   | 'compliance'
   | 'quality'
+  | 'sharepoint'
   | 'history';
 
 export function DocumentDetailPage() {
@@ -78,6 +80,7 @@ export function DocumentDetailPage() {
     hasPermission('similarity:view') ||
     hasPermission('glossary:view') ||
     hasPermission('revision_comparison:view');
+  const canUseSharePoint = hasPermission('sharepoint:view');
   const { showToast } = useToast();
   const requestedTab = searchParams.get('tab');
   const tab: DetailTab =
@@ -86,6 +89,7 @@ export function DocumentDetailPage() {
     (requestedTab === 'intelligence' && canUseIntelligence) ||
     (requestedTab === 'compliance' && canUseCompliance) ||
     (requestedTab === 'quality' && canUseQuality) ||
+    (requestedTab === 'sharepoint' && canUseSharePoint) ||
     requestedTab === 'history'
       ? requestedTab
       : 'overview';
@@ -300,6 +304,7 @@ export function DocumentDetailPage() {
               ...(canUseIntelligence ? (['intelligence'] as const) : []),
               ...(canUseCompliance ? (['compliance'] as const) : []),
               ...(canUseQuality ? (['quality'] as const) : []),
+              ...(canUseSharePoint ? (['sharepoint'] as const) : []),
               'history',
             ] as const
           ).map((candidate) => (
@@ -332,6 +337,7 @@ export function DocumentDetailPage() {
           )}
           {tab === 'compliance' && <CurrentDocumentCompliance document={document} />}
           {tab === 'quality' && <CurrentDocumentQuality document={document} />}
+          {tab === 'sharepoint' && <CurrentDocumentSharePoint document={document} />}
           {tab === 'history' && <DocumentActivitySummary document={document} />}
         </div>
       </section>
@@ -354,6 +360,42 @@ export function DocumentDetailPage() {
       />
     </div>
   );
+}
+
+function CurrentDocumentSharePoint({ document }: { document: DocumentDetail }) {
+  const revisionId = document.currentRevision?.id ?? null;
+  const filesQuery = useRevisionFiles(document.id, revisionId);
+  const currentFile =
+    (filesQuery.data ?? []).find((file) => file.isCurrent && file.isPrimary) ??
+    (filesQuery.data ?? []).find((file) => file.isCurrent) ??
+    null;
+
+  if (!revisionId) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Create a document revision before configuring SharePoint synchronisation.
+      </p>
+    );
+  }
+  if (filesQuery.isLoading) {
+    return (
+      <div
+        aria-label="Loading document SharePoint status"
+        className="h-56 animate-pulse rounded-2xl bg-slate-100"
+      />
+    );
+  }
+  if (filesQuery.error) {
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        {getApiErrorMessage(
+          filesQuery.error,
+          'The current physical file could not be loaded.',
+        )}
+      </p>
+    );
+  }
+  return <DocumentRemotePanel documentFile={currentFile} />;
 }
 
 function CurrentDocumentQuality({ document }: { document: DocumentDetail }) {

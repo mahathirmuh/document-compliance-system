@@ -45,6 +45,29 @@ const stableErrorMessages: Readonly<Record<string, string>> = {
   FINDING_ASSIGNMENT_INVALID: 'Select a valid user for this finding assignment.',
   FINDING_DEPARTMENT_SCOPE_DENIED:
     'You cannot access findings outside your assigned department scope.',
+  SHAREPOINT_DISABLED:
+    'SharePoint integration is disabled. Contact an administrator if synchronisation is required.',
+  SHAREPOINT_CONNECTION_FAILED:
+    'The SharePoint connection is unavailable. Review connection health and permissions.',
+  SHAREPOINT_PERMISSION_DENIED:
+    'Microsoft Graph denied this operation. The application may need site permission or admin consent.',
+  SHAREPOINT_SYNC_ACTIVE:
+    'A SharePoint synchronisation is already active for this resource.',
+  SHAREPOINT_CONFLICT:
+    'Local and remote changes conflict. Review the conflict before continuing.',
+  SHAREPOINT_RATE_LIMITED:
+    'Microsoft Graph is temporarily throttling requests. Retry after the advised delay.',
+  NOTIFICATION_CHANNEL_DISABLED:
+    'This notification channel is disabled by system configuration.',
+  NOTIFICATION_RETRY_EXHAUSTED: 'This notification reached its maximum retry count.',
+  RATE_LIMIT_EXCEEDED:
+    'Too many requests were submitted. Wait for the retry window before trying again.',
+  FILE_QUARANTINED:
+    'This file is quarantined and cannot be downloaded, processed, or synchronised.',
+  MALWARE_SCANNER_UNAVAILABLE:
+    'The malware scanner is unavailable. File access is blocked by the configured safety policy.',
+  WORKER_UNAVAILABLE:
+    'The required background worker is unavailable. Check system health before retrying.',
 };
 
 export const getApiErrorCode = (error: unknown): string | null => {

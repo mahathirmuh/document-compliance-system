@@ -34,7 +34,7 @@ async def test_health_endpoint_returns_exact_contract() -> None:
         "data": {
             "status": "healthy",
             "service": "document-compliance-api",
-            "version": "0.9.0",
+            "version": "1.0.0",
         },
         "errors": None,
     }

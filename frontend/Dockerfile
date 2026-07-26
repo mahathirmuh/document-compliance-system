@@ -9,7 +9,7 @@ COPY . .
 
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_API_URL=/api/v1
-ARG VITE_APP_VERSION=0.9.0
+ARG VITE_APP_VERSION=1.0.0
 ARG VITE_DEFAULT_COMPANY_CODE=MTI
 ARG VITE_DOCUMENT_MAX_FILE_SIZE_MB=50
 ARG VITE_DOCUMENT_BATCH_MAX_FILES=50
@@ -24,14 +24,14 @@ ENV VITE_DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB=${VITE_DOCUMENT_BATCH_MAX_TOTAL_SIZE_M
 
 RUN npm run build
 
-FROM nginx:1.30.4-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.30.4-alpine AS runtime
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

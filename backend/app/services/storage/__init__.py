@@ -5,11 +5,16 @@ from app.services.storage.file_stream_service import (
     FileStreamService,
     StreamLimitExceededError,
 )
+from app.services.storage.hybrid_storage import HybridStorage
 from app.services.storage.local_storage import (
     LocalStorage,
     UnsafeStorageKeyError,
 )
-from app.services.storage.storage_factory import StorageFactory, get_storage
+from app.services.storage.storage_factory import (
+    StorageFactory,
+    close_default_storage,
+    get_storage,
+)
 from app.services.storage.storage_path_service import (
     StoragePathService,
     UnsafeFilenameError,
@@ -19,6 +24,7 @@ from app.services.storage.storage_path_service import (
 __all__ = [
     "BaseStorage",
     "FileStreamService",
+    "HybridStorage",
     "LocalStorage",
     "StorageFactory",
     "StoragePathService",
@@ -26,6 +32,7 @@ __all__ = [
     "StreamLimitExceededError",
     "UnsafeFilenameError",
     "UnsafeStorageKeyError",
+    "close_default_storage",
     "get_storage",
     "sanitize_filename",
 ]

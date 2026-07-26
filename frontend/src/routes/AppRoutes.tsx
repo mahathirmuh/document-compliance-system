@@ -267,6 +267,86 @@ const DocumentRevisionsPage = lazy(() =>
     default: module.DocumentRevisionsPage,
   })),
 );
+const SharePointConnectionsPage = lazy(() =>
+  import('../pages/integrations/SharePointConnectionsPage').then((module) => ({
+    default: module.SharePointConnectionsPage,
+  })),
+);
+const SharePointFolderMappingsPage = lazy(() =>
+  import('../pages/integrations/SharePointFolderMappingsPage').then((module) => ({
+    default: module.SharePointFolderMappingsPage,
+  })),
+);
+const SharePointMetadataMappingsPage = lazy(() =>
+  import('../pages/integrations/SharePointMetadataMappingsPage').then((module) => ({
+    default: module.SharePointMetadataMappingsPage,
+  })),
+);
+const SharePointSyncProfilesPage = lazy(() =>
+  import('../pages/integrations/SharePointSyncProfilesPage').then((module) => ({
+    default: module.SharePointSyncProfilesPage,
+  })),
+);
+const GraphSubscriptionsPage = lazy(() =>
+  import('../pages/integrations/GraphSubscriptionsPage').then((module) => ({
+    default: module.GraphSubscriptionsPage,
+  })),
+);
+const SharePointSyncQueuePage = lazy(() =>
+  import('../pages/documents/SharePointSyncQueuePage').then((module) => ({
+    default: module.SharePointSyncQueuePage,
+  })),
+);
+const SharePointSyncHistoryPage = lazy(() =>
+  import('../pages/documents/SharePointSyncHistoryPage').then((module) => ({
+    default: module.SharePointSyncHistoryPage,
+  })),
+);
+const SharePointConflictsPage = lazy(() =>
+  import('../pages/documents/SharePointConflictsPage').then((module) => ({
+    default: module.SharePointConflictsPage,
+  })),
+);
+const SharePointConflictDetailPage = lazy(() =>
+  import('../pages/documents/SharePointConflictDetailPage').then((module) => ({
+    default: module.SharePointConflictDetailPage,
+  })),
+);
+const NotificationSettingsPage = lazy(() =>
+  import('../pages/settings/NotificationSettingsPage').then((module) => ({
+    default: module.NotificationSettingsPage,
+  })),
+);
+const NotificationTemplatesPage = lazy(() =>
+  import('../pages/admin/NotificationTemplatesPage').then((module) => ({
+    default: module.NotificationTemplatesPage,
+  })),
+);
+const NotificationRulesPage = lazy(() =>
+  import('../pages/admin/NotificationRulesPage').then((module) => ({
+    default: module.NotificationRulesPage,
+  })),
+);
+const NotificationDeliveriesPage = lazy(() =>
+  import('../pages/admin/NotificationDeliveriesPage').then((module) => ({
+    default: module.NotificationDeliveriesPage,
+  })),
+);
+const SystemHealthPage = lazy(() =>
+  import('../pages/admin/SystemHealthPage').then((module) => ({
+    default: module.SystemHealthPage,
+  })),
+);
+const BackgroundJobsPage = lazy(() =>
+  import('../pages/admin/BackgroundJobsPage').then((module) => ({
+    default: module.BackgroundJobsPage,
+  })),
+);
+const RetentionPoliciesPage = lazy(() =>
+  import('../pages/admin/RetentionPoliciesPage').then((module) => ({
+    default: module.RetentionPoliciesPage,
+  })),
+);
 
 function RootRedirect() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -337,6 +417,38 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="documents:view_file_history">
                   <UploadHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/sharepoint-sync-queue"
+              element={
+                <PermissionGuard permission="sharepoint:view">
+                  <SharePointSyncQueuePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/sharepoint-sync-history"
+              element={
+                <PermissionGuard permission="sharepoint:view_history">
+                  <SharePointSyncHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/sharepoint-conflicts"
+              element={
+                <PermissionGuard permission="sharepoint:view_conflicts">
+                  <SharePointConflictsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/sharepoint-conflicts/:conflictId"
+              element={
+                <PermissionGuard permission="sharepoint:view_conflicts">
+                  <SharePointConflictDetailPage />
                 </PermissionGuard>
               }
             />
@@ -765,6 +877,106 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="advanced_reports:configure">
                   <ReportSchedulesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/integrations/sharepoint"
+              element={<Navigate to="/integrations/sharepoint/connections" replace />}
+            />
+            <Route
+              path="/integrations/sharepoint/connections"
+              element={
+                <PermissionGuard permission="sharepoint:view">
+                  <SharePointConnectionsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/integrations/sharepoint/folder-mappings"
+              element={
+                <PermissionGuard permission="sharepoint:configure">
+                  <SharePointFolderMappingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/integrations/sharepoint/metadata-mappings"
+              element={
+                <PermissionGuard permission="sharepoint:configure">
+                  <SharePointMetadataMappingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/integrations/sharepoint/sync-profiles"
+              element={
+                <PermissionGuard permission="sharepoint:configure">
+                  <SharePointSyncProfilesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/integrations/sharepoint/subscriptions"
+              element={
+                <PermissionGuard permission="sharepoint:configure">
+                  <GraphSubscriptionsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/settings/notifications"
+              element={
+                <PermissionGuard permission="notifications:update_preferences">
+                  <NotificationSettingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/notifications/templates"
+              element={
+                <PermissionGuard permission="notifications:manage_templates">
+                  <NotificationTemplatesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/notifications/rules"
+              element={
+                <PermissionGuard permission="notifications:manage_rules">
+                  <NotificationRulesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/notifications/deliveries"
+              element={
+                <PermissionGuard permission="notifications:view_deliveries">
+                  <NotificationDeliveriesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/system-health"
+              element={
+                <PermissionGuard permission="system_health:view">
+                  <SystemHealthPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/background-jobs"
+              element={
+                <PermissionGuard permission="background_jobs:manage">
+                  <BackgroundJobsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/admin/retention-policies"
+              element={
+                <PermissionGuard permission="retention_policies:manage">
+                  <RetentionPoliciesPage />
                 </PermissionGuard>
               }
             />

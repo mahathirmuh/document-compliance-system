@@ -97,6 +97,26 @@ class Permission(str, Enum):
     ADVANCED_REPORTS_VIEW = "advanced_reports:view"
     ADVANCED_REPORTS_EXPORT = "advanced_reports:export"
     ADVANCED_REPORTS_CONFIGURE = "advanced_reports:configure"
+    SHAREPOINT_VIEW = "sharepoint:view"
+    SHAREPOINT_CONFIGURE = "sharepoint:configure"
+    SHAREPOINT_TEST_CONNECTION = "sharepoint:test_connection"
+    SHAREPOINT_PUSH = "sharepoint:push"
+    SHAREPOINT_PULL = "sharepoint:pull"
+    SHAREPOINT_SYNC = "sharepoint:sync"
+    SHAREPOINT_CANCEL_SYNC = "sharepoint:cancel_sync"
+    SHAREPOINT_VIEW_HISTORY = "sharepoint:view_history"
+    SHAREPOINT_VIEW_CONFLICTS = "sharepoint:view_conflicts"
+    SHAREPOINT_RESOLVE_CONFLICTS = "sharepoint:resolve_conflicts"
+    SHAREPOINT_VIEW_ALL_DEPARTMENTS = "sharepoint:view_all_departments"
+    NOTIFICATIONS_VIEW = "notifications:view"
+    NOTIFICATIONS_UPDATE_PREFERENCES = "notifications:update_preferences"
+    NOTIFICATIONS_MANAGE_TEMPLATES = "notifications:manage_templates"
+    NOTIFICATIONS_MANAGE_RULES = "notifications:manage_rules"
+    NOTIFICATIONS_VIEW_DELIVERIES = "notifications:view_deliveries"
+    NOTIFICATIONS_RETRY_DELIVERY = "notifications:retry_delivery"
+    SYSTEM_HEALTH_VIEW = "system_health:view"
+    BACKGROUND_JOBS_MANAGE = "background_jobs:manage"
+    RETENTION_POLICIES_MANAGE = "retention_policies:manage"
     FINDINGS_VIEW = "findings:view"
     FINDINGS_CREATE_MANUAL = "findings:create_manual"
     FINDINGS_UPDATE = "findings:update"
@@ -267,6 +287,52 @@ class AuditAction(str, Enum):
     UPDATE_REPORT_SCHEDULE = "UPDATE_REPORT_SCHEDULE"
     RUN_REPORT_SCHEDULE = "RUN_REPORT_SCHEDULE"
     DISABLE_REPORT_SCHEDULE = "DISABLE_REPORT_SCHEDULE"
+    CREATE_SHAREPOINT_CONNECTION = "CREATE_SHAREPOINT_CONNECTION"
+    UPDATE_SHAREPOINT_CONNECTION = "UPDATE_SHAREPOINT_CONNECTION"
+    TEST_SHAREPOINT_CONNECTION = "TEST_SHAREPOINT_CONNECTION"
+    DISABLE_SHAREPOINT_CONNECTION = "DISABLE_SHAREPOINT_CONNECTION"
+    CREATE_FOLDER_MAPPING = "CREATE_FOLDER_MAPPING"
+    UPDATE_FOLDER_MAPPING = "UPDATE_FOLDER_MAPPING"
+    CREATE_METADATA_MAPPING = "CREATE_METADATA_MAPPING"
+    UPDATE_METADATA_MAPPING = "UPDATE_METADATA_MAPPING"
+    CREATE_SYNC_PROFILE = "CREATE_SYNC_PROFILE"
+    UPDATE_SYNC_PROFILE = "UPDATE_SYNC_PROFILE"
+    ACTIVATE_SYNC_PROFILE = "ACTIVATE_SYNC_PROFILE"
+    DEACTIVATE_SYNC_PROFILE = "DEACTIVATE_SYNC_PROFILE"
+    QUEUE_SHAREPOINT_SYNC = "QUEUE_SHAREPOINT_SYNC"
+    START_SHAREPOINT_SYNC = "START_SHAREPOINT_SYNC"
+    COMPLETE_SHAREPOINT_SYNC = "COMPLETE_SHAREPOINT_SYNC"
+    PARTIAL_SHAREPOINT_SYNC = "PARTIAL_SHAREPOINT_SYNC"
+    FAIL_SHAREPOINT_SYNC = "FAIL_SHAREPOINT_SYNC"
+    CANCEL_SHAREPOINT_SYNC = "CANCEL_SHAREPOINT_SYNC"
+    RETRY_SHAREPOINT_SYNC = "RETRY_SHAREPOINT_SYNC"
+    RESET_SHAREPOINT_DELTA = "RESET_SHAREPOINT_DELTA"
+    PUSH_FILE_TO_SHAREPOINT = "PUSH_FILE_TO_SHAREPOINT"
+    PULL_FILE_FROM_SHAREPOINT = "PULL_FILE_FROM_SHAREPOINT"
+    COPY_SHAREPOINT_FILE = "COPY_SHAREPOINT_FILE"
+    MOVE_SHAREPOINT_FILE = "MOVE_SHAREPOINT_FILE"
+    RENAME_SHAREPOINT_FILE = "RENAME_SHAREPOINT_FILE"
+    CREATE_SHAREPOINT_CONFLICT = "CREATE_SHAREPOINT_CONFLICT"
+    ASSIGN_SHAREPOINT_CONFLICT = "ASSIGN_SHAREPOINT_CONFLICT"
+    RESOLVE_SHAREPOINT_CONFLICT = "RESOLVE_SHAREPOINT_CONFLICT"
+    IGNORE_SHAREPOINT_CONFLICT = "IGNORE_SHAREPOINT_CONFLICT"
+    CREATE_GRAPH_SUBSCRIPTION = "CREATE_GRAPH_SUBSCRIPTION"
+    RENEW_GRAPH_SUBSCRIPTION = "RENEW_GRAPH_SUBSCRIPTION"
+    FAIL_GRAPH_SUBSCRIPTION_RENEWAL = "FAIL_GRAPH_SUBSCRIPTION_RENEWAL"
+    DELETE_GRAPH_SUBSCRIPTION = "DELETE_GRAPH_SUBSCRIPTION"
+    CREATE_NOTIFICATION_TEMPLATE = "CREATE_NOTIFICATION_TEMPLATE"
+    UPDATE_NOTIFICATION_TEMPLATE = "UPDATE_NOTIFICATION_TEMPLATE"
+    CREATE_NOTIFICATION_RULE = "CREATE_NOTIFICATION_RULE"
+    UPDATE_NOTIFICATION_RULE = "UPDATE_NOTIFICATION_RULE"
+    SEND_NOTIFICATION = "SEND_NOTIFICATION"
+    FAIL_NOTIFICATION = "FAIL_NOTIFICATION"
+    RETRY_NOTIFICATION = "RETRY_NOTIFICATION"
+    CREATE_RETENTION_POLICY = "CREATE_RETENTION_POLICY"
+    UPDATE_RETENTION_POLICY = "UPDATE_RETENTION_POLICY"
+    EXECUTE_RETENTION_CLEANUP = "EXECUTE_RETENTION_CLEANUP"
+    ROTATE_ENCRYPTION_KEY = "ROTATE_ENCRYPTION_KEY"
+    GENERATE_BACKUP = "GENERATE_BACKUP"
+    RESTORE_BACKUP = "RESTORE_BACKUP"
 
 ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
     MappingProxyType(
@@ -332,6 +398,17 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.ADVANCED_REPORTS_VIEW,
                     Permission.ADVANCED_REPORTS_EXPORT,
                     Permission.ADVANCED_REPORTS_CONFIGURE,
+                    Permission.SHAREPOINT_VIEW,
+                    Permission.SHAREPOINT_PUSH,
+                    Permission.SHAREPOINT_PULL,
+                    Permission.SHAREPOINT_SYNC,
+                    Permission.SHAREPOINT_CANCEL_SYNC,
+                    Permission.SHAREPOINT_VIEW_HISTORY,
+                    Permission.SHAREPOINT_VIEW_CONFLICTS,
+                    Permission.SHAREPOINT_RESOLVE_CONFLICTS,
+                    Permission.SHAREPOINT_VIEW_ALL_DEPARTMENTS,
+                    Permission.NOTIFICATIONS_VIEW,
+                    Permission.NOTIFICATIONS_UPDATE_PREFERENCES,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_CREATE_MANUAL,
                     Permission.FINDINGS_UPDATE,
@@ -366,6 +443,11 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.REVISION_COMPARISON_VIEW,
                     Permission.REVISION_COMPARISON_RUN,
                     Permission.ADVANCED_REPORTS_VIEW,
+                    Permission.SHAREPOINT_VIEW,
+                    Permission.SHAREPOINT_VIEW_HISTORY,
+                    Permission.SHAREPOINT_VIEW_CONFLICTS,
+                    Permission.NOTIFICATIONS_VIEW,
+                    Permission.NOTIFICATIONS_UPDATE_PREFERENCES,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_REVIEW,
                     Permission.FINDINGS_RESOLVE,
@@ -399,6 +481,11 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.REVISION_COMPARISON_VIEW,
                     Permission.REVISION_COMPARISON_RUN,
                     Permission.ADVANCED_REPORTS_VIEW,
+                    Permission.SHAREPOINT_VIEW,
+                    Permission.SHAREPOINT_PUSH,
+                    Permission.SHAREPOINT_VIEW_HISTORY,
+                    Permission.NOTIFICATIONS_VIEW,
+                    Permission.NOTIFICATIONS_UPDATE_PREFERENCES,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_UPDATE,
                 }
@@ -431,6 +518,12 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.REVISION_COMPARISON_VIEW_ALL_DEPARTMENTS,
                     Permission.ADVANCED_REPORTS_VIEW,
                     Permission.ADVANCED_REPORTS_EXPORT,
+                    Permission.SHAREPOINT_VIEW,
+                    Permission.SHAREPOINT_VIEW_HISTORY,
+                    Permission.SHAREPOINT_VIEW_CONFLICTS,
+                    Permission.SHAREPOINT_VIEW_ALL_DEPARTMENTS,
+                    Permission.NOTIFICATIONS_VIEW,
+                    Permission.NOTIFICATIONS_UPDATE_PREFERENCES,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_EXPORT,
                     Permission.REPORTS_VIEW,
@@ -451,6 +544,8 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.GLOSSARY_VIEW,
                     Permission.REVISION_COMPARISON_VIEW,
                     Permission.ADVANCED_REPORTS_VIEW,
+                    Permission.NOTIFICATIONS_VIEW,
+                    Permission.NOTIFICATIONS_UPDATE_PREFERENCES,
                     Permission.FINDINGS_VIEW,
                 }
             ),

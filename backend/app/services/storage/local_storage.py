@@ -59,9 +59,7 @@ class LocalStorage(BaseStorage):
             or "\x00" in raw_key
             or "\\" in raw_key
             or ":" in raw_key
-            or any(
-                part in {"", ".", ".."} for part in raw_key.split("/")
-            )
+            or any(part in {"", ".", ".."} for part in raw_key.split("/"))
         ):
             raise UnsafeStorageKeyError("Storage key is not a safe path.")
 
@@ -73,9 +71,7 @@ class LocalStorage(BaseStorage):
     def resolve_key(self, storage_key: str) -> Path:
         """Resolve a key and prove that it remains beneath ``root``."""
         normalized = self.normalize_key(storage_key)
-        candidate = self.root.joinpath(
-            *PurePosixPath(normalized).parts
-        ).resolve()
+        candidate = self.root.joinpath(*PurePosixPath(normalized).parts).resolve()
         try:
             candidate.relative_to(self.root)
         except ValueError as exc:

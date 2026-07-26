@@ -12,7 +12,7 @@ export const physicalFileFixture: DocumentFileListItem = {
   detectedMimeType: 'application/pdf',
   fileSize: 1_250,
   sha256Hash: 'a'.repeat(64),
-  storageProvider: 'local',
+  storageProvider: 'LOCAL',
   fileStatus: 'AVAILABLE',
   isPrimary: true,
   isCurrent: true,

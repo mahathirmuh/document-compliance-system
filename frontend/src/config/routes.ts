@@ -29,6 +29,9 @@ const routeTitles: Record<string, string> = {
   '/documents/similarity-queue': 'Similarity Queue',
   '/documents/similarity-history': 'Similarity History',
   '/documents/revision-comparison': 'Revision Comparison',
+  '/documents/sharepoint-sync-queue': 'SharePoint Sync Queue',
+  '/documents/sharepoint-sync-history': 'SharePoint Sync History',
+  '/documents/sharepoint-conflicts': 'SharePoint Conflicts',
   '/documents/archived': 'Archived Documents',
   '/compliance': 'Compliance Overview',
   '/compliance/languages': 'Language Compliance',
@@ -46,6 +49,19 @@ const routeTitles: Record<string, string> = {
   '/reports/advanced-analytics': 'Advanced Analytics',
   '/reports/snapshots': 'Report Snapshots',
   '/reports/schedules': 'Report Schedules',
+  '/integrations/sharepoint': 'SharePoint Connections',
+  '/integrations/sharepoint/connections': 'SharePoint Connections',
+  '/integrations/sharepoint/folder-mappings': 'Folder Mappings',
+  '/integrations/sharepoint/metadata-mappings': 'Metadata Mappings',
+  '/integrations/sharepoint/sync-profiles': 'Sync Profiles',
+  '/integrations/sharepoint/subscriptions': 'Graph Subscriptions',
+  '/admin/notifications/templates': 'Notification Templates',
+  '/admin/notifications/rules': 'Notification Rules',
+  '/admin/notifications/deliveries': 'Notification Deliveries',
+  '/settings/notifications': 'Notification Settings',
+  '/admin/system-health': 'System Health',
+  '/admin/background-jobs': 'Background Jobs',
+  '/admin/retention-policies': 'Retention Policies',
 };
 
 const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
@@ -106,6 +122,9 @@ const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
 export const getRouteTitle = (pathname: string): string =>
   routeTitles[pathname] ??
   (/^\/master-data\/glossary\/[^/]+$/.test(pathname) ? 'Glossary Profile' : null) ??
+  (/^\/documents\/sharepoint-conflicts\/[^/]+$/.test(pathname)
+    ? 'SharePoint Conflict Detail'
+    : null) ??
   (/^\/compliance\/findings\/[^/]+$/.test(pathname) ? 'Finding Details' : null) ??
   getDynamicDocumentRouteTitle(pathname) ??
   'Workspace';
@@ -173,6 +192,19 @@ export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
   }
   if (pathname.startsWith('/reports')) {
     return [{ label: 'Reports' }, { label: getRouteTitle(pathname) }];
+  }
+  if (pathname.startsWith('/integrations')) {
+    return [
+      { label: 'Integrations' },
+      { label: 'SharePoint', path: '/integrations/sharepoint/connections' },
+      { label: getRouteTitle(pathname) },
+    ];
+  }
+  if (pathname.startsWith('/admin')) {
+    return [{ label: 'Administration' }, { label: getRouteTitle(pathname) }];
+  }
+  if (pathname.startsWith('/settings')) {
+    return [{ label: 'Settings' }, { label: getRouteTitle(pathname) }];
   }
   return [{ label: getRouteTitle(pathname) }];
 };

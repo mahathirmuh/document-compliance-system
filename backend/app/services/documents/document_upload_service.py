@@ -80,6 +80,11 @@ from app.services.documents.file_validation_service import (
     FileValidationResult,
     FileValidationService,
 )
+from app.services.security_scanning.base_malware_scanner import (
+    BaseMalwareScanner,
+    MalwareScanStatus,
+)
+from app.services.security_scanning.factory import create_malware_scanner
 from app.services.storage.base_storage import BaseStorage
 from app.services.storage.file_stream_service import (
     FileStreamService,
@@ -106,11 +111,13 @@ class DocumentUploadService(DocumentServiceBase):
         metadata,
         *,
         storage: BaseStorage | None = None,
+        malware_scanner: BaseMalwareScanner | None = None,
     ) -> None:
         super().__init__(session, user, metadata)
         self.user_id = user.id
         self.settings = settings
         self.storage = storage or StorageFactory.get_storage(settings)
+        self.malware_scanner = malware_scanner or create_malware_scanner(settings)
         self.paths = StoragePathService(settings)
         self.validator = FileValidationService(settings)
         self.identification = FileIdentificationService(
@@ -142,19 +149,13 @@ class DocumentUploadService(DocumentServiceBase):
                 total_files=1,
                 metadata={
                     "documentId": (
-                        str(document_id)
-                        if document_id is not None
-                        else None
+                        str(document_id) if document_id is not None else None
                     ),
                     "revisionId": (
-                        str(revision_id)
-                        if revision_id is not None
-                        else None
+                        str(revision_id) if revision_id is not None else None
                     ),
                     "replaceFileId": (
-                        str(replace_file_id)
-                        if replace_file_id is not None
-                        else None
+                        str(replace_file_id) if replace_file_id is not None else None
                     ),
                 },
             )
@@ -176,9 +177,7 @@ class DocumentUploadService(DocumentServiceBase):
                 action=AuditAction.UPLOAD_FILE_PREVIEW,
                 entity_type="upload_session",
                 entity_id=upload_session.id,
-                description=(
-                    f"Previewed upload {item.sanitized_filename}."
-                ),
+                description=(f"Previewed upload {item.sanitized_filename}."),
                 new_values=self._preview_audit_values(
                     upload_session,
                     [item],
@@ -225,11 +224,7 @@ class DocumentUploadService(DocumentServiceBase):
             )
             await self.sessions.create(upload_session)
             total_size = 0
-            total_limit = (
-                self.settings.document_batch_max_total_size_mb
-                * 1024
-                * 1024
-            )
+            total_limit = self.settings.document_batch_max_total_size_mb * 1024 * 1024
             for upload in uploads:
                 item, error = await self._stage_item(
                     upload_session,
@@ -250,16 +245,12 @@ class DocumentUploadService(DocumentServiceBase):
                         ),
                     )
             upload_session.total_size = total_size
-            upload_session.status = (
-                UploadSessionStatus.READY_FOR_CONFIRMATION
-            )
+            upload_session.status = UploadSessionStatus.READY_FOR_CONFIRMATION
             await self.audit(
                 action=AuditAction.BATCH_UPLOAD_PREVIEW,
                 entity_type="upload_session",
                 entity_id=upload_session.id,
-                description=(
-                    f"Previewed batch with {len(staged)} files."
-                ),
+                description=(f"Previewed batch with {len(staged)} files."),
                 new_values=self._preview_audit_values(
                     upload_session,
                     staged,
@@ -367,11 +358,7 @@ class DocumentUploadService(DocumentServiceBase):
         expected_session_types: set[UploadSessionType],
         batch: bool,
     ) -> UploadConfirmationResult | BatchUploadResult:
-        if (
-            batch
-            and len(payload.items)
-            > self.settings.document_batch_max_files
-        ):
+        if batch and len(payload.items) > self.settings.document_batch_max_files:
             raise self._upload_error(
                 (
                     "Batch confirmation contains more items than the "
@@ -415,9 +402,7 @@ class DocumentUploadService(DocumentServiceBase):
         upload_session.status = UploadSessionStatus.UPLOADING
         await self.session.commit()
 
-        requested = {
-            item.upload_item_id: item for item in payload.items
-        }
+        requested = {item.upload_item_id: item for item in payload.items}
         results: list[UploadConfirmationItemResult] = []
         counters = {
             "documents_created": 0,
@@ -459,11 +444,7 @@ class DocumentUploadService(DocumentServiceBase):
             except ApplicationError as exc:
                 await self.session.rollback()
                 await self.session.refresh(self.user)
-                message = (
-                    exc.errors[0].message
-                    if exc.errors
-                    else exc.message
-                )
+                message = exc.errors[0].message if exc.errors else exc.message
                 await self._mark_item_failed(
                     confirmation.upload_item_id,
                     message,
@@ -488,16 +469,11 @@ class DocumentUploadService(DocumentServiceBase):
                 counters[key] += value
 
         committed = sum(
-            item.status == UploadSessionItemStatus.COMMITTED
-            for item in results
+            item.status == UploadSessionItemStatus.COMMITTED for item in results
         )
-        failed = sum(
-            item.status == UploadSessionItemStatus.FAILED
-            for item in results
-        )
+        failed = sum(item.status == UploadSessionItemStatus.FAILED for item in results)
         skipped = sum(
-            item.status == UploadSessionItemStatus.SKIPPED
-            for item in results
+            item.status == UploadSessionItemStatus.SKIPPED for item in results
         )
         final_status = (
             UploadSessionStatus.COMMITTED
@@ -642,10 +618,7 @@ class DocumentUploadService(DocumentServiceBase):
                 upload_session,
                 locked_item_id,
             )
-            if (
-                expected_file_id is not None
-                and old_file.id != expected_file_id
-            ):
+            if expected_file_id is not None and old_file.id != expected_file_id:
                 raise document_conflict(
                     "The current file changed after preview. Upload the "
                     "replacement again.",
@@ -749,14 +722,9 @@ class DocumentUploadService(DocumentServiceBase):
                     f"Attached {document_file.sanitized_filename} to "
                     f"{revision.full_document_code}."
                 ),
-                old_values=(
-                    old_file_audit
-                ),
+                old_values=(old_file_audit),
                 new_values={
-                    **(
-                        DocumentFileService._audit_values(document_file)
-                        or {}
-                    ),
+                    **(DocumentFileService._audit_values(document_file) or {}),
                     "reason": metadata.reason,
                 },
             )
@@ -828,8 +796,7 @@ class DocumentUploadService(DocumentServiceBase):
             raise document_not_found()
         self.policy.ensure_document_access(document)
         is_super_admin = (
-            self.user.is_superuser
-            or self.user.role == UserRole.SUPER_ADMIN
+            self.user.is_superuser or self.user.role == UserRole.SUPER_ADMIN
         )
         archived_exception = (
             allow_archived_super_admin
@@ -885,8 +852,7 @@ class DocumentUploadService(DocumentServiceBase):
             raise document_not_found()
         self.policy.ensure_document_access(document)
         is_super_admin = (
-            self.user.is_superuser
-            or self.user.role == UserRole.SUPER_ADMIN
+            self.user.is_superuser or self.user.role == UserRole.SUPER_ADMIN
         )
         if document.is_archived and not is_super_admin:
             raise self._upload_error(
@@ -1032,8 +998,7 @@ class DocumentUploadService(DocumentServiceBase):
             item.file_size,
         )
         if any(
-            duplicate.document_revision_id == revision.id
-            for duplicate in duplicates
+            duplicate.document_revision_id == revision.id for duplicate in duplicates
         ):
             await self._audit_duplicate(item, revision)
             raise document_conflict(
@@ -1083,8 +1048,7 @@ class DocumentUploadService(DocumentServiceBase):
         )
         if actual != expected:
             raise document_conflict(
-                "The staged file changed after preview and must be uploaded "
-                "again.",
+                "The staged file changed after preview and must be uploaded again.",
                 title="Upload item could not be confirmed.",
             )
 
@@ -1175,9 +1139,7 @@ class DocumentUploadService(DocumentServiceBase):
                 self.storage,
                 upload.file,
                 temp_key,
-                max_bytes=self.settings.document_max_file_size_mb
-                * 1024
-                * 1024,
+                max_bytes=self.settings.document_max_file_size_mb * 1024 * 1024,
             )
             if tracked_storage_keys is not None:
                 tracked_storage_keys.add(temp_key)
@@ -1187,6 +1149,46 @@ class DocumentUploadService(DocumentServiceBase):
                 original_filename=original_filename,
                 declared_mime_type=upload.content_type or "",
             )
+            scan = await self.malware_scanner.scan(
+                self.storage.stream(temp_key),
+                filename=validation.sanitized_filename,
+            )
+            if not scan.allowed:
+                infected = scan.status == MalwareScanStatus.INFECTED
+                raise ApplicationError(
+                    (
+                        "File security validation failed."
+                        if infected
+                        else "File security scanner is unavailable."
+                    ),
+                    status_code=(
+                        HTTPStatus.UNPROCESSABLE_ENTITY
+                        if infected
+                        else HTTPStatus.SERVICE_UNAVAILABLE
+                    ),
+                    errors=[
+                        ErrorDetail(
+                            field="file",
+                            message=(
+                                "The file was quarantined because unsafe "
+                                "content was detected."
+                                if infected
+                                else "The file remains quarantined. Try again "
+                                "after the security scanner recovers."
+                            ),
+                            code=(
+                                "FILE_MALWARE_DETECTED"
+                                if infected
+                                else "MALWARE_SCANNER_UNAVAILABLE"
+                            ),
+                        )
+                    ],
+                )
+            if scan.warning:
+                logger.warning(
+                    "Upload malware scan completed with a warning.",
+                    extra={"event": "malware_scan_warning"},
+                )
             outcome = await self.identification.identify(
                 filename=validation.sanitized_filename,
                 sha256_hash=validation.sha256_hash,
@@ -1252,9 +1254,7 @@ class DocumentUploadService(DocumentServiceBase):
                     new_values={
                         "uploadItemId": str(item_id),
                         "reason": (
-                            error.errors[0].message
-                            if error.errors
-                            else error.message
+                            error.errors[0].message if error.errors else error.message
                         ),
                     },
                 )
@@ -1262,9 +1262,7 @@ class DocumentUploadService(DocumentServiceBase):
                 await self.storage.delete(temp_key)
                 if tracked_storage_keys is not None:
                     tracked_storage_keys.discard(temp_key)
-        quarantine_reason = (
-            error.errors[0].message if error.errors else error.message
-        )
+        quarantine_reason = error.errors[0].message if error.errors else error.message
         cleanup_pending = await self.storage.exists(stored_key)
         item = UploadSessionItem(
             id=item_id,
@@ -1276,9 +1274,7 @@ class DocumentUploadService(DocumentServiceBase):
             proposed_action=UploadProposedAction.SKIP,
             warnings_json=[],
             errors_json=[quarantine_reason],
-            quarantine_reason=(
-                quarantine_reason if cleanup_pending else None
-            ),
+            quarantine_reason=(quarantine_reason if cleanup_pending else None),
             temporary_cleanup_pending=cleanup_pending,
             status=UploadSessionItemStatus.FAILED,
         )
@@ -1482,8 +1478,7 @@ class DocumentUploadService(DocumentServiceBase):
         expected = metadata.get("replaceFileId")
         if (
             expected is None
-            and outcome.proposed_action
-            != UploadProposedAction.REPLACE_CURRENT_FILE
+            and outcome.proposed_action != UploadProposedAction.REPLACE_CURRENT_FILE
         ):
             return
         if expected is None and outcome.matched_revision is not None:
@@ -1494,11 +1489,7 @@ class DocumentUploadService(DocumentServiceBase):
         if not isinstance(expected, str):
             return
         raw_mapping = metadata.get("expectedCurrentFileIds")
-        mapping = (
-            dict(raw_mapping)
-            if isinstance(raw_mapping, dict)
-            else {}
-        )
+        mapping = dict(raw_mapping) if isinstance(raw_mapping, dict) else {}
         mapping[str(item_id)] = expected
         metadata["expectedCurrentFileIds"] = mapping
         upload_session.metadata_json = metadata
@@ -1525,10 +1516,7 @@ class DocumentUploadService(DocumentServiceBase):
         upload_session: UploadSession,
     ) -> UploadSessionResponse:
         items = await self.items.list_by_session(upload_session.id)
-        responses = [
-            await self._item_response(item)
-            for item in items
-        ]
+        responses = [await self._item_response(item) for item in items]
         return UploadSessionResponse(
             session_id=upload_session.id,
             session_type=upload_session.session_type,
@@ -1556,8 +1544,7 @@ class DocumentUploadService(DocumentServiceBase):
         duplicate_warning: FileDuplicateWarning | None = None
         if (
             self.settings.enable_duplicate_file_hash_check
-            and item.identification_status
-            == UploadIdentificationStatus.DUPLICATE_FILE
+            and item.identification_status == UploadIdentificationStatus.DUPLICATE_FILE
             and item.sha256_hash is not None
             and item.file_size is not None
         ):
@@ -1565,44 +1552,31 @@ class DocumentUploadService(DocumentServiceBase):
                 item.sha256_hash,
                 item.file_size,
             )
-            same_revision = (
-                item.matched_revision_id is not None
-                and any(
-                    duplicate.document_revision_id
-                    == item.matched_revision_id
-                    for duplicate in duplicates
-                )
+            same_revision = item.matched_revision_id is not None and any(
+                duplicate.document_revision_id == item.matched_revision_id
+                for duplicate in duplicates
             )
             visible = next(
                 (
                     duplicate
                     for duplicate in duplicates
                     if self.policy.view_all_departments
-                    or duplicate.document.department_id
-                    == self.user.department_id
+                    or duplicate.document.department_id == self.user.department_id
                 ),
                 None,
             )
             duplicate_warning = FileDuplicateWarning(
                 same_revision=same_revision,
-                document_id=(
-                    visible.document_id if visible is not None else None
-                ),
+                document_id=(visible.document_id if visible is not None else None),
                 revision_id=(
-                    visible.document_revision_id
-                    if visible is not None
-                    else None
+                    visible.document_revision_id if visible is not None else None
                 ),
                 base_document_code=(
-                    visible.document.base_document_code
-                    if visible is not None
-                    else None
+                    visible.document.base_document_code if visible is not None else None
                 ),
             )
         parsed = (
-            ParsedDocumentMetadata.model_validate(
-                item.parsed_metadata_json
-            )
+            ParsedDocumentMetadata.model_validate(item.parsed_metadata_json)
             if item.parsed_metadata_json is not None
             else None
         )
@@ -1621,9 +1595,7 @@ class DocumentUploadService(DocumentServiceBase):
             matched_document=(
                 MatchedDocumentReference(
                     id=item.matched_document.id,
-                    base_document_code=(
-                        item.matched_document.base_document_code
-                    ),
+                    base_document_code=(item.matched_document.base_document_code),
                     title=item.matched_document.title,
                 )
                 if item.matched_document is not None
@@ -1633,9 +1605,7 @@ class DocumentUploadService(DocumentServiceBase):
                 MatchedRevisionReference(
                     id=item.matched_revision.id,
                     revision_code=item.matched_revision.revision_code,
-                    full_document_code=(
-                        item.matched_revision.full_document_code
-                    ),
+                    full_document_code=(item.matched_revision.full_document_code),
                 )
                 if item.matched_revision is not None
                 else None
@@ -1699,9 +1669,7 @@ class DocumentUploadService(DocumentServiceBase):
                 {
                     "uploadItemId": str(item.id),
                     "filename": item.sanitized_filename,
-                    "identificationStatus": (
-                        item.identification_status.value
-                    ),
+                    "identificationStatus": (item.identification_status.value),
                     "proposedAction": item.proposed_action.value,
                 }
                 for item in items

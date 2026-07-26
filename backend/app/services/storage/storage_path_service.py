@@ -67,9 +67,7 @@ def sanitize_filename(
         )
 
     ascii_name = (
-        unicodedata.normalize("NFKD", value)
-        .encode("ascii", "ignore")
-        .decode("ascii")
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
     )
     ascii_name = _UNSAFE_FILENAME.sub("_", ascii_name)
     ascii_name = _REPEATED_UNDERSCORE.sub("_", ascii_name)

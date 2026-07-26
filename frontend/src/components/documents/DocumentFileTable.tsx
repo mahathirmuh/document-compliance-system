@@ -25,7 +25,9 @@ interface DocumentFileTableProps {
 const statusStyles: Record<DocumentFileStatus, string> = {
   AVAILABLE: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   UPLOADING: 'bg-blue-50 text-blue-700 ring-blue-200',
+  PENDING_SCAN: 'bg-blue-50 text-blue-700 ring-blue-200',
   QUARANTINED: 'bg-orange-50 text-orange-700 ring-orange-200',
+  SCAN_FAILED: 'bg-rose-50 text-rose-700 ring-rose-200',
   REPLACED: 'bg-slate-100 text-slate-700 ring-slate-200',
   DELETED: 'bg-rose-50 text-rose-700 ring-rose-200',
   FAILED: 'bg-rose-50 text-rose-700 ring-rose-200',

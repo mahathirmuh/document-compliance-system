@@ -14,6 +14,7 @@ import { getRouteTitle } from '../../config/routes';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
 import { formatRole, getInitials } from '../../utils/formatters';
+import { NotificationCentre } from '../notifications/NotificationCentre';
 
 export function Header() {
   const user = useAuthStore((state) => state.user);
@@ -99,66 +100,69 @@ export function Header() {
           </div>
         </div>
 
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => setIsMenuOpen((open) => !open)}
-            className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 pr-2.5 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 sm:gap-3 sm:pr-3.5"
-            aria-expanded={isMenuOpen}
-            aria-haspopup="menu"
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-blue-700 text-xs font-bold text-white">
-              {getInitials(user.name)}
-            </span>
-            <span className="hidden min-w-0 sm:block">
-              <span className="block max-w-40 truncate text-xs font-semibold text-slate-900">
-                {user.name}
-              </span>
-              <span className="mt-0.5 block text-[10px] font-medium text-slate-500">
-                {formatRole(user.role)}
-              </span>
-            </span>
-            <ChevronDown
-              className={`size-3.5 text-slate-400 transition-transform ${
-                isMenuOpen ? 'rotate-180' : ''
-              }`}
-              aria-hidden="true"
-            />
-          </button>
-
-          {isMenuOpen && (
-            <div
-              className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15"
-              role="menu"
+        <div className="flex items-center gap-2">
+          <NotificationCentre />
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen((open) => !open)}
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 pr-2.5 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 sm:gap-3 sm:pr-3.5"
+              aria-expanded={isMenuOpen}
+              aria-haspopup="menu"
             >
-              <div className="border-b border-slate-100 p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                  <UserRound className="size-3.5" aria-hidden="true" />
-                  Profile
-                </div>
-                <p className="mt-3 truncate text-sm font-semibold text-slate-950">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-blue-700 text-xs font-bold text-white">
+                {getInitials(user.name)}
+              </span>
+              <span className="hidden min-w-0 sm:block">
+                <span className="block max-w-40 truncate text-xs font-semibold text-slate-900">
                   {user.name}
-                </p>
-                <p className="mt-1 truncate text-xs text-slate-500">{user.email}</p>
-                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
-                  <ShieldCheck className="size-3" aria-hidden="true" />
+                </span>
+                <span className="mt-0.5 block text-[10px] font-medium text-slate-500">
                   {formatRole(user.role)}
                 </span>
+              </span>
+              <ChevronDown
+                className={`size-3.5 text-slate-400 transition-transform ${
+                  isMenuOpen ? 'rotate-180' : ''
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+
+            {isMenuOpen && (
+              <div
+                className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15"
+                role="menu"
+              >
+                <div className="border-b border-slate-100 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <UserRound className="size-3.5" aria-hidden="true" />
+                    Profile
+                  </div>
+                  <p className="mt-3 truncate text-sm font-semibold text-slate-950">
+                    {user.name}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-slate-500">{user.email}</p>
+                  <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
+                    <ShieldCheck className="size-3" aria-hidden="true" />
+                    {formatRole(user.role)}
+                  </span>
+                </div>
+                <div className="p-2">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={isLoggingOut}
+                    onClick={() => void logout()}
+                    className="flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500 disabled:opacity-60"
+                  >
+                    <LogOut className="size-4" aria-hidden="true" />
+                    {isLoggingOut ? 'Signing out...' : 'Sign out'}
+                  </button>
+                </div>
               </div>
-              <div className="p-2">
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={isLoggingOut}
-                  onClick={() => void logout()}
-                  className="flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 text-sm font-medium text-rose-600 transition hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500 disabled:opacity-60"
-                >
-                  <LogOut className="size-4" aria-hidden="true" />
-                  {isLoggingOut ? 'Signing out...' : 'Sign out'}
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </header>

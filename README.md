@@ -1,11 +1,13 @@
 # Document Compliance & Multilingual Validation System
 
-Version 0.9.0 completes Phase 9 of the foundation for a Document Control
+Version 1.0.0 completes Phase 10 of the foundation for a Document Control
 application that registers document metadata and revisions, stores their
 private physical files, extracts normalized PDF, DOCX, and XLSX content,
 performs local OCR on scanned PDF pages, detects Indonesian, English, and
-Mandarin content, and validates multilingual structural compliance. It is
-intentionally not a full Document Management System.
+Mandarin content, validates multilingual structural compliance, and connects
+controlled files to SharePoint Online through backend-only Microsoft Graph
+synchronisation. It remains deliberately non-destructive and does not edit
+source-document content.
 
 Phase 1 established the React, FastAPI, async SQLAlchemy, Alembic, PostgreSQL,
 and Docker foundation. Phase 2 added authentication, authorization, and the
@@ -26,8 +28,12 @@ checks, weighted scoring, auditable findings, comparison, and reports.
 Phase 9 adds local pairwise translation-similarity signals, scoped glossary
 management and validation, retained revision comparisons, private advanced
 report snapshots, and an explicit quality-score strategy.
+Phase 10 adds Microsoft Graph client-credentials authentication, SharePoint
+storage and mapping, full/delta/webhook synchronisation, manual conflict
+resolution, multi-channel notifications, and production security,
+observability, retention, backup, and deployment controls.
 
-## Scope through Phase 9
+## Scope through Phase 10
 
 Implemented in this phase:
 
@@ -387,8 +393,8 @@ internal company documents.
 | Variable                                  | Example/default              | Purpose                                            |
 | ----------------------------------------- | ---------------------------- | -------------------------------------------------- |
 | `APP_NAME`                                | `Document Compliance API`    | Backend service name                               |
-| `APP_VERSION`                             | `0.9.0`                      | Backend version                                    |
-| `VITE_APP_VERSION`                        | `0.9.0`                      | Frontend version                                   |
+| `APP_VERSION`                             | `1.0.0`                      | Backend version                                    |
+| `VITE_APP_VERSION`                        | `1.0.0`                      | Frontend version                                   |
 | `APP_ENV`                                 | `development`                | Backend runtime environment                        |
 | `APP_TIMEZONE`                            | `Asia/Makassar`              | IANA timezone used for export timestamps           |
 | `BACKEND_DEBUG`                           | `false`                      | Backend debug mode                                 |
@@ -2183,5 +2189,169 @@ workers, local model verification, all three language pairs, deterministic
 consistency checks, glossary CRUD/import/export/validation/exceptions, revision
 changes and comparisons, private advanced XLSX/JSON/PDF snapshots, schedule
 manual run, frontend lint/tests/build, and Docker smoke checks all pass.
-Automatic translation, source editing, cloud AI, scheduled email delivery, and
-SharePoint synchronization remain intentionally outside this release.
+Automatic translation, source editing, and cloud AI remain intentionally
+outside that historical Phase 9 milestone.
+
+## Phase 10 SharePoint, notifications, and production hardening
+
+Phase 10 is version `1.0.0`. Microsoft Graph is backend-only and disabled by
+default; the application continues to operate with private Local Storage.
+
+```text
+Document -> Revision -> DocumentFile -> Storage Provider
+                                      |- LOCAL
+                                      |- SHAREPOINT
+                                      `- HYBRID
+
+Application Event -> Rule -> Recipient -> Safe Template -> Delivery
+                                                    |- IN_APP
+                                                    |- EMAIL_GRAPH
+                                                    |- TEAMS
+                                                    `- TELEGRAM
+```
+
+### Microsoft Entra ID and Graph
+
+The backend uses MSAL confidential-client credentials with
+`https://graph.microsoft.com/.default`. Development supports a client secret;
+production should use a certificate. Access tokens are held only in a bounded
+cache and are never persisted, logged, or returned to the frontend.
+
+Use `Sites.Selected` and grant the application access only to the controlled
+site. `Mail.Send` is separate and needed only when Graph email is enabled.
+Broader `Files.ReadWrite.All` or `Sites.ReadWrite.All` permissions are
+development fallbacks that require explicit risk review and admin consent.
+
+Graph calls pass through one request service that adds a correlation ID, maps
+safe errors, follows pagination, applies per-connection rate control, and
+retries only transient `429`, `500`, `502`, `503`, `504`, timeout, and
+temporary DNS failures. `Retry-After` takes precedence over exponential
+backoff with jitter.
+
+See [SharePoint setup](docs/sharepoint-setup.md) and
+[Graph permissions](docs/microsoft-graph-permissions.md).
+
+### SharePoint connections, mappings, and storage
+
+Connections contain non-secret tenant/site/drive/library/root references.
+Site resolution supports hostname/path or a pre-resolved site ID; drive
+resolution selects the configured document library. Folder mapping resolution
+is deterministic from section/document-type/department combinations down to a
+global fallback. Metadata uses SharePoint internal column names and registered
+typed transformers—never arbitrary configured code.
+
+The SharePoint storage provider supports folder creation, direct upload up to
+the configured threshold, sequential resumable upload sessions for large
+files, authenticated streaming download, metadata, copy, move, rename,
+archive/restore where supported, child listing, and remote versions. Temporary
+Graph download URLs remain server-side and are never stored as permanent URLs.
+The five generated samples under `sample-documents/sharepoint` contain no
+company data.
+
+### Full, delta, webhook, and conflict synchronisation
+
+Profiles support `OUTBOUND`, `INBOUND`, and `BIDIRECTIONAL`. Bidirectional
+profiles require a conflict policy; the default is `MANUAL`. Remote deletes
+follow one explicit soft-delete/archive/mark/ignore policy and never erase
+document or revision history.
+
+Full sync reconciles the configured scope. Incremental sync follows Graph delta
+pagination and persists the new encrypted delta link only after successful
+policy-compliant processing. Invalid delta state queues controlled
+reconciliation. Webhook validation returns the Graph validation token as plain
+text; normal events validate hashed client state, deduplicate, persist, and
+queue work without performing synchronisation in the request.
+
+Conflicts retain local/remote evidence and support `KEEP_LOCAL`, `KEEP_REMOTE`,
+`KEEP_BOTH`, `MERGE_METADATA`, and explicit ignore decisions. A mandatory
+comment and optimistic recheck precede resolution. See
+[sync design](docs/sharepoint-sync-design.md) and
+[conflict resolution](docs/sharepoint-conflict-resolution.md).
+
+### Notifications
+
+Rules cover document processing, findings, SharePoint sync/conflicts,
+subscription renewal, reports, backups, workers, storage, and security events.
+Templates are channel/language/version aware and rendered with controlled
+variables. Recipient resolution uses trusted users, roles, departments, and
+configured endpoints—not arbitrary event input.
+
+In-app notifications expose unread count, mark-read/read-all, expiry, and safe
+internal action routes. Graph email uses a fixed sender. Teams and Telegram
+adapters are optional and disabled by default. Quiet hours, timezone, digest,
+and per-channel preferences are retained. Remote failures use bounded retry
+and delivery history without rolling back completed business transactions.
+See [notification operations](docs/notifications.md).
+
+### Security, observability, and retention
+
+- Environment and optional Azure Key Vault secret providers
+- AES-256-GCM versioned encryption for delta/client-state integration data
+- Redis-backed rate limits on login, uploads, exports, Graph tests, manual sync,
+  webhooks, and notification tests
+- Explicit production CORS, trusted hosts/proxies, HTTPS, CSP, HSTS, and other
+  security headers
+- Bounded request IDs propagated to Celery and Graph
+- JSON structured logs with recursive secret and document-content redaction
+- Prometheus-compatible HTTP/DB/Redis/Celery/Graph/sync/notification metrics
+  without high-cardinality document/user labels
+- Configurable OpenTelemetry spans without document text
+- `/health/live`, `/health/ready`, dependency health, cached worker heartbeat,
+  and an authenticated System Health page
+- Database-pool, Redis, Celery late-ack/prefetch/time-limit, idempotency,
+  graceful shutdown, and dead-letter controls
+- Optional ClamAV abstraction with production fail-closed quarantine
+- Dry-run/batched retention with legal hold and audit summaries
+
+Details are in [security hardening](docs/security-hardening.md),
+[retention policy](docs/retention-policy.md), and
+[monitoring and alerting](docs/monitoring-and-alerting.md).
+
+### Production deployment
+
+Create a protected `.env.production` from `.env.production.example`, provide
+CA-issued TLS material and runtime secrets, then:
+
+```bash
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml build
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml run --rm migrate
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml up -d
+```
+
+The production topology uses Gunicorn/Uvicorn, Nginx static frontend and HTTPS
+edge, eleven isolated Celery queues, Celery Beat, internal-only PostgreSQL and
+Redis, persistent storage/model volumes, non-root application images,
+read-only roots where practical, health checks, and optional ClamAV. Run only
+one migration process. See [production deployment](docs/production-deployment.md)
+and the [operational runbook](docs/operational-runbook.md).
+
+### Backup and disaster recovery
+
+`scripts/backup_postgres.sh` creates a custom-format database backup plus
+SHA-256 sidecar. `scripts/restore_postgres.sh` refuses an unsafe production
+target and verifies restore into an isolated database. Storage manifests are
+checked with `scripts/verify_storage_hashes.py`; configuration snapshots are
+recursively redacted.
+
+SharePoint does not replace database or private-storage backup. RPO and RTO are
+explicit stakeholder decisions and are intentionally not invented here. See
+[backup and restore](docs/backup-and-restore.md) and
+[disaster recovery](docs/disaster-recovery.md).
+
+### CI, performance, and known limitations
+
+The example GitHub workflows run backend/frontend lint, typing, tests,
+migration checks, dependency audits, Bandit, npm audit, secret scanning,
+container builds, and Trivy scans. `performance/phase10-load.js` provides a
+rate-aware k6 scenario and does not aggressively load Microsoft Graph.
+
+Automated Graph, SharePoint, email, Teams, and Telegram integration tests use
+mock transports by default. A real Microsoft 365 development tenant,
+`Sites.Selected` grant/admin consent, production certificate, public DNS/TLS,
+and organization-approved RPO/RTO remain deployment responsibilities. Phase 10
+does not add PPTX, automatic translation, source editing, cloud LLMs, public
+file URLs, SharePoint page editing, broad permission administration, digital
+signatures, Google Drive, Dropbox, or OneDrive Personal integration.

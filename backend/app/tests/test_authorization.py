@@ -221,6 +221,50 @@ def test_permission_mapping_matches_centralized_role_contract() -> None:
     for role, permissions in phase9_permissions.items():
         expected_permissions[role].update(permissions)
 
+    phase10_permissions = {
+        UserRole.DOCUMENT_CONTROLLER: {
+            "sharepoint:view",
+            "sharepoint:push",
+            "sharepoint:pull",
+            "sharepoint:sync",
+            "sharepoint:cancel_sync",
+            "sharepoint:view_history",
+            "sharepoint:view_conflicts",
+            "sharepoint:resolve_conflicts",
+            "sharepoint:view_all_departments",
+            "notifications:view",
+            "notifications:update_preferences",
+        },
+        UserRole.REVIEWER: {
+            "sharepoint:view",
+            "sharepoint:view_history",
+            "sharepoint:view_conflicts",
+            "notifications:view",
+            "notifications:update_preferences",
+        },
+        UserRole.DEPARTMENT_USER: {
+            "sharepoint:view",
+            "sharepoint:push",
+            "sharepoint:view_history",
+            "notifications:view",
+            "notifications:update_preferences",
+        },
+        UserRole.AUDITOR: {
+            "sharepoint:view",
+            "sharepoint:view_history",
+            "sharepoint:view_conflicts",
+            "sharepoint:view_all_departments",
+            "notifications:view",
+            "notifications:update_preferences",
+        },
+        UserRole.VIEWER: {
+            "notifications:view",
+            "notifications:update_preferences",
+        },
+    }
+    for role, permissions in phase10_permissions.items():
+        expected_permissions[role].update(permissions)
+
     for role, expected in expected_permissions.items():
         assert set(get_permissions(role)) == expected
 
@@ -233,6 +277,12 @@ def test_permission_mapping_matches_centralized_role_contract() -> None:
     assert "documents:upload" not in get_permissions(UserRole.AUDITOR)
     assert "documents:view_file_history" not in get_permissions(
         UserRole.VIEWER
+    )
+    assert "sharepoint:configure" not in get_permissions(
+        UserRole.DOCUMENT_CONTROLLER
+    )
+    assert "sharepoint:resolve_conflicts" not in get_permissions(
+        UserRole.REVIEWER
     )
 
 

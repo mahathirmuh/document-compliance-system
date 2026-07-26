@@ -46,7 +46,7 @@ describe('landing page', () => {
         /Document Compliance & Multilingual Validation System creates one clear path/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('v0.9.0')).toBeInTheDocument();
+    expect(screen.getByText('v1.0.0')).toBeInTheDocument();
     expect(await screen.findByText('Backend connected')).toBeInTheDocument();
     expect(screen.getByText('document-compliance-api')).toBeInTheDocument();
   });

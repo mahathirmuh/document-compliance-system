@@ -39,8 +39,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment: &backend_environment
-      APP_NAME: ${APP_NAME:-Document Compliance API}
-      APP_VERSION: ${APP_VERSION:-0.9.0}
+      APP_NAME: ${APP_NAME:-Document Compliance & Multilingual Validation System}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
       APP_ENV: ${APP_ENV:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
@@ -51,8 +51,20 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-document_compliance}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       DATABASE_ECHO: ${DATABASE_ECHO:-false}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
+      DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-30}
+      DB_POOL_RECYCLE_SECONDS: ${DB_POOL_RECYCLE_SECONDS:-1800}
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-120000}
+      DB_CONNECT_TIMEOUT_SECONDS: ${DB_CONNECT_TIMEOUT_SECONDS:-10}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
       CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1,testserver}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5173}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
       JWT_SECRET_KEY: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}"
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
@@ -85,8 +97,20 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_SSL: ${REDIS_SSL:-false}
+      REDIS_SOCKET_TIMEOUT_SECONDS: ${REDIS_SOCKET_TIMEOUT_SECONDS:-5}
+      REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS: ${REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS:-5}
+      REDIS_HEALTH_CHECK_INTERVAL_SECONDS: ${REDIS_HEALTH_CHECK_INTERVAL_SECONDS:-30}
+      REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-100}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-document-compliance:development}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      CELERY_TASK_ACKS_LATE: ${CELERY_TASK_ACKS_LATE:-true}
+      CELERY_TASK_REJECT_ON_WORKER_LOST: ${CELERY_TASK_REJECT_ON_WORKER_LOST:-true}
+      CELERY_WORKER_PREFETCH_MULTIPLIER: ${CELERY_WORKER_PREFETCH_MULTIPLIER:-1}
+      CELERY_RESULT_EXPIRES_SECONDS: ${CELERY_RESULT_EXPIRES_SECONDS:-86400}
+      CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP: ${CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP:-true}
       EXTRACTION_QUEUE_NAME: ${EXTRACTION_QUEUE_NAME:-extraction}
       EXTRACTION_MAX_FILE_SIZE_MB: ${EXTRACTION_MAX_FILE_SIZE_MB:-50}
       EXTRACTION_TASK_TIME_LIMIT_SECONDS: ${EXTRACTION_TASK_TIME_LIMIT_SECONDS:-1800}
@@ -224,6 +248,82 @@ services:
       REPORT_CHART_MAX_CATEGORIES: ${REPORT_CHART_MAX_CATEGORIES:-50}
       REPORT_TEXT_SNIPPET_MAX_CHARACTERS: ${REPORT_TEXT_SNIPPET_MAX_CHARACTERS:-500}
       REPORT_INCLUDE_FULL_TEXT: ${REPORT_INCLUDE_FULL_TEXT:-false}
+      MICROSOFT_GRAPH_ENABLED: ${MICROSOFT_GRAPH_ENABLED:-false}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET:-}"
+      MICROSOFT_CLIENT_CERTIFICATE_PATH: ${MICROSOFT_CLIENT_CERTIFICATE_PATH:-}
+      MICROSOFT_CLIENT_CERTIFICATE_PASSWORD: "${MICROSOFT_CLIENT_CERTIFICATE_PASSWORD:-}"
+      MICROSOFT_GRAPH_AUTH_MODE: ${MICROSOFT_GRAPH_AUTH_MODE:-client_secret}
+      MICROSOFT_GRAPH_BASE_URL: ${MICROSOFT_GRAPH_BASE_URL:-https://graph.microsoft.com/v1.0}
+      MICROSOFT_GRAPH_TIMEOUT_SECONDS: ${MICROSOFT_GRAPH_TIMEOUT_SECONDS:-60}
+      MICROSOFT_GRAPH_MAX_RETRIES: ${MICROSOFT_GRAPH_MAX_RETRIES:-5}
+      MICROSOFT_GRAPH_RETRY_BASE_SECONDS: ${MICROSOFT_GRAPH_RETRY_BASE_SECONDS:-2}
+      MICROSOFT_GRAPH_RETRY_MAX_SECONDS: ${MICROSOFT_GRAPH_RETRY_MAX_SECONDS:-120}
+      MICROSOFT_GRAPH_TOKEN_CACHE_TTL_SECONDS: ${MICROSOFT_GRAPH_TOKEN_CACHE_TTL_SECONDS:-3000}
+      SHAREPOINT_SITE_HOSTNAME: ${SHAREPOINT_SITE_HOSTNAME:-}
+      SHAREPOINT_SITE_PATH: ${SHAREPOINT_SITE_PATH:-}
+      SHAREPOINT_SITE_ID: ${SHAREPOINT_SITE_ID:-}
+      SHAREPOINT_DRIVE_ID: ${SHAREPOINT_DRIVE_ID:-}
+      SHAREPOINT_LIBRARY_NAME: ${SHAREPOINT_LIBRARY_NAME:-}
+      SHAREPOINT_ROOT_FOLDER_PATH: ${SHAREPOINT_ROOT_FOLDER_PATH:-DocumentCompliance}
+      SHAREPOINT_SIMPLE_UPLOAD_MAX_MB: ${SHAREPOINT_SIMPLE_UPLOAD_MAX_MB:-4}
+      SHAREPOINT_UPLOAD_CHUNK_SIZE_MB: ${SHAREPOINT_UPLOAD_CHUNK_SIZE_MB:-10}
+      SHAREPOINT_UPLOAD_SESSION_EXPIRY_BUFFER_MINUTES: ${SHAREPOINT_UPLOAD_SESSION_EXPIRY_BUFFER_MINUTES:-10}
+      SHAREPOINT_UPLOAD_MAX_FILE_SIZE_MB: ${SHAREPOINT_UPLOAD_MAX_FILE_SIZE_MB:-10240}
+      SHAREPOINT_SYNC_ENABLED: ${SHAREPOINT_SYNC_ENABLED:-false}
+      SHAREPOINT_SYNC_MODE: ${SHAREPOINT_SYNC_MODE:-MANUAL}
+      SHAREPOINT_SYNC_INTERVAL_MINUTES: ${SHAREPOINT_SYNC_INTERVAL_MINUTES:-15}
+      SHAREPOINT_DELTA_SYNC_ENABLED: ${SHAREPOINT_DELTA_SYNC_ENABLED:-true}
+      SHAREPOINT_WEBHOOK_ENABLED: ${SHAREPOINT_WEBHOOK_ENABLED:-false}
+      SHAREPOINT_WEBHOOK_NOTIFICATION_URL: ${SHAREPOINT_WEBHOOK_NOTIFICATION_URL:-}
+      SHAREPOINT_WEBHOOK_CLIENT_STATE: "${SHAREPOINT_WEBHOOK_CLIENT_STATE:-}"
+      SHAREPOINT_WEBHOOK_RENEWAL_HOURS: ${SHAREPOINT_WEBHOOK_RENEWAL_HOURS:-24}
+      SHAREPOINT_QUEUE_NAME: ${SHAREPOINT_QUEUE_NAME:-sharepoint}
+      NOTIFICATION_QUEUE_NAME: ${NOTIFICATION_QUEUE_NAME:-notifications}
+      MAINTENANCE_QUEUE_NAME: ${MAINTENANCE_QUEUE_NAME:-maintenance}
+      SHAREPOINT_TASK_TIME_LIMIT_SECONDS: ${SHAREPOINT_TASK_TIME_LIMIT_SECONDS:-7200}
+      SHAREPOINT_TASK_SOFT_TIME_LIMIT_SECONDS: ${SHAREPOINT_TASK_SOFT_TIME_LIMIT_SECONDS:-6900}
+      SHAREPOINT_MAX_RETRIES: ${SHAREPOINT_MAX_RETRIES:-3}
+      NOTIFICATION_TASK_TIME_LIMIT_SECONDS: ${NOTIFICATION_TASK_TIME_LIMIT_SECONDS:-600}
+      NOTIFICATION_TASK_SOFT_TIME_LIMIT_SECONDS: ${NOTIFICATION_TASK_SOFT_TIME_LIMIT_SECONDS:-540}
+      NOTIFICATION_MAX_RETRIES: ${NOTIFICATION_MAX_RETRIES:-3}
+      MAINTENANCE_TASK_TIME_LIMIT_SECONDS: ${MAINTENANCE_TASK_TIME_LIMIT_SECONDS:-3600}
+      MAINTENANCE_TASK_SOFT_TIME_LIMIT_SECONDS: ${MAINTENANCE_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      NOTIFICATION_EMAIL_ENABLED: ${NOTIFICATION_EMAIL_ENABLED:-false}
+      NOTIFICATION_EMAIL_SENDER_USER_ID: ${NOTIFICATION_EMAIL_SENDER_USER_ID:-}
+      NOTIFICATION_EMAIL_REPLY_TO: ${NOTIFICATION_EMAIL_REPLY_TO:-}
+      NOTIFICATION_EMAIL_MAX_RECIPIENTS: ${NOTIFICATION_EMAIL_MAX_RECIPIENTS:-100}
+      NOTIFICATION_TEAMS_ENABLED: ${NOTIFICATION_TEAMS_ENABLED:-false}
+      NOTIFICATION_TEAMS_MODE: ${NOTIFICATION_TEAMS_MODE:-WORKFLOW_WEBHOOK}
+      NOTIFICATION_TEAMS_WEBHOOK_URL: "${NOTIFICATION_TEAMS_WEBHOOK_URL:-}"
+      NOTIFICATION_TELEGRAM_ENABLED: ${NOTIFICATION_TELEGRAM_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_DEFAULT_CHAT_ID: ${TELEGRAM_DEFAULT_CHAT_ID:-}
+      SECRET_PROVIDER: ${SECRET_PROVIDER:-environment}
+      AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-}
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:-}"
+      ENCRYPTION_KEY_VERSION: ${ENCRYPTION_KEY_VERSION:-v1}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_LOGIN_PER_MINUTE: ${RATE_LIMIT_LOGIN_PER_MINUTE:-10}
+      RATE_LIMIT_UPLOAD_PER_MINUTE: ${RATE_LIMIT_UPLOAD_PER_MINUTE:-20}
+      RATE_LIMIT_REPORTS_PER_HOUR: ${RATE_LIMIT_REPORTS_PER_HOUR:-20}
+      RATE_LIMIT_SYNC_PER_HOUR: ${RATE_LIMIT_SYNC_PER_HOUR:-10}
+      RATE_LIMIT_CONNECTION_TEST_PER_MINUTE: ${RATE_LIMIT_CONNECTION_TEST_PER_MINUTE:-5}
+      LOG_FORMAT: ${LOG_FORMAT:-console}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      METRICS_AUTH_TOKEN: "${METRICS_AUTH_TOKEN:-}"
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-document-compliance-api}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.10}
+      MALWARE_SCANNING_ENABLED: ${MALWARE_SCANNING_ENABLED:-false}
+      MALWARE_SCANNER: ${MALWARE_SCANNER:-clamav}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      MALWARE_SCAN_TIMEOUT_SECONDS: ${MALWARE_SCAN_TIMEOUT_SECONDS:-120}
+      MALWARE_SCANNER_FAILURE_POLICY: ${MALWARE_SCANNER_FAILURE_POLICY:-FAIL_CLOSED}
       AUTO_RUN_OCR_AFTER_EXTRACTION: ${AUTO_RUN_OCR_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR:-false}
@@ -576,6 +676,153 @@ services:
     networks:
       - compliance_network
 
+  worker-sharepoint:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${SHAREPOINT_QUEUE_NAME:-sharepoint}",
+        "--concurrency=${SHAREPOINT_WORKER_CONCURRENCY:-4}",
+        "--hostname=sharepoint@%h",
+        "--max-tasks-per-child=50",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=sharepoint@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
+  worker-notifications:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${NOTIFICATION_QUEUE_NAME:-notifications}",
+        "--concurrency=${NOTIFICATION_WORKER_CONCURRENCY:-2}",
+        "--hostname=notifications@%h",
+        "--max-tasks-per-child=100",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=notifications@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 30s
+    networks:
+      - compliance_network
+
+  worker-maintenance:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${MAINTENANCE_QUEUE_NAME:-maintenance}",
+        "--concurrency=${MAINTENANCE_WORKER_CONCURRENCY:-1}",
+        "--hostname=maintenance@%h",
+        "--max-tasks-per-child=25",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=maintenance@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 30s
+    networks:
+      - compliance_network
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "beat",
+        "--loglevel=INFO",
+        "--schedule=/app/storage/celerybeat/celerybeat-schedule",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - compliance_network
+
   frontend:
     build:
       context: ./frontend
@@ -583,14 +830,14 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.9.0}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-1.0.0}
         VITE_DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
         VITE_DOCUMENT_MAX_FILE_SIZE_MB: ${DOCUMENT_MAX_FILE_SIZE_MB:-50}
         VITE_DOCUMENT_BATCH_MAX_FILES: ${DOCUMENT_BATCH_MAX_FILES:-50}
         VITE_DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB: ${DOCUMENT_BATCH_MAX_TOTAL_SIZE_MB:-500}
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${FRONTEND_PORT:-5173}:8080"
     depends_on:
       backend:
         condition: service_healthy

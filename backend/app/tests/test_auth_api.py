@@ -79,8 +79,10 @@ async def test_login_success_returns_camel_case_contract_and_audit(
         "documents:view_language_results",
         "documents:view_ocr_results",
         "findings:view",
-        "glossary:view",
-        "revision_comparison:view",
+            "glossary:view",
+            "notifications:update_preferences",
+            "notifications:view",
+            "revision_comparison:view",
         "similarity:view",
     ]
     assert "passwordHash" not in str(payload)

@@ -67,7 +67,7 @@ from app.workers.similarity_tasks import process_similarity_job
 def test_phase9_openapi_exposes_review_safe_backend_contracts() -> None:
     schema = app.openapi()
     paths = schema["paths"]
-    assert schema["info"]["version"] == "0.9.0"
+    assert schema["info"]["version"] == "1.0.0"
     assert {
         "/api/v1/similarity/jobs",
         "/api/v1/similarity/runs/{run_id}/results",
