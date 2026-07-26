@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Document Compliance API"
-    app_version: str = "0.8.0"
+    app_version: str = "0.9.0"
     environment: Literal["development", "test", "staging", "production"] = Field(
         default="development",
         validation_alias=AliasChoices("APP_ENV"),
@@ -279,8 +279,7 @@ class Settings(BaseSettings):
     )
     language_model_path: Path = Path("models/language/lid.176.bin")
     language_model_url: str = (
-        "https://dl.fbaipublicfiles.com/fasttext/"
-        "supervised-models/lid.176.bin"
+        "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
     )
     language_model_sha256: str | None = None
     language_min_characters: int = Field(default=4, ge=1, le=10_000)
@@ -437,6 +436,84 @@ class Settings(BaseSettings):
         ge=1,
         le=10_000,
     )
+    similarity_queue_name: str = Field(
+        default="similarity", min_length=1, max_length=100
+    )
+    similarity_provider: Literal["sentence_transformer"] = "sentence_transformer"
+    similarity_model_name: str = Field(
+        default=("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"),
+        min_length=1,
+        max_length=500,
+    )
+    similarity_model_path: Path = Path("models/similarity")
+    similarity_device: Literal["cpu", "cuda", "mps"] = "cpu"
+    similarity_batch_size: int = Field(default=32, ge=1, le=1024)
+    similarity_max_sequence_length: int = Field(default=512, ge=8, le=8192)
+    similarity_normalize_embeddings: bool = True
+    similarity_skip_code_like_text: bool = True
+    similarity_skip_numeric_only_text: bool = True
+    similarity_high_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    similarity_acceptable_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
+    similarity_review_threshold: float = Field(default=0.58, ge=0.0, le=1.0)
+    similarity_critical_low_threshold: float = Field(default=0.35, ge=0.0, le=1.0)
+    similarity_min_characters_per_text: int = Field(default=10, ge=1, le=100_000)
+    similarity_min_group_confidence: float = Field(default=0.65, ge=0.0, le=1.0)
+    similarity_text_max_characters: int = Field(default=12_000, ge=10, le=10_000_000)
+    similarity_snippet_max_characters: int = Field(
+        default=500,
+        ge=50,
+        le=5000,
+    )
+    similarity_chunk_max_characters: int = Field(default=1500, ge=10, le=1_000_000)
+    similarity_chunk_overlap_characters: int = Field(default=150, ge=0, le=100_000)
+    similarity_max_chunks_per_text: int = Field(default=50, ge=1, le=10_000)
+    similarity_task_time_limit_seconds: int = Field(default=3600, ge=60, le=86_400)
+    similarity_task_soft_time_limit_seconds: int = Field(default=3300, ge=30, le=86_399)
+    similarity_max_retries: int = Field(default=1, ge=0, le=10)
+    similarity_db_batch_size: int = Field(default=500, ge=1, le=10_000)
+    glossary_queue_name: str = Field(default="glossary", min_length=1, max_length=100)
+    glossary_term_max_length: int = Field(default=500, ge=1, le=10_000)
+    glossary_regex_max_length: int = Field(default=500, ge=1, le=5000)
+    glossary_regex_timeout_ms: int = Field(default=100, ge=1, le=10_000)
+    glossary_import_max_rows: int = Field(default=100_000, ge=1, le=1_000_000)
+    glossary_validation_max_blocks: int = Field(default=2_000_000, ge=1, le=20_000_000)
+    glossary_db_batch_size: int = Field(default=1000, ge=1, le=10_000)
+    glossary_task_time_limit_seconds: int = Field(default=3600, ge=60, le=86_400)
+    glossary_task_soft_time_limit_seconds: int = Field(default=3300, ge=30, le=86_399)
+    glossary_max_retries: int = Field(default=1, ge=0, le=10)
+    revision_comparison_queue_name: str = Field(
+        default="revision-comparison", min_length=1, max_length=100
+    )
+    revision_comparison_max_blocks: int = Field(default=3_000_000, ge=1, le=20_000_000)
+    revision_comparison_max_changes: int = Field(default=1_000_000, ge=1, le=10_000_000)
+    revision_comparison_task_time_limit_seconds: int = Field(
+        default=3600, ge=60, le=86_400
+    )
+    revision_comparison_task_soft_time_limit_seconds: int = Field(
+        default=3300, ge=30, le=86_399
+    )
+    revision_comparison_db_batch_size: int = Field(default=1000, ge=1, le=10_000)
+    revision_comparison_max_retries: int = Field(default=1, ge=0, le=10)
+    revision_alignment_fuzzy_threshold: float = Field(default=0.58, ge=0.0, le=1.0)
+    reporting_queue_name: str = Field(default="reporting", min_length=1, max_length=100)
+    report_export_max_rows: int = Field(default=500_000, ge=1, le=5_000_000)
+    report_snapshot_retention_days: int = Field(default=30, ge=1, le=3650)
+    reporting_task_time_limit_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86_400,
+        validation_alias=AliasChoices(
+            "REPORT_TASK_TIME_LIMIT_SECONDS",
+            "REPORTING_TASK_TIME_LIMIT_SECONDS",
+        ),
+    )
+    reporting_task_soft_time_limit_seconds: int = Field(default=3300, ge=30, le=86_399)
+    reporting_max_retries: int = Field(default=1, ge=0, le=10)
+    report_pdf_max_table_rows: int = Field(default=5000, ge=1, le=100_000)
+    report_xlsx_max_rows_per_sheet: int = Field(default=1_000_000, ge=1, le=1_048_576)
+    report_chart_max_categories: int = Field(default=50, ge=1, le=1000)
+    report_text_snippet_max_characters: int = Field(default=500, ge=1, le=10_000)
+    report_include_full_text: bool = False
     auto_run_ocr_after_extraction: bool = False
     auto_run_language_detection_after_extraction: bool = False
     auto_run_language_detection_after_ocr: bool = False
@@ -445,9 +522,12 @@ class Settings(BaseSettings):
     @classmethod
     def validate_default_company_code(cls, value: str) -> str:
         normalized = value.strip().upper()
-        if not normalized or not normalized.isascii() or not all(
-            character.isalnum() or character == "_"
-            for character in normalized
+        if (
+            not normalized
+            or not normalized.isascii()
+            or not all(
+                character.isalnum() or character == "_" for character in normalized
+            )
         ):
             raise ValueError(
                 "DEFAULT_COMPANY_CODE may contain only letters, numbers, "
@@ -485,9 +565,7 @@ class Settings(BaseSettings):
             or ":" in normalized
             or "\x00" in normalized
         ):
-            raise ValueError(
-                "Storage prefixes must be safe relative POSIX paths."
-            )
+            raise ValueError("Storage prefixes must be safe relative POSIX paths.")
         return path.as_posix()
 
     @field_validator("allowed_document_extensions")
@@ -506,8 +584,7 @@ class Settings(BaseSettings):
         }
         if not normalized or not normalized.issubset(supported):
             raise ValueError(
-                "ALLOWED_DOCUMENT_EXTENSIONS may contain only "
-                ".pdf, .docx, and .xlsx."
+                "ALLOWED_DOCUMENT_EXTENSIONS may contain only .pdf, .docx, and .xlsx."
             )
         return ",".join(sorted(normalized))
 
@@ -528,9 +605,7 @@ class Settings(BaseSettings):
     def validate_redis_url(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized.startswith(("redis://", "rediss://")):
-            raise ValueError(
-                "Celery Redis URLs must use redis:// or rediss://."
-            )
+            raise ValueError("Celery Redis URLs must use redis:// or rediss://.")
         return normalized
 
     @field_validator("database_url")
@@ -571,10 +646,7 @@ class Settings(BaseSettings):
                 "EXTRACTION_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
                 "EXTRACTION_TASK_TIME_LIMIT_SECONDS."
             )
-        if (
-            self.ocr_task_soft_time_limit_seconds
-            >= self.ocr_task_time_limit_seconds
-        ):
+        if self.ocr_task_soft_time_limit_seconds >= self.ocr_task_time_limit_seconds:
             raise ValueError(
                 "OCR_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
                 "OCR_TASK_TIME_LIMIT_SECONDS."
@@ -596,25 +668,67 @@ class Settings(BaseSettings):
                 "COMPLIANCE_TASK_TIME_LIMIT_SECONDS."
             )
         if (
-            self.ocr_low_confidence_threshold
-            > self.ocr_review_confidence_threshold
+            self.similarity_task_soft_time_limit_seconds
+            >= self.similarity_task_time_limit_seconds
         ):
+            raise ValueError(
+                "SIMILARITY_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "SIMILARITY_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.glossary_task_soft_time_limit_seconds
+            >= self.glossary_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "GLOSSARY_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "GLOSSARY_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.revision_comparison_task_soft_time_limit_seconds
+            >= self.revision_comparison_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "REVISION_COMPARISON_TASK_SOFT_TIME_LIMIT_SECONDS must be "
+                "lower than REVISION_COMPARISON_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
+            self.reporting_task_soft_time_limit_seconds
+            >= self.reporting_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "REPORTING_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "REPORT_TASK_TIME_LIMIT_SECONDS."
+            )
+        if not (
+            self.similarity_critical_low_threshold
+            <= self.similarity_review_threshold
+            <= self.similarity_acceptable_threshold
+            <= self.similarity_high_threshold
+        ):
+            raise ValueError(
+                "Similarity thresholds must be ordered from critical-low through high."
+            )
+        if (
+            self.similarity_chunk_overlap_characters
+            >= self.similarity_chunk_max_characters
+        ):
+            raise ValueError(
+                "SIMILARITY_CHUNK_OVERLAP_CHARACTERS must be lower than "
+                "SIMILARITY_CHUNK_MAX_CHARACTERS."
+            )
+        if self.report_include_full_text:
+            raise ValueError("REPORT_INCLUDE_FULL_TEXT must remain false in Phase 9.")
+        if self.ocr_low_confidence_threshold > self.ocr_review_confidence_threshold:
             raise ValueError(
                 "OCR_LOW_CONFIDENCE_THRESHOLD must not exceed "
                 "OCR_REVIEW_CONFIDENCE_THRESHOLD."
             )
-        if (
-            self.language_confidence_minimum
-            > self.language_confidence_review_threshold
-        ):
+        if self.language_confidence_minimum > self.language_confidence_review_threshold:
             raise ValueError(
                 "LANGUAGE_CONFIDENCE_MINIMUM must not exceed "
                 "LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD."
             )
-        if (
-            self.section_match_min_confidence
-            > self.section_fuzzy_match_threshold
-        ):
+        if self.section_match_min_confidence > self.section_fuzzy_match_threshold:
             raise ValueError(
                 "SECTION_MATCH_MIN_CONFIDENCE must not exceed "
                 "SECTION_FUZZY_MATCH_THRESHOLD."
@@ -667,7 +781,9 @@ class Settings(BaseSettings):
         else:
             origins = raw_value.split(",")
 
-        normalized = [origin.strip().rstrip("/") for origin in origins if origin.strip()]
+        normalized = [
+            origin.strip().rstrip("/") for origin in origins if origin.strip()
+        ]
         if not normalized:
             return []
         for origin in normalized:

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  qualityScoreModes,
   supportedLanguageCodes,
   validationSectionCodes,
 } from '../../../types/validationRule';
@@ -40,6 +41,9 @@ export const validationRuleFormSchema = z
     validateSections: z.boolean(),
     requiredSections: z.array(z.enum(validationSectionCodes)),
     validateTables: z.boolean(),
+    translationSimilarityWeight: percentage,
+    glossaryComplianceWeight: percentage,
+    qualityScoreMode: z.enum(qualityScoreModes),
     minimumComplianceScore: percentage,
     partialComplianceScore: percentage,
     isDefault: z.boolean(),
@@ -63,6 +67,14 @@ export const validationRuleFormSchema = z
         code: z.ZodIssueCode.custom,
         path: ['partialComplianceScore'],
         message: 'Partial score cannot exceed the minimum compliance score.',
+      });
+    }
+
+    if (values.translationSimilarityWeight + values.glossaryComplianceWeight > 100) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['glossaryComplianceWeight'],
+        message: 'Phase 9 quality weights must total 100 or less.',
       });
     }
 

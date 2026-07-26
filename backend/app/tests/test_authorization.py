@@ -159,6 +159,68 @@ def test_permission_mapping_matches_centralized_role_contract() -> None:
             },
     }
 
+    phase9_permissions = {
+        UserRole.DOCUMENT_CONTROLLER: {
+            "similarity:view",
+            "similarity:run",
+            "similarity:rerun",
+            "similarity:export",
+            "similarity:view_all_departments",
+            "glossary:view",
+            "glossary:create",
+            "glossary:update",
+            "glossary:import",
+            "glossary:export",
+            "glossary:validate",
+            "glossary:manage_exceptions",
+            "revision_comparison:view",
+            "revision_comparison:run",
+            "revision_comparison:export",
+            "revision_comparison:view_all_departments",
+            "advanced_reports:view",
+            "advanced_reports:export",
+            "advanced_reports:configure",
+        },
+        UserRole.REVIEWER: {
+            "similarity:view",
+            "similarity:run",
+            "similarity:export",
+            "glossary:view",
+            "glossary:validate",
+            "revision_comparison:view",
+            "revision_comparison:run",
+            "advanced_reports:view",
+        },
+        UserRole.DEPARTMENT_USER: {
+            "similarity:view",
+            "similarity:run",
+            "glossary:view",
+            "revision_comparison:view",
+            "revision_comparison:run",
+            "advanced_reports:view",
+        },
+        UserRole.AUDITOR: {
+            "similarity:view",
+            "similarity:export",
+            "similarity:view_all_departments",
+            "glossary:view",
+            "glossary:export",
+            "revision_comparison:view",
+            "revision_comparison:export",
+            "revision_comparison:view_all_departments",
+            "advanced_reports:view",
+            "advanced_reports:export",
+        },
+        UserRole.VIEWER: {
+            "similarity:view",
+            "glossary:view",
+            "revision_comparison:view",
+            "advanced_reports:view",
+        },
+    }
+    for role, permissions in phase9_permissions.items():
+        expected_permissions[role].update(permissions)
+
     for role, expected in expected_permissions.items():
         assert set(get_permissions(role)) == expected
 

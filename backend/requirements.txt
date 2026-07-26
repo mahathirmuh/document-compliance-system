@@ -25,3 +25,8 @@ paddlepaddle==3.3.1
 opencv-python-headless==4.10.0.84
 Pillow==12.3.0
 fasttext-wheel==0.9.2
+sentence-transformers==5.2.2
+torch==2.10.0
+scikit-learn==1.8.0
+rapidfuzz==3.14.3
+reportlab==4.4.10

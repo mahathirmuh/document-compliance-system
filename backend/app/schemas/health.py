@@ -28,3 +28,7 @@ class DependencyHealthData(ApiSchema):
     compliance_worker: Literal["healthy", "unavailable"]
     ocr_provider: Literal["healthy", "unavailable"]
     language_model: Literal["healthy", "unavailable"]
+    similarity_model: Literal["healthy", "unavailable"]
+    glossary_service: Literal["healthy", "unavailable"]
+    revision_comparison_worker: Literal["healthy", "unavailable"]
+    reporting_worker: Literal["healthy", "unavailable"]

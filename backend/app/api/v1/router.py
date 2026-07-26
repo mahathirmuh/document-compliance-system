@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    advanced_reports,
     auth,
     compliance,
     compliance_reports,
@@ -15,12 +16,15 @@ from app.api.v1.endpoints import (
     extraction_runs,
     extractions,
     findings,
+    glossary,
     health,
     language_detection,
     master_data,
     master_data_transfer,
     ocr,
+    revision_comparisons,
     section_definitions,
+    similarity,
 )
 
 api_router = APIRouter()
@@ -37,6 +41,13 @@ api_router.include_router(
 )
 api_router.include_router(ocr.router, tags=["Document OCR"])
 api_router.include_router(compliance.router, tags=["Compliance"])
+api_router.include_router(similarity.router, tags=["Translation Similarity"])
+api_router.include_router(glossary.router, tags=["Glossary"])
+api_router.include_router(
+    revision_comparisons.router,
+    tags=["Revision Comparisons"],
+)
+api_router.include_router(advanced_reports.router)
 api_router.include_router(
     compliance_reports.router,
     tags=["Compliance Reports"],

@@ -56,7 +56,7 @@ def test_phase_four_version_and_document_register_defaults() -> None:
         database_url="postgresql+asyncpg://user:password@localhost:5432/app",
     )
 
-    assert settings.app_version == "0.8.0"
+    assert settings.app_version == "0.9.0"
     assert settings.default_company_code == "MTI"
     assert settings.document_register_import_max_rows == 10_000
     assert settings.document_register_export_max_rows == 100_000

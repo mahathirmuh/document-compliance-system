@@ -1,6 +1,6 @@
 # Document Compliance & Multilingual Validation System
 
-Version 0.8.0 completes Phase 8 of the foundation for a Document Control
+Version 0.9.0 completes Phase 9 of the foundation for a Document Control
 application that registers document metadata and revisions, stores their
 private physical files, extracts normalized PDF, DOCX, and XLSX content,
 performs local OCR on scanned PDF pages, detects Indonesian, English, and
@@ -23,8 +23,11 @@ preliminary block/container/document language coverage.
 Phase 8 adds retained compliance jobs and runs, rule snapshots, canonical
 section matching, structural translation groups, language-order and table
 checks, weighted scoring, auditable findings, comparison, and reports.
+Phase 9 adds local pairwise translation-similarity signals, scoped glossary
+management and validation, retained revision comparisons, private advanced
+report snapshots, and an explicit quality-score strategy.
 
-## Scope through Phase 8
+## Scope through Phase 9
 
 Implemented in this phase:
 
@@ -86,11 +89,28 @@ Implemented in this phase:
 - Auditable finding generation, manual findings, assignment, review,
   resolution, false-positive, accepted-risk, and reopen workflows
 - Separate `compliance` Celery queue and worker readiness reporting
+- Local multilingual embeddings for Indonesian–English,
+  Indonesian–Chinese, and English–Chinese translation-group comparisons
+- Confidence-aware similarity categories, bounded long-text chunking, and
+  number/date/measurement/reference/negation consistency signals
+- Department/document-type scoped glossary profiles, translations, variants,
+  reasoned exceptions, preview/confirm import, and scoped XLSX/JSON export
+- Background glossary validation with retained matches, history, findings,
+  cancellation, revalidation, and bounded export
+- Non-destructive comparison of retained document revisions, including
+  structural/language/compliance/similarity/finding changes
+- Advanced XLSX/JSON/PDF report generation, private expiring snapshots,
+  authenticated download, and manually executable schedule configurations
+- Separate `similarity`, `glossary`, `revision-comparison`, and `reporting`
+  Celery queues plus dependency readiness reporting
+- A default separate quality score that preserves historical compliance
+  scores/statuses and stores the selected mode and weight snapshot
 
 All Phase 1 health, Phase 2 authentication, Phase 3 Master Data, and Phase 4
 Document Register behavior and Phase 5 physical-file workflows remain
-available. Translation-equivalence and glossary validation, automatic
-translation, full approval workflows, antivirus claims, and SharePoint API
+available. Similarity remains a review signal rather than proof of translation
+correctness. Automatic translation, source editing, cloud AI, scheduled email
+delivery, full approval workflows, antivirus claims, and SharePoint API
 synchronization remain intentionally unimplemented.
 
 ## Architecture
@@ -125,11 +145,20 @@ PostgreSQL 16             Redis 7
   +------ Celery language worker (queue: language)
   |         |-- local Unicode + fastText hybrid detector
   +------ Celery compliance worker (queue: compliance)
-            |-- section/group validators, score, findings, persistence
-            +-- block/container coverage aggregation
+  |         |-- section/group validators, score, findings, persistence
+  |         +-- block/container coverage aggregation
+  +------ Celery similarity worker (queue: similarity, concurrency: 1)
+  |         |-- local multilingual sentence-transformer
+  |         +-- pairwise score/confidence + deterministic consistency checks
+  +------ Celery glossary worker (queue: glossary)
+  |         +-- scoped term matching, exceptions, findings, persistence
+  +------ Celery revision worker (queue: revision-comparison)
+  |         +-- retained alignment and change comparison
+  +------ Celery reporting worker (queue: reporting, concurrency: 1)
+            +-- bounded private XLSX/JSON/PDF snapshots
 
 FastAPI + workers ---> ./storage/documents (private persistent bind mount)
-OCR/language workers -> ./models (local read-only inference inputs)
+OCR/language/similarity workers -> ./models (local read-only inference inputs)
 ```
 
 The frontend may hide navigation by role, but this is only a usability layer.
@@ -149,6 +178,8 @@ private provider storage and are never served as public static files.
 | Extraction  | Celery, Redis, PyMuPDF, python-docx, openpyxl                                       |
 | OCR         | PaddleOCR, PaddlePaddle, OpenCV headless, Pillow                                    |
 | Language    | fastText `lid.176`, Unicode script and deterministic lexical rules                  |
+| Similarity  | sentence-transformers, PyTorch, scikit-learn, RapidFuzz (local CPU by default)       |
+| Reporting   | openpyxl, ReportLab, private provider-backed snapshots                              |
 | Development | Docker, Docker Compose, ESLint, Prettier, Vitest, Pytest, Ruff                      |
 
 ## Roles
@@ -356,8 +387,8 @@ internal company documents.
 | Variable                                  | Example/default              | Purpose                                            |
 | ----------------------------------------- | ---------------------------- | -------------------------------------------------- |
 | `APP_NAME`                                | `Document Compliance API`    | Backend service name                               |
-| `APP_VERSION`                             | `0.8.0`                      | Backend version                                    |
-| `VITE_APP_VERSION`                        | `0.8.0`                      | Frontend version                                   |
+| `APP_VERSION`                             | `0.9.0`                      | Backend version                                    |
+| `VITE_APP_VERSION`                        | `0.9.0`                      | Frontend version                                   |
 | `APP_ENV`                                 | `development`                | Backend runtime environment                        |
 | `APP_TIMEZONE`                            | `Asia/Makassar`              | IANA timezone used for export timestamps           |
 | `BACKEND_DEBUG`                           | `false`                      | Backend debug mode                                 |
@@ -1624,6 +1655,294 @@ GET /api/v1/reports/compliance
 GET /api/v1/reports/findings
 ```
 
+## Phase 9 translation quality, glossary, revisions, and reports
+
+Phase 9 is version `0.9.0`. Its quality-intelligence pipeline consumes the
+retained extraction, OCR, language, translation-group, compliance, and finding
+evidence created by Phases 6–8. It never rereads evidence from a remote service,
+does not modify a source binary, and does not create an automatic translation.
+The complete operational reference, including every Phase 9 API endpoint, is
+in [docs/phase9-quality-intelligence.md](docs/phase9-quality-intelligence.md).
+
+### Translation-similarity architecture
+
+The `similarity` worker resolves compatible Phase 8 translation groups, creates
+the required Indonesian–English, Indonesian–Chinese, and English–Chinese
+pairs, performs local embedding inference, applies deterministic consistency
+checks, and persists pair, section, run, model, provenance, confidence, and
+finding evidence. Embedding vectors remain in memory and are neither stored nor
+returned.
+
+The default local provider and model are:
+
+```text
+Provider: sentence_transformer
+Model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+Device: cpu
+Model root: /app/models/similarity
+```
+
+The public API does not expose the model path. The operational path under the
+default model root is
+`sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2`.
+
+Default thresholds are:
+
+| Category       | Threshold              |
+| -------------- | ---------------------- |
+| `HIGH`         | `>= 0.85`              |
+| `ACCEPTABLE`   | `>= 0.72` and `< 0.85` |
+| `NEEDS_REVIEW` | `>= 0.58` and `< 0.72` |
+| `LOW`          | `< 0.58`               |
+| critical-low evidence | `< 0.35`       |
+
+Critical-low is additional evidence, not an automatic Critical finding.
+Similarity is not legal evidence, and a high score cannot guarantee a correct
+translation.
+
+Similarity confidence is distinct from the cosine score. It weights
+translation-group confidence (30%), mean language confidence (25%), shortest
+text sufficiency (15%), chunk completeness (15%), and the minimum retained
+extraction/OCR confidence (15%). Low-confidence evidence is surfaced for
+review or left `NOT_EVALUATED`.
+
+Long text is bounded to 12,000 characters, split near paragraph or sentence
+boundaries into 1,500-character chunks with 150-character overlap, and capped
+at 50 chunks by default. The worker records truncation/completeness and
+averages chunk embeddings before comparison.
+
+Alongside semantic similarity, local deterministic services compare numbers,
+dates, measurements/units, document references, and length ratios. Negation
+matching uses conservative Indonesian, English, and Chinese cues. Because
+context and morphology can be ambiguous, a negation mismatch is only a review
+signal.
+
+### Glossary profiles and validation
+
+Glossary profiles resolve from the most specific active scope to the least
+specific: department plus document type, department, document type, then
+global. A profile owns terms and their `id`, `en`, and `zh` translations,
+variants, and audited exceptions.
+
+Term types are `PREFERRED`, `REQUIRED`, `FORBIDDEN`, `REFERENCE`, and
+`ABBREVIATION`. Variants describe synonyms, abbreviations, spelling, legacy,
+and forbidden forms. Exceptions can allow a variant, ignore a term, allow a
+missing translation, or allow a forbidden term at global, department,
+document, revision, file, or section scope. Every exception requires a reason,
+can expire, follows department scope, and is never silently hard deleted.
+
+Matching supports exact, whole-word, case-sensitive, bounded inflection,
+bounded regex, configured variants, and Chinese substring evidence. Regex
+length/execution are capped. Chinese text is not assumed to have whitespace
+word boundaries, so ambiguous short or overlapping terms remain reviewable.
+
+Glossary XLSX import uses preview and confirmation with `Terms`,
+`Translations`, and `Variants` sheets. Exact headers and a generated import
+example are documented in the Phase 9 guide and
+`sample-documents/glossary/chinese-terms.xlsx`. Scoped export supports XLSX
+and JSON. Validation runs retain preferred/forbidden/missing/inconsistent
+matches, exceptions, findings, history, and export evidence.
+
+### Revision comparison
+
+Two revisions of the same document are aligned using retained entity type,
+source reference, canonical section and translation group, container identity,
+normalized exact/fuzzy text, and position. The default fuzzy threshold is
+`0.58`; low-confidence alignment remains visible.
+
+Change types are `ADDED`, `REMOVED`, `MODIFIED`, `MOVED`, `UNCHANGED`, `SPLIT`,
+and `MERGED`. Summaries compare language coverage/regression, compliance score
+and status, translation similarity, sections/groups, and findings. Finding
+comparison classifies new, no-longer-reproduced, repeated, severity changed,
+workflow-state changed, or unchanged evidence. “No longer reproduced” is a
+candidate outcome only; the comparison never resolves an existing finding or
+changes either source revision. Export formats are bounded JSON, XLSX, and PDF.
+
+### Advanced reporting and snapshots
+
+Advanced reports cover compliance overview, finding analytics, translation
+similarity, glossary compliance, revision changes, department performance,
+document-type performance, validation-rule performance, language quality, and
+processing performance.
+
+Filters include date range, departments, sections, document type/status,
+validation rules, compliance statuses, finding severity/status, language pair,
+glossary profile, revision range, and archived state. The backend enforces
+permission and department scope independently of frontend navigation.
+
+The reporting worker generates bounded XLSX, JSON, or PDF artifacts in private
+storage. Each authenticated `report_snapshot` captures filters, dataset hash,
+format, size, generator, department scope, timestamps, and expiry. Retention is
+30 days by default; delete is a soft lifecycle transition. Full document text
+is disabled (`REPORT_INCLUDE_FULL_TEXT=false`) and report context uses bounded
+snippets.
+
+Daily, weekly, monthly, and conservatively validated five-field cron schedules
+can be configured with an IANA timezone. Phase 9 exposes an audited manual
+schedule-run endpoint that queues one snapshot per configured format. It does
+not claim automatic email delivery.
+
+### Quality-score strategy
+
+`SEPARATE_QUALITY_SCORE` is the default. It preserves existing Phase 8
+compliance scores and statuses. Translation quality is the similarity
+percentage, while glossary quality accounts for forbidden, missing, and
+inconsistent term evidence. If an administrator explicitly selects a combined
+mode, validation rules default to a 25% translation-similarity weight and 15%
+glossary-compliance weight; the remaining percentage is structural
+compliance. Mode and weights are stored as an immutable configuration
+snapshot. Missing required evidence yields `NOT_EVALUATED` instead of a
+fabricated zero.
+
+### Model setup and offline runtime
+
+The API and workers never download a model during startup. Run the explicit
+installer once from an environment that is authorized to reach the model
+source:
+
+```bash
+cd backend
+python scripts/download_similarity_model.py
+```
+
+When `SIMILARITY_MODEL_PATH` is unset during host execution, the installer
+stores the model under `<repository>/models/similarity`. In Compose,
+`SIMILARITY_MODEL_PATH=/app/models/similarity` preserves the same files through
+the `./models:/app/models` mount.
+
+Verify only local files, without network access:
+
+```bash
+cd backend
+python scripts/download_similarity_model.py --offline-verify
+```
+
+Compose persists `./models` and mounts it read-only in runtime workers. If the
+model is absent, similarity fails in a controlled way or remains
+`NOT_EVALUATED`; it does not fall back to a cloud provider.
+
+### Phase 9 workers
+
+| Service             | Queue                 | Default concurrency | Soft/hard limit | Retries |
+| ------------------- | --------------------- | ------------------- | --------------- | ------- |
+| `worker-similarity` | `similarity`          | 1                   | 3300s / 3600s   | 1       |
+| `worker-glossary`   | `glossary`            | 2                   | 3300s / 3600s   | 1       |
+| `worker-revision`   | `revision-comparison` | 2                   | 3300s / 3600s   | 1       |
+| `worker-reporting`  | `reporting`           | 1                   | 3300s / 3600s   | 1       |
+
+Local worker commands:
+
+```bash
+cd backend
+celery -A app.workers.celery_app worker --loglevel=INFO --queues=similarity --concurrency=1 --hostname=similarity@%h
+celery -A app.workers.celery_app worker --loglevel=INFO --queues=glossary --concurrency=2 --hostname=glossary@%h
+celery -A app.workers.celery_app worker --loglevel=INFO --queues=revision-comparison --concurrency=2 --hostname=revision@%h
+celery -A app.workers.celery_app worker --loglevel=INFO --queues=reporting --concurrency=1 --hostname=reporting@%h
+```
+
+The Phase 9 environment block in `.env.example` configures queue names,
+concurrency, provider/model/device, batch and sequence limits, similarity
+thresholds, text/chunk limits, regex safety, import/block/change/export limits,
+snapshot retention, retry behavior, and soft/hard time limits. Important
+defaults include:
+
+```text
+SIMILARITY_DB_BATCH_SIZE=500
+GLOSSARY_IMPORT_MAX_ROWS=100000
+GLOSSARY_VALIDATION_MAX_BLOCKS=2000000
+GLOSSARY_DB_BATCH_SIZE=1000
+REVISION_COMPARISON_MAX_BLOCKS=3000000
+REVISION_COMPARISON_MAX_CHANGES=1000000
+REVISION_COMPARISON_DB_BATCH_SIZE=1000
+REPORT_EXPORT_MAX_ROWS=500000
+REPORT_SNAPSHOT_RETENTION_DAYS=30
+REPORT_PDF_MAX_TABLE_ROWS=5000
+REPORT_XLSX_MAX_ROWS_PER_SHEET=1000000
+REPORT_TEXT_SNIPPET_MAX_CHARACTERS=500
+REPORT_INCLUDE_FULL_TEXT=false
+```
+
+### Phase 9 migration, routes, and tests
+
+Revision `20260726_0009` follows `20260726_0008` and creates 16 similarity,
+glossary, revision-comparison, and reporting tables. It also adds latest
+similarity/glossary references to document files, source-run references to
+validation findings, and quality-score mode/weights to validation rules.
+
+```bash
+cd backend
+alembic upgrade head
+alembic downgrade 20260726_0008
+```
+
+Phase 9 API groups are:
+
+```text
+/api/v1/similarity/jobs
+/api/v1/similarity/runs
+/api/v1/glossary/profiles
+/api/v1/glossary/terms
+/api/v1/glossary/exceptions
+/api/v1/glossary/import
+/api/v1/glossary/validation
+/api/v1/revision-comparisons
+/api/v1/reports/jobs
+/api/v1/reports/snapshots
+/api/v1/reports/schedules
+```
+
+Frontend routes are:
+
+```text
+/documents/similarity-queue
+/documents/similarity-history
+/documents/revision-comparison
+/compliance/translation-similarity
+/compliance/glossary
+/master-data/glossary
+/reports/translation-similarity
+/reports/glossary-compliance
+/reports/revision-changes
+/reports/advanced-analytics
+```
+
+Generate and verify the exact synthetic fixture inventory:
+
+```bash
+cd backend
+python scripts/generate_phase9_sample_documents.py
+python -m pytest app/tests/test_phase9_sample_documents.py
+```
+
+The generator creates deterministic DOCX/XLSX examples under
+`sample-documents/similarity`, `sample-documents/glossary`, and
+`sample-documents/revisions`. They contain only synthetic test content.
+
+### Phase 9 limitations and troubleshooting
+
+- Similarity is not proof of legal or linguistic correctness; low similarity
+  is not automatically Critical.
+- The system does not translate, edit source files, or use cloud AI.
+- Scheduled email delivery and SharePoint synchronization are unavailable.
+- A missing model requires the explicit installer and offline verification;
+  startup never downloads it.
+- For worker memory pressure, retain low similarity/reporting concurrency and
+  lower batch/row/block limits before scaling vertically.
+- A low score on short text should be reviewed with text eligibility, group
+  confidence, language confidence, and chunk completeness.
+- For a missed glossary term, inspect profile scope, active state, language,
+  preferred/forbidden flags, case/whole-word rules, and variants.
+- Chinese boundary issues require explicit terms/variants; whitespace word
+  boundaries are not reliable.
+- Low revision alignment confidence should be investigated through section,
+  entity type, source reference, normalized text, and position evidence.
+- A failed PDF report should be checked against ReportLab/font availability
+  and PDF row limits.
+- An expired snapshot must be regenerated; private expired files are not
+  downloaded.
+- A queued job requires Redis plus the exact dedicated worker queue; inspect
+  worker health and dispatch logs before rerunning.
+
 ## Quality checks
 
 Backend:
@@ -1635,6 +1954,7 @@ python -W error -m pytest
 python -m compileall -q app alembic scripts
 python scripts/generate_phase7_sample_documents.py
 python scripts/generate_phase8_sample_documents.py
+python scripts/generate_phase9_sample_documents.py
 python scripts/seed_section_definitions.py
 ```
 
@@ -1657,6 +1977,10 @@ docker compose exec worker celery -A app.workers.celery_app inspect ping
 docker compose exec worker-ocr celery -A app.workers.celery_app inspect ping
 docker compose exec worker-language celery -A app.workers.celery_app inspect ping
 docker compose exec worker-compliance celery -A app.workers.celery_app inspect ping
+docker compose exec worker-similarity celery -A app.workers.celery_app inspect ping
+docker compose exec worker-glossary celery -A app.workers.celery_app inspect ping
+docker compose exec worker-revision celery -A app.workers.celery_app inspect ping
+docker compose exec worker-reporting celery -A app.workers.celery_app inspect ping
 curl http://localhost:8000/api/v1/health/dependencies
 ```
 
@@ -1711,8 +2035,10 @@ curl http://localhost:8000/api/v1/health/dependencies
 - Manual language override is not enabled, so the UI does not show a
   nonfunctional review control.
 - Structural grouping does not establish semantic translation equivalence.
-  Automatic translation, glossary enforcement, cloud OCR, and SharePoint
-  synchronization are intentionally deferred.
+  Phase 9 similarity adds a confidence-aware review signal and glossary
+  enforcement adds configured terminology checks, but neither proves a legally
+  or linguistically correct translation. Automatic translation, cloud OCR,
+  scheduled email delivery, and SharePoint synchronization remain deferred.
 
 ## Troubleshooting
 
@@ -1847,15 +2173,15 @@ Use `UPSERT` only when existing records are intentionally being updated.
 **Changes are not reflected in containers.** Rebuild the affected services:
 
 ```bash
-docker compose up --build -d frontend backend worker worker-ocr worker-language worker-compliance
+docker compose up --build -d frontend backend worker worker-ocr worker-language worker-compliance worker-similarity worker-glossary worker-revision worker-reporting
 ```
 
-Phase 8 is complete only when the Phase 1-7 regression suite, migration chain
+Phase 9 is complete only when the Phase 1–8 regression suite, migration chain
 and idempotent seeds, health and authentication checks, Master Data, Document
-Register and physical-file workflows, extraction/OCR/language workers,
-canonical section matching, language presence and coverage, PDF/DOCX/XLSX
-grouping, language order, table completeness, score/status decisions, finding
-state transitions and history, comparison and bounded exports, frontend
-lint/tests/build, and Docker smoke checks all pass. Semantic translation
-equivalence, automatic translation, glossary management, cloud OCR, and
+Register and physical-file workflows, extraction/OCR/language/compliance
+workers, local model verification, all three language pairs, deterministic
+consistency checks, glossary CRUD/import/export/validation/exceptions, revision
+changes and comparisons, private advanced XLSX/JSON/PDF snapshots, schedule
+manual run, frontend lint/tests/build, and Docker smoke checks all pass.
+Automatic translation, source editing, cloud AI, scheduled email delivery, and
 SharePoint synchronization remain intentionally outside this release.

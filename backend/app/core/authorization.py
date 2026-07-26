@@ -73,6 +73,30 @@ class Permission(str, Enum):
     )
     COMPLIANCE_EXPORT = "compliance:export"
     COMPLIANCE_CONFIGURE_RULES = "compliance:configure_rules"
+    SIMILARITY_VIEW = "similarity:view"
+    SIMILARITY_RUN = "similarity:run"
+    SIMILARITY_RERUN = "similarity:rerun"
+    SIMILARITY_EXPORT = "similarity:export"
+    SIMILARITY_VIEW_ALL_DEPARTMENTS = (
+        "similarity:view_all_departments"
+    )
+    GLOSSARY_VIEW = "glossary:view"
+    GLOSSARY_CREATE = "glossary:create"
+    GLOSSARY_UPDATE = "glossary:update"
+    GLOSSARY_DELETE = "glossary:delete"
+    GLOSSARY_IMPORT = "glossary:import"
+    GLOSSARY_EXPORT = "glossary:export"
+    GLOSSARY_VALIDATE = "glossary:validate"
+    GLOSSARY_MANAGE_EXCEPTIONS = "glossary:manage_exceptions"
+    REVISION_COMPARISON_VIEW = "revision_comparison:view"
+    REVISION_COMPARISON_RUN = "revision_comparison:run"
+    REVISION_COMPARISON_EXPORT = "revision_comparison:export"
+    REVISION_COMPARISON_VIEW_ALL_DEPARTMENTS = (
+        "revision_comparison:view_all_departments"
+    )
+    ADVANCED_REPORTS_VIEW = "advanced_reports:view"
+    ADVANCED_REPORTS_EXPORT = "advanced_reports:export"
+    ADVANCED_REPORTS_CONFIGURE = "advanced_reports:configure"
     FINDINGS_VIEW = "findings:view"
     FINDINGS_CREATE_MANUAL = "findings:create_manual"
     FINDINGS_UPDATE = "findings:update"
@@ -207,6 +231,42 @@ class AuditAction(str, Enum):
     UPDATE_SECTION_ALIAS = "UPDATE_SECTION_ALIAS"
     IMPORT_SECTION_ALIASES = "IMPORT_SECTION_ALIASES"
     EXPORT_SECTION_ALIASES = "EXPORT_SECTION_ALIASES"
+    QUEUE_TRANSLATION_SIMILARITY = "QUEUE_TRANSLATION_SIMILARITY"
+    START_TRANSLATION_SIMILARITY = "START_TRANSLATION_SIMILARITY"
+    COMPLETE_TRANSLATION_SIMILARITY = "COMPLETE_TRANSLATION_SIMILARITY"
+    FAIL_TRANSLATION_SIMILARITY = "FAIL_TRANSLATION_SIMILARITY"
+    CANCEL_TRANSLATION_SIMILARITY = "CANCEL_TRANSLATION_SIMILARITY"
+    RERUN_TRANSLATION_SIMILARITY = "RERUN_TRANSLATION_SIMILARITY"
+    EXPORT_TRANSLATION_SIMILARITY = "EXPORT_TRANSLATION_SIMILARITY"
+    CREATE_GLOSSARY_PROFILE = "CREATE_GLOSSARY_PROFILE"
+    UPDATE_GLOSSARY_PROFILE = "UPDATE_GLOSSARY_PROFILE"
+    ARCHIVE_GLOSSARY_PROFILE = "ARCHIVE_GLOSSARY_PROFILE"
+    CREATE_GLOSSARY_TERM = "CREATE_GLOSSARY_TERM"
+    UPDATE_GLOSSARY_TERM = "UPDATE_GLOSSARY_TERM"
+    ARCHIVE_GLOSSARY_TERM = "ARCHIVE_GLOSSARY_TERM"
+    CREATE_GLOSSARY_TRANSLATION = "CREATE_GLOSSARY_TRANSLATION"
+    UPDATE_GLOSSARY_TRANSLATION = "UPDATE_GLOSSARY_TRANSLATION"
+    CREATE_GLOSSARY_VARIANT = "CREATE_GLOSSARY_VARIANT"
+    CREATE_GLOSSARY_EXCEPTION = "CREATE_GLOSSARY_EXCEPTION"
+    UPDATE_GLOSSARY_EXCEPTION = "UPDATE_GLOSSARY_EXCEPTION"
+    IMPORT_GLOSSARY = "IMPORT_GLOSSARY"
+    EXPORT_GLOSSARY = "EXPORT_GLOSSARY"
+    QUEUE_GLOSSARY_VALIDATION = "QUEUE_GLOSSARY_VALIDATION"
+    COMPLETE_GLOSSARY_VALIDATION = "COMPLETE_GLOSSARY_VALIDATION"
+    FAIL_GLOSSARY_VALIDATION = "FAIL_GLOSSARY_VALIDATION"
+    EXPORT_GLOSSARY_VALIDATION = "EXPORT_GLOSSARY_VALIDATION"
+    QUEUE_REVISION_COMPARISON = "QUEUE_REVISION_COMPARISON"
+    COMPLETE_REVISION_COMPARISON = "COMPLETE_REVISION_COMPARISON"
+    FAIL_REVISION_COMPARISON = "FAIL_REVISION_COMPARISON"
+    CANCEL_REVISION_COMPARISON = "CANCEL_REVISION_COMPARISON"
+    EXPORT_REVISION_COMPARISON = "EXPORT_REVISION_COMPARISON"
+    GENERATE_ADVANCED_REPORT = "GENERATE_ADVANCED_REPORT"
+    DOWNLOAD_ADVANCED_REPORT = "DOWNLOAD_ADVANCED_REPORT"
+    DELETE_REPORT_SNAPSHOT = "DELETE_REPORT_SNAPSHOT"
+    CREATE_REPORT_SCHEDULE = "CREATE_REPORT_SCHEDULE"
+    UPDATE_REPORT_SCHEDULE = "UPDATE_REPORT_SCHEDULE"
+    RUN_REPORT_SCHEDULE = "RUN_REPORT_SCHEDULE"
+    DISABLE_REPORT_SCHEDULE = "DISABLE_REPORT_SCHEDULE"
 
 ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
     MappingProxyType(
@@ -253,6 +313,25 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.COMPLIANCE_REVALIDATE,
                     Permission.COMPLIANCE_VIEW_ALL_DEPARTMENTS,
                     Permission.COMPLIANCE_EXPORT,
+                    Permission.SIMILARITY_VIEW,
+                    Permission.SIMILARITY_RUN,
+                    Permission.SIMILARITY_RERUN,
+                    Permission.SIMILARITY_EXPORT,
+                    Permission.SIMILARITY_VIEW_ALL_DEPARTMENTS,
+                    Permission.GLOSSARY_VIEW,
+                    Permission.GLOSSARY_CREATE,
+                    Permission.GLOSSARY_UPDATE,
+                    Permission.GLOSSARY_IMPORT,
+                    Permission.GLOSSARY_EXPORT,
+                    Permission.GLOSSARY_VALIDATE,
+                    Permission.GLOSSARY_MANAGE_EXCEPTIONS,
+                    Permission.REVISION_COMPARISON_VIEW,
+                    Permission.REVISION_COMPARISON_RUN,
+                    Permission.REVISION_COMPARISON_EXPORT,
+                    Permission.REVISION_COMPARISON_VIEW_ALL_DEPARTMENTS,
+                    Permission.ADVANCED_REPORTS_VIEW,
+                    Permission.ADVANCED_REPORTS_EXPORT,
+                    Permission.ADVANCED_REPORTS_CONFIGURE,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_CREATE_MANUAL,
                     Permission.FINDINGS_UPDATE,
@@ -279,6 +358,14 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.DOCUMENTS_REVIEW_LANGUAGE_RESULT,
                     Permission.COMPLIANCE_VIEW,
+                    Permission.SIMILARITY_VIEW,
+                    Permission.SIMILARITY_RUN,
+                    Permission.SIMILARITY_EXPORT,
+                    Permission.GLOSSARY_VIEW,
+                    Permission.GLOSSARY_VALIDATE,
+                    Permission.REVISION_COMPARISON_VIEW,
+                    Permission.REVISION_COMPARISON_RUN,
+                    Permission.ADVANCED_REPORTS_VIEW,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_REVIEW,
                     Permission.FINDINGS_RESOLVE,
@@ -306,6 +393,12 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.COMPLIANCE_VIEW,
                     Permission.COMPLIANCE_VALIDATE,
+                    Permission.SIMILARITY_VIEW,
+                    Permission.SIMILARITY_RUN,
+                    Permission.GLOSSARY_VIEW,
+                    Permission.REVISION_COMPARISON_VIEW,
+                    Permission.REVISION_COMPARISON_RUN,
+                    Permission.ADVANCED_REPORTS_VIEW,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_UPDATE,
                 }
@@ -328,6 +421,16 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.COMPLIANCE_VIEW,
                     Permission.COMPLIANCE_VIEW_ALL_DEPARTMENTS,
                     Permission.COMPLIANCE_EXPORT,
+                    Permission.SIMILARITY_VIEW,
+                    Permission.SIMILARITY_EXPORT,
+                    Permission.SIMILARITY_VIEW_ALL_DEPARTMENTS,
+                    Permission.GLOSSARY_VIEW,
+                    Permission.GLOSSARY_EXPORT,
+                    Permission.REVISION_COMPARISON_VIEW,
+                    Permission.REVISION_COMPARISON_EXPORT,
+                    Permission.REVISION_COMPARISON_VIEW_ALL_DEPARTMENTS,
+                    Permission.ADVANCED_REPORTS_VIEW,
+                    Permission.ADVANCED_REPORTS_EXPORT,
                     Permission.FINDINGS_VIEW,
                     Permission.FINDINGS_EXPORT,
                     Permission.REPORTS_VIEW,
@@ -344,6 +447,10 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_OCR_RESULTS,
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.COMPLIANCE_VIEW,
+                    Permission.SIMILARITY_VIEW,
+                    Permission.GLOSSARY_VIEW,
+                    Permission.REVISION_COMPARISON_VIEW,
+                    Permission.ADVANCED_REPORTS_VIEW,
                     Permission.FINDINGS_VIEW,
                 }
             ),

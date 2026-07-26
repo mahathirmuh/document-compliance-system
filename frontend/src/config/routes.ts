@@ -13,6 +13,7 @@ const routeTitles: Record<string, string> = {
   '/master-data/document-statuses': 'Document Statuses',
   '/master-data/validation-rules': 'Validation Rules',
   '/master-data/section-definitions': 'Section Definitions',
+  '/master-data/glossary': 'Glossary',
   '/documents': 'Document Register',
   '/documents/new': 'Add Document',
   '/documents/upload': 'Upload Document',
@@ -25,18 +26,41 @@ const routeTitles: Record<string, string> = {
   '/documents/extraction-history': 'Extraction History',
   '/documents/upload-history': 'Upload History',
   '/documents/validation-history': 'Validation History',
+  '/documents/similarity-queue': 'Similarity Queue',
+  '/documents/similarity-history': 'Similarity History',
+  '/documents/revision-comparison': 'Revision Comparison',
   '/documents/archived': 'Archived Documents',
   '/compliance': 'Compliance Overview',
   '/compliance/languages': 'Language Compliance',
   '/compliance/sections': 'Section Compliance',
   '/compliance/language-order': 'Language Order',
+  '/compliance/translation-similarity': 'Translation Similarity',
+  '/compliance/glossary': 'Glossary Compliance',
   '/compliance/findings': 'Findings',
   '/compliance/findings/review': 'Review Findings',
   '/reports/compliance': 'Compliance Report',
   '/reports/findings': 'Findings Report',
+  '/reports/translation-similarity': 'Translation Similarity Report',
+  '/reports/glossary-compliance': 'Glossary Compliance Report',
+  '/reports/revision-changes': 'Revision Changes Report',
+  '/reports/advanced-analytics': 'Advanced Analytics',
+  '/reports/snapshots': 'Report Snapshots',
+  '/reports/schedules': 'Report Schedules',
 };
 
 const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/similarity$/.test(pathname)) {
+    return 'Translation Similarity';
+  }
+  if (/^\/documents\/[^/]+\/similarity$/.test(pathname)) {
+    return 'Translation Similarity';
+  }
+  if (/^\/documents\/[^/]+\/revisions\/compare$/.test(pathname)) {
+    return 'Revision Comparison';
+  }
+  if (/^\/documents\/[^/]+\/revision-comparison$/.test(pathname)) {
+    return 'Revision Comparison';
+  }
   if (/^\/documents\/[^/]+\/revisions\/[^/]+\/compliance$/.test(pathname)) {
     return 'Document Compliance';
   }
@@ -81,6 +105,7 @@ const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
 
 export const getRouteTitle = (pathname: string): string =>
   routeTitles[pathname] ??
+  (/^\/master-data\/glossary\/[^/]+$/.test(pathname) ? 'Glossary Profile' : null) ??
   (/^\/compliance\/findings\/[^/]+$/.test(pathname) ? 'Finding Details' : null) ??
   getDynamicDocumentRouteTitle(pathname) ??
   'Workspace';

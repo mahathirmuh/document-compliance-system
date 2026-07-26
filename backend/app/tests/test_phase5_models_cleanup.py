@@ -71,6 +71,8 @@ def test_phase5_model_metadata_contains_required_constraints_and_indexes() -> No
         "latest_ocr_run_id",
         "latest_language_detection_run_id",
         "latest_compliance_run_id",
+        "latest_similarity_run_id",
+        "latest_glossary_validation_run_id",
         "created_at",
         "updated_at",
     } == set(document_files.c.keys())

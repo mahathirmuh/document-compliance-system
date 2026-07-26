@@ -64,6 +64,9 @@ const getDefaults = (
   validateSections: validationRule?.validateSections ?? false,
   requiredSections: validationRule?.requiredSections ?? [...defaultSections],
   validateTables: validationRule?.validateTables ?? false,
+  translationSimilarityWeight: validationRule?.translationSimilarityWeight ?? 25,
+  glossaryComplianceWeight: validationRule?.glossaryComplianceWeight ?? 15,
+  qualityScoreMode: validationRule?.qualityScoreMode ?? 'SEPARATE_QUALITY_SCORE',
   minimumComplianceScore: validationRule?.minimumComplianceScore ?? 95,
   partialComplianceScore: validationRule?.partialComplianceScore ?? 70,
   isDefault: validationRule?.isDefault ?? false,
@@ -233,6 +236,61 @@ export function ValidationRuleForm({
                   </p>
                 )}
               </label>
+            </div>
+            <div className="mt-5 border-t border-slate-200 pt-5">
+              <h4 className="text-sm font-semibold text-slate-900">
+                Phase 9 quality score
+              </h4>
+              <p className="mt-1 text-sm text-slate-600">
+                Structural compliance remains unchanged unless an inclusion mode is
+                selected explicitly.
+              </p>
+              <div className="mt-4 grid gap-5 sm:grid-cols-3">
+                <label className={labelClassName}>
+                  Score mode
+                  <select {...register('qualityScoreMode')} className={inputClassName}>
+                    <option value="SEPARATE_QUALITY_SCORE">
+                      Separate quality score
+                    </option>
+                    <option value="INCLUDE_IN_OVERALL_QUALITY_SCORE">
+                      Include in overall quality
+                    </option>
+                    <option value="INCLUDE_IN_COMPLIANCE_SCORE">
+                      Include in compliance score
+                    </option>
+                  </select>
+                </label>
+                <label className={labelClassName}>
+                  Translation similarity weight
+                  <PercentageInput
+                    {...register('translationSimilarityWeight', {
+                      valueAsNumber: true,
+                    })}
+                    className="mt-1.5"
+                    aria-invalid={Boolean(errors.translationSimilarityWeight)}
+                  />
+                  {errors.translationSimilarityWeight && (
+                    <p className={errorClassName}>
+                      {errors.translationSimilarityWeight.message}
+                    </p>
+                  )}
+                </label>
+                <label className={labelClassName}>
+                  Glossary compliance weight
+                  <PercentageInput
+                    {...register('glossaryComplianceWeight', {
+                      valueAsNumber: true,
+                    })}
+                    className="mt-1.5"
+                    aria-invalid={Boolean(errors.glossaryComplianceWeight)}
+                  />
+                  {errors.glossaryComplianceWeight && (
+                    <p className={errorClassName}>
+                      {errors.glossaryComplianceWeight.message}
+                    </p>
+                  )}
+                </label>
+              </div>
             </div>
           </section>
         </div>

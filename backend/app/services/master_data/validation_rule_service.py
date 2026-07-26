@@ -74,9 +74,7 @@ class ValidationRuleService(MasterDataServiceBase):
             validate_document_code=entity.validate_document_code,
             validate_language_presence=entity.validate_language_presence,
             validate_language_coverage=entity.validate_language_coverage,
-            validate_container_completeness=(
-                entity.validate_container_completeness
-            ),
+            validate_container_completeness=(entity.validate_container_completeness),
             minimum_indonesian_coverage=entity.minimum_indonesian_coverage,
             minimum_english_coverage=entity.minimum_english_coverage,
             minimum_chinese_coverage=entity.minimum_chinese_coverage,
@@ -85,9 +83,7 @@ class ValidationRuleService(MasterDataServiceBase):
             validate_sections=entity.validate_sections,
             required_sections=list(entity.required_sections_json),
             validate_tables=entity.validate_tables,
-            validate_translation_groups=(
-                entity.validate_translation_groups
-            ),
+            validate_translation_groups=(entity.validate_translation_groups),
             validate_cells=entity.validate_cells,
             required_languages=list(entity.required_languages_json),
             section_alias_profile_id=entity.section_alias_profile_id,
@@ -101,42 +97,27 @@ class ValidationRuleService(MasterDataServiceBase):
             maximum_unknown_block_percentage=float(
                 entity.maximum_unknown_block_percentage
             ),
-            maximum_mixed_block_percentage=float(
-                entity.maximum_mixed_block_percentage
-            ),
+            maximum_mixed_block_percentage=float(entity.maximum_mixed_block_percentage),
             document_code_weight=float(entity.document_code_weight),
-            language_presence_weight=float(
-                entity.language_presence_weight
-            ),
-            language_coverage_weight=float(
-                entity.language_coverage_weight
-            ),
-            section_completeness_weight=float(
-                entity.section_completeness_weight
-            ),
+            language_presence_weight=float(entity.language_presence_weight),
+            language_coverage_weight=float(entity.language_coverage_weight),
+            section_completeness_weight=float(entity.section_completeness_weight),
             language_order_weight=float(entity.language_order_weight),
-            translation_group_weight=float(
-                entity.translation_group_weight
-            ),
-            table_completeness_weight=float(
-                entity.table_completeness_weight
-            ),
-            critical_finding_score_cap=float(
-                entity.critical_finding_score_cap
-            ),
+            translation_group_weight=float(entity.translation_group_weight),
+            table_completeness_weight=float(entity.table_completeness_weight),
+            translation_similarity_weight=float(entity.translation_similarity_weight),
+            glossary_compliance_weight=float(entity.glossary_compliance_weight),
+            quality_score_mode=entity.quality_score_mode,
+            critical_finding_score_cap=float(entity.critical_finding_score_cap),
             major_finding_penalty=float(entity.major_finding_penalty),
             minor_finding_penalty=float(entity.minor_finding_penalty),
             compliant_score=float(entity.compliant_score),
-            partially_compliant_score=float(
-                entity.partially_compliant_score
-            ),
+            partially_compliant_score=float(entity.partially_compliant_score),
             needs_review_score=float(entity.needs_review_score),
             fail_on_missing_required_language=(
                 entity.fail_on_missing_required_language
             ),
-            fail_on_missing_required_section=(
-                entity.fail_on_missing_required_section
-            ),
+            fail_on_missing_required_section=(entity.fail_on_missing_required_section),
             fail_on_critical_finding=entity.fail_on_critical_finding,
             validation_options=dict(entity.validation_options_json),
             minimum_compliance_score=entity.minimum_compliance_score,
@@ -162,9 +143,7 @@ class ValidationRuleService(MasterDataServiceBase):
             "validate_document_code": entity.validate_document_code,
             "validate_language_presence": entity.validate_language_presence,
             "validate_language_coverage": entity.validate_language_coverage,
-            "validate_container_completeness": (
-                entity.validate_container_completeness
-            ),
+            "validate_container_completeness": (entity.validate_container_completeness),
             "minimum_indonesian_coverage": entity.minimum_indonesian_coverage,
             "minimum_english_coverage": entity.minimum_english_coverage,
             "minimum_chinese_coverage": entity.minimum_chinese_coverage,
@@ -173,9 +152,7 @@ class ValidationRuleService(MasterDataServiceBase):
             "validate_sections": entity.validate_sections,
             "required_sections": list(entity.required_sections_json),
             "validate_tables": entity.validate_tables,
-            "validate_translation_groups": (
-                entity.validate_translation_groups
-            ),
+            "validate_translation_groups": (entity.validate_translation_groups),
             "validate_cells": entity.validate_cells,
             "required_languages": list(entity.required_languages_json),
             "section_alias_profile_id": entity.section_alias_profile_id,
@@ -192,35 +169,22 @@ class ValidationRuleService(MasterDataServiceBase):
                 entity.maximum_mixed_block_percentage
             ),
             "document_code_weight": float(entity.document_code_weight),
-            "language_presence_weight": float(
-                entity.language_presence_weight
-            ),
-            "language_coverage_weight": float(
-                entity.language_coverage_weight
-            ),
-            "section_completeness_weight": float(
-                entity.section_completeness_weight
-            ),
+            "language_presence_weight": float(entity.language_presence_weight),
+            "language_coverage_weight": float(entity.language_coverage_weight),
+            "section_completeness_weight": float(entity.section_completeness_weight),
             "language_order_weight": float(entity.language_order_weight),
-            "translation_group_weight": float(
-                entity.translation_group_weight
+            "translation_group_weight": float(entity.translation_group_weight),
+            "table_completeness_weight": float(entity.table_completeness_weight),
+            "translation_similarity_weight": float(
+                entity.translation_similarity_weight
             ),
-            "table_completeness_weight": float(
-                entity.table_completeness_weight
-            ),
-            "critical_finding_score_cap": float(
-                entity.critical_finding_score_cap
-            ),
-            "major_finding_penalty": float(
-                entity.major_finding_penalty
-            ),
-            "minor_finding_penalty": float(
-                entity.minor_finding_penalty
-            ),
+            "glossary_compliance_weight": float(entity.glossary_compliance_weight),
+            "quality_score_mode": entity.quality_score_mode,
+            "critical_finding_score_cap": float(entity.critical_finding_score_cap),
+            "major_finding_penalty": float(entity.major_finding_penalty),
+            "minor_finding_penalty": float(entity.minor_finding_penalty),
             "compliant_score": float(entity.compliant_score),
-            "partially_compliant_score": float(
-                entity.partially_compliant_score
-            ),
+            "partially_compliant_score": float(entity.partially_compliant_score),
             "needs_review_score": float(entity.needs_review_score),
             "fail_on_missing_required_language": (
                 entity.fail_on_missing_required_language
@@ -243,9 +207,7 @@ class ValidationRuleService(MasterDataServiceBase):
         exclude_id: UUID | None = None,
     ) -> None:
         if values.document_type_id is not None:
-            document_type = await self.document_types.get_by_id(
-                values.document_type_id
-            )
+            document_type = await self.document_types.get_by_id(values.document_type_id)
             if document_type is None:
                 raise business_error(
                     "Document type was not found.",
@@ -305,8 +267,7 @@ class ValidationRuleService(MasterDataServiceBase):
         old_document_type_id: UUID | None = None,
     ) -> None:
         if old_document_type_id is not None and (
-            old_document_type_id != entity.document_type_id
-            or not entity.is_default
+            old_document_type_id != entity.document_type_id or not entity.is_default
         ):
             old_type = await self.document_types.get_by_id(
                 old_document_type_id,
@@ -365,9 +326,7 @@ class ValidationRuleService(MasterDataServiceBase):
 
     async def options(self, *, active_only: bool = True) -> list[MasterDataOption]:
         entities = await self.repository.options(active_only=active_only)
-        return [
-            MasterDataOption.model_validate(entity) for entity in entities
-        ]
+        return [MasterDataOption.model_validate(entity) for entity in entities]
 
     async def create(
         self,
@@ -397,9 +356,7 @@ class ValidationRuleService(MasterDataServiceBase):
         except IntegrityError as exc:
             await self.rollback_conflict(
                 exc,
-                message=(
-                    "Validation rule code or default scope already exists."
-                ),
+                message=("Validation rule code or default scope already exists."),
             )
         response = self.response(entity)
         await self.commit_audited(
@@ -408,9 +365,7 @@ class ValidationRuleService(MasterDataServiceBase):
             description=f"Validation rule {entity.code} was created.",
             old_values=None,
             new_values=audit_dump(response),
-            duplicate_message=(
-                "Validation rule code or default scope already exists."
-            ),
+            duplicate_message=("Validation rule code or default scope already exists."),
         )
         return response
 
@@ -425,22 +380,15 @@ class ValidationRuleService(MasterDataServiceBase):
         old = audit_dump(self.response(entity))
         merged = self.values_from_entity(entity)
         changes = payload.model_dump(exclude_unset=True, by_alias=False)
-        if (
-            "is_active" in changes
-            and changes["is_active"] != entity.is_active
-        ):
+        if "is_active" in changes and changes["is_active"] != entity.is_active:
             raise business_error(
                 "Use the dedicated activate or deactivate endpoint to "
                 "change validation rule status.",
                 field="isActive",
             )
-        if (
-            "is_default" in changes
-            and changes["is_default"] != entity.is_default
-        ):
+        if "is_default" in changes and changes["is_default"] != entity.is_default:
             raise business_error(
-                "Use the set-default endpoint to change the default "
-                "validation rule.",
+                "Use the set-default endpoint to change the default validation rule.",
                 field="isDefault",
             )
         merged.update(changes)
@@ -474,9 +422,7 @@ class ValidationRuleService(MasterDataServiceBase):
         except IntegrityError as exc:
             await self.rollback_conflict(
                 exc,
-                message=(
-                    "Validation rule code or default scope already exists."
-                ),
+                message=("Validation rule code or default scope already exists."),
             )
         response = self.response(entity)
         await self.commit_audited(
@@ -485,9 +431,7 @@ class ValidationRuleService(MasterDataServiceBase):
             description=f"Validation rule {entity.code} was updated.",
             old_values=old,
             new_values=audit_dump(response),
-            duplicate_message=(
-                "Validation rule code or default scope already exists."
-            ),
+            duplicate_message=("Validation rule code or default scope already exists."),
         )
         return response
 

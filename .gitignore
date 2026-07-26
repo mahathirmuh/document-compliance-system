@@ -57,6 +57,8 @@ models/ocr/*
 !models/ocr/.gitkeep
 models/language/*
 !models/language/.gitkeep
+models/similarity/*
+!models/similarity/.gitkeep
 
 # Local databases, logs, and temporary files
 *.db

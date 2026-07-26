@@ -6,6 +6,8 @@ import {
   FilePenLine,
   FileType2,
   GitBranch,
+  GitCompareArrows,
+  Languages,
   Pencil,
   RotateCcw,
   ShieldCheck,
@@ -30,6 +32,12 @@ import { SharePointLink } from '../../components/documents/SharePointLink';
 import { ConfirmationDialog } from '../../components/master-data/ConfirmationDialog';
 import { useDocument } from '../../hooks/useDocument';
 import { useLatestCompliance } from '../../hooks/useCompliance';
+import { useLatestGlossaryValidation } from '../../hooks/useGlossaryValidation';
+import { useLatestSimilarity } from '../../hooks/useSimilarity';
+import {
+  useDocumentRevisionComparisonHistory,
+  useRevisionComparison,
+} from '../../hooks/useRevisionComparison';
 import { useRevisionFiles } from '../../hooks/useDocumentFiles';
 import { useDocumentMutations } from '../../hooks/useDocumentMutations';
 import { useToast } from '../../providers/useToast';
@@ -38,7 +46,13 @@ import type { DocumentDetail } from '../../types/document';
 import { formatDate, formatDateTime } from '../../utils/formatters';
 
 type DetailTab =
-  'overview' | 'revisions' | 'files' | 'intelligence' | 'compliance' | 'history';
+  | 'overview'
+  | 'revisions'
+  | 'files'
+  | 'intelligence'
+  | 'compliance'
+  | 'quality'
+  | 'history';
 
 export function DocumentDetailPage() {
   const { documentId = '' } = useParams();
@@ -60,6 +74,10 @@ export function DocumentDetailPage() {
     hasPermission('documents:detect_language') ||
     hasPermission('documents:view_language_results');
   const canUseCompliance = hasPermission('compliance:view');
+  const canUseQuality =
+    hasPermission('similarity:view') ||
+    hasPermission('glossary:view') ||
+    hasPermission('revision_comparison:view');
   const { showToast } = useToast();
   const requestedTab = searchParams.get('tab');
   const tab: DetailTab =
@@ -67,6 +85,7 @@ export function DocumentDetailPage() {
     requestedTab === 'files' ||
     (requestedTab === 'intelligence' && canUseIntelligence) ||
     (requestedTab === 'compliance' && canUseCompliance) ||
+    (requestedTab === 'quality' && canUseQuality) ||
     requestedTab === 'history'
       ? requestedTab
       : 'overview';
@@ -280,6 +299,7 @@ export function DocumentDetailPage() {
               'files',
               ...(canUseIntelligence ? (['intelligence'] as const) : []),
               ...(canUseCompliance ? (['compliance'] as const) : []),
+              ...(canUseQuality ? (['quality'] as const) : []),
               'history',
             ] as const
           ).map((candidate) => (
@@ -311,6 +331,7 @@ export function DocumentDetailPage() {
             <CurrentDocumentIntelligence document={document} />
           )}
           {tab === 'compliance' && <CurrentDocumentCompliance document={document} />}
+          {tab === 'quality' && <CurrentDocumentQuality document={document} />}
           {tab === 'history' && <DocumentActivitySummary document={document} />}
         </div>
       </section>
@@ -334,6 +355,210 @@ export function DocumentDetailPage() {
     </div>
   );
 }
+
+function CurrentDocumentQuality({ document }: { document: DocumentDetail }) {
+  const revisionId = document.currentRevision?.id ?? null;
+  const filesQuery = useRevisionFiles(document.id, revisionId);
+  const currentFile =
+    (filesQuery.data ?? []).find(
+      (file) => file.isCurrent && file.fileStatus === 'AVAILABLE',
+    ) ?? null;
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const canViewSimilarity = hasPermission('similarity:view');
+  const canRunSimilarity = hasPermission('similarity:run');
+  const canViewGlossary = hasPermission('glossary:view');
+  const canValidateGlossary = hasPermission('glossary:validate');
+  const canViewComparison = hasPermission('revision_comparison:view');
+  const similarityQuery = useLatestSimilarity(
+    canViewSimilarity ? (currentFile?.id ?? null) : null,
+  );
+  const glossaryQuery = useLatestGlossaryValidation(
+    canViewGlossary ? (currentFile?.id ?? null) : null,
+  );
+  const comparisonHistoryQuery = useDocumentRevisionComparisonHistory(
+    canViewComparison ? document.id : null,
+  );
+  const latestComparisonId = comparisonHistoryQuery.data?.items[0]?.id ?? null;
+  const comparisonQuery = useRevisionComparison(latestComparisonId ?? null);
+
+  if (!revisionId) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Create at least one revision before running Phase 9 quality analysis.
+      </p>
+    );
+  }
+  if (
+    filesQuery.isLoading ||
+    similarityQuery.isLoading ||
+    glossaryQuery.isLoading ||
+    comparisonHistoryQuery.isLoading
+  ) {
+    return (
+      <div
+        aria-label="Loading document quality status"
+        className="h-56 animate-pulse rounded-2xl bg-slate-100"
+      />
+    );
+  }
+  const queryError =
+    filesQuery.error ??
+    similarityQuery.error ??
+    glossaryQuery.error ??
+    comparisonHistoryQuery.error ??
+    comparisonQuery.error;
+  if (queryError) {
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        {getApiErrorMessage(queryError, 'Phase 9 quality status could not be loaded.')}
+      </p>
+    );
+  }
+  if (!currentFile) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Upload an available current physical file before running similarity or glossary
+        validation.
+      </p>
+    );
+  }
+
+  const similarity = similarityQuery.data;
+  const glossary = glossaryQuery.data;
+  const glossaryViolations = glossary
+    ? glossary.forbiddenTermMatches +
+      glossary.missingRequiredTranslations +
+      glossary.inconsistentTerms
+    : null;
+  const translationStatus = metricText(
+    similarity?.metrics.translationQualityStatus,
+    'NOT_EVALUATED',
+  );
+  const translationQuality = metricNumber(similarity?.metrics.translationQualityScore);
+  const glossaryQuality = metricNumber(glossary?.metrics.glossaryQualityScore);
+  const similarityPath = `/documents/${document.id}/revisions/${revisionId}/similarity?fileId=${currentFile.id}${similarity ? `&runId=${similarity.id}` : ''}`;
+  const glossaryPath = `/compliance/glossary?fileId=${currentFile.id}${glossary ? `&runId=${glossary.id}` : ''}`;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ComplianceMetric
+          label="Translation Similarity Status"
+          value={translationStatus.replaceAll('_', ' ')}
+        />
+        <ComplianceMetric
+          label="Average Similarity"
+          value={
+            similarity?.averageSimilarity === null ||
+            similarity?.averageSimilarity === undefined
+              ? '—'
+              : `${(similarity.averageSimilarity * 100).toFixed(1)}%`
+          }
+        />
+        <ComplianceMetric
+          label="Low-Similarity Groups"
+          value={similarity?.lowSimilarityGroups.toString() ?? '—'}
+        />
+        <ComplianceMetric
+          label="Translation Quality Score"
+          value={
+            translationQuality === null
+              ? 'Not evaluated'
+              : translationQuality.toFixed(1)
+          }
+        />
+        <ComplianceMetric
+          label="Glossary Validation Status"
+          value={glossary?.status.replaceAll('_', ' ') ?? 'NOT EVALUATED'}
+        />
+        <ComplianceMetric
+          label="Glossary Violations"
+          value={glossaryViolations?.toString() ?? '—'}
+        />
+        <ComplianceMetric
+          label="Glossary Quality Score"
+          value={
+            glossaryQuality === null ? 'Not evaluated' : glossaryQuality.toFixed(1)
+          }
+        />
+        <ComplianceMetric
+          label="Overall Document Quality Score"
+          value="Not configured"
+        />
+        <ComplianceMetric
+          label="Latest Revision Comparison"
+          value={
+            comparisonQuery.data?.classification.replaceAll('_', ' ') ?? 'Not compared'
+          }
+        />
+        <ComplianceMetric
+          label="Compliance Trend"
+          value={
+            comparisonQuery.data?.complianceScoreChange === null ||
+            comparisonQuery.data?.complianceScoreChange === undefined
+              ? 'Not evaluated'
+              : `${comparisonQuery.data.complianceScoreChange > 0 ? '+' : ''}${comparisonQuery.data.complianceScoreChange.toFixed(2)}`
+          }
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {canRunSimilarity && !similarity && (
+          <Link
+            to={similarityPath}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white"
+          >
+            <Languages className="size-4" aria-hidden="true" />
+            Run Similarity
+          </Link>
+        )}
+        {canViewSimilarity && similarity && (
+          <Link
+            to={similarityPath}
+            className="inline-flex min-h-10 items-center rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white"
+          >
+            View Similarity
+          </Link>
+        )}
+        {canValidateGlossary && !glossary && (
+          <Link
+            to={glossaryPath}
+            className="inline-flex min-h-10 items-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white"
+          >
+            Validate Glossary
+          </Link>
+        )}
+        {canViewGlossary && glossary && (
+          <Link
+            to={glossaryPath}
+            className="inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700"
+          >
+            View Glossary Results
+          </Link>
+        )}
+        {canViewComparison && (
+          <Link
+            to={`/documents/${document.id}/revisions/compare`}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-700"
+          >
+            <GitCompareArrows className="size-4" aria-hidden="true" />
+            Compare Revisions
+          </Link>
+        )}
+      </div>
+      <p className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
+        Structural compliance, translation quality, and glossary quality remain separate
+        by default. Phase 9 does not silently replace historical compliance scores or
+        statuses.
+      </p>
+    </div>
+  );
+}
+
+const metricNumber = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const metricText = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value.trim() ? value : fallback;
 
 function CurrentDocumentCompliance({ document }: { document: DocumentDetail }) {
   const revisionId = document.currentRevision?.id ?? null;

@@ -46,6 +46,28 @@ from app.models.extraction_run import (
     ExtractorType,
 )
 from app.models.finding_occurrence import FindingOccurrence
+from app.models.glossary_enums import (
+    ACTIVE_GLOSSARY_VALIDATION_STATUSES,
+    TERMINAL_GLOSSARY_VALIDATION_STATUSES,
+    GlossaryExceptionScopeType,
+    GlossaryExceptionType,
+    GlossaryLanguageCode,
+    GlossaryMatchType,
+    GlossaryScopeType,
+    GlossarySourceType,
+    GlossaryTermSeverity,
+    GlossaryTermType,
+    GlossaryValidationJobType,
+    GlossaryValidationStatus,
+    GlossaryVariantType,
+)
+from app.models.glossary_exception import GlossaryException
+from app.models.glossary_match import GlossaryMatch
+from app.models.glossary_profile import GlossaryProfile
+from app.models.glossary_term import GlossaryTerm
+from app.models.glossary_term_variant import GlossaryTermVariant
+from app.models.glossary_translation import GlossaryTranslation
+from app.models.glossary_validation_run import GlossaryValidationRun
 from app.models.language_block_result import (
     LanguageBlockResult,
     LanguageCode,
@@ -76,11 +98,50 @@ from app.models.ocr_job import (
 from app.models.ocr_page_result import OCRPageResult, OCRPageStatus
 from app.models.ocr_run import OCRRun, OCRRunStatus
 from app.models.refresh_token import RefreshToken
+from app.models.report_schedule import ReportSchedule, ReportScheduleType
+from app.models.report_snapshot import (
+    AdvancedReportType,
+    ReportFileFormat,
+    ReportJobStatus,
+    ReportSnapshot,
+    ReportSnapshotStatus,
+)
+from app.models.revision_change import (
+    RevisionChange,
+    RevisionChangeType,
+    RevisionEntityType,
+)
+from app.models.revision_comparison import (
+    RevisionComparison,
+    RevisionComparisonClassification,
+    RevisionComparisonStatus,
+)
+from app.models.revision_comparison_job import (
+    ACTIVE_REVISION_COMPARISON_JOB_STATUSES,
+    TERMINAL_REVISION_COMPARISON_JOB_STATUSES,
+    RevisionComparisonJob,
+    RevisionComparisonJobStatus,
+    RevisionComparisonJobType,
+)
 from app.models.section import Section
 from app.models.section_alias import SectionAlias
 from app.models.section_alias_profile import SectionAliasProfile
 from app.models.section_definition import SectionDefinition
 from app.models.section_language_result import SectionLanguageResult
+from app.models.similarity_enums import (
+    ACTIVE_SIMILARITY_JOB_STATUSES,
+    TERMINAL_SIMILARITY_JOB_STATUSES,
+    ConsistencyStatus,
+    SimilarityAnalysisStatus,
+    SimilarityCategory,
+    SimilarityJobStatus,
+    SimilarityJobType,
+    SimilarityRunStatus,
+)
+from app.models.similarity_job import SimilarityJob
+from app.models.similarity_result import TranslationSimilarityResult
+from app.models.similarity_run import SimilarityRun
+from app.models.similarity_section_summary import SectionSimilaritySummary
 from app.models.translation_group import TranslationGroup
 from app.models.translation_group_member import TranslationGroupMember
 from app.models.upload_session import (
@@ -101,10 +162,17 @@ from app.models.validation_rule import ValidationRule
 __all__ = [
     "ACTIVE_COMPLIANCE_JOB_STATUSES",
     "ACTIVE_EXTRACTION_JOB_STATUSES",
+    "ACTIVE_GLOSSARY_VALIDATION_STATUSES",
     "ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES",
     "ACTIVE_OCR_JOB_STATUSES",
+    "ACTIVE_REVISION_COMPARISON_JOB_STATUSES",
+    "ACTIVE_SIMILARITY_JOB_STATUSES",
     "FINDING_STATUS_TRANSITIONS",
     "TERMINAL_COMPLIANCE_JOB_STATUSES",
+    "TERMINAL_GLOSSARY_VALIDATION_STATUSES",
+    "TERMINAL_REVISION_COMPARISON_JOB_STATUSES",
+    "TERMINAL_SIMILARITY_JOB_STATUSES",
+    "AdvancedReportType",
     "AuditLog",
     "ComplianceJob",
     "ComplianceJobStatus",
@@ -112,6 +180,7 @@ __all__ = [
     "ComplianceRun",
     "ComplianceRunStatus",
     "ComplianceStatus",
+    "ConsistencyStatus",
     "Department",
     "DetectedSection",
     "Document",
@@ -137,6 +206,24 @@ __all__ = [
     "FindingSeverity",
     "FindingStatus",
     "FindingType",
+    "GlossaryException",
+    "GlossaryExceptionScopeType",
+    "GlossaryExceptionType",
+    "GlossaryLanguageCode",
+    "GlossaryMatch",
+    "GlossaryMatchType",
+    "GlossaryProfile",
+    "GlossaryScopeType",
+    "GlossarySourceType",
+    "GlossaryTerm",
+    "GlossaryTermSeverity",
+    "GlossaryTermType",
+    "GlossaryTermVariant",
+    "GlossaryTranslation",
+    "GlossaryValidationJobType",
+    "GlossaryValidationRun",
+    "GlossaryValidationStatus",
+    "GlossaryVariantType",
     "LanguageBlockResult",
     "LanguageCode",
     "LanguageContainerSummary",
@@ -159,6 +246,21 @@ __all__ = [
     "OCRRun",
     "OCRRunStatus",
     "RefreshToken",
+    "ReportFileFormat",
+    "ReportJobStatus",
+    "ReportSchedule",
+    "ReportScheduleType",
+    "ReportSnapshot",
+    "ReportSnapshotStatus",
+    "RevisionChange",
+    "RevisionChangeType",
+    "RevisionComparison",
+    "RevisionComparisonClassification",
+    "RevisionComparisonJob",
+    "RevisionComparisonJobStatus",
+    "RevisionComparisonJobType",
+    "RevisionComparisonStatus",
+    "RevisionEntityType",
     "Section",
     "SectionAlias",
     "SectionAliasLanguageCode",
@@ -167,9 +269,18 @@ __all__ = [
     "SectionDefinition",
     "SectionLanguagePresenceStatus",
     "SectionLanguageResult",
+    "SectionSimilaritySummary",
+    "SimilarityAnalysisStatus",
+    "SimilarityCategory",
+    "SimilarityJob",
+    "SimilarityJobStatus",
+    "SimilarityJobType",
+    "SimilarityRun",
+    "SimilarityRunStatus",
     "TranslationGroup",
     "TranslationGroupMember",
     "TranslationGroupType",
+    "TranslationSimilarityResult",
     "UploadIdentificationStatus",
     "UploadProposedAction",
     "UploadSession",

@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import AliasChoices, Field, field_validator
 
+from app.models.validation_rule import QualityScoreMode
 from app.schemas.base import ApiSchema
 from app.schemas.validation_options import normalize_validation_options
 
@@ -228,6 +229,19 @@ class ValidationRuleSnapshot(ApiSchema):
     language_order_weight: float = Field(default=10, ge=0)
     translation_group_weight: float = Field(default=15, ge=0)
     table_completeness_weight: float = Field(default=5, ge=0)
+    translation_similarity_weight: float = Field(
+        default=25,
+        ge=0,
+        le=100,
+    )
+    glossary_compliance_weight: float = Field(
+        default=15,
+        ge=0,
+        le=100,
+    )
+    quality_score_mode: QualityScoreMode = (
+        QualityScoreMode.SEPARATE_QUALITY_SCORE
+    )
     critical_finding_score_cap: float = Field(default=69, ge=0, le=100)
     major_finding_penalty: float = Field(default=5, ge=0)
     minor_finding_penalty: float = Field(default=1, ge=0)

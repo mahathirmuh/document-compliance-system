@@ -5,7 +5,17 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip wheel --wheel-dir /wheels -r requirements.txt
+ARG PYTORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+RUN pip download \
+        --dest /wheels \
+        --no-deps \
+        --only-binary=:all: \
+        --index-url "${PYTORCH_CPU_INDEX_URL}" \
+        "torch==2.10.0" \
+    && pip wheel \
+        --wheel-dir /wheels \
+        --find-links /wheels \
+        -r requirements.txt
 
 FROM python:3.12-slim AS runtime
 

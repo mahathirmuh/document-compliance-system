@@ -1,0 +1,107 @@
+"""Stable values for Phase 9 translation-similarity persistence."""
+
+from enum import StrEnum
+
+
+def enum_values(enum_class: type[StrEnum]) -> list[str]:
+    """Persist enum values rather than Python member names."""
+
+    return [member.value for member in enum_class]
+
+
+class SimilarityJobType(StrEnum):
+    INITIAL_SIMILARITY = "INITIAL_SIMILARITY"
+    REANALYSIS = "REANALYSIS"
+    MANUAL_SIMILARITY = "MANUAL_SIMILARITY"
+
+
+class SimilarityJobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    LOADING_CONTEXT = "LOADING_CONTEXT"
+    LOADING_MODEL = "LOADING_MODEL"
+    ALIGNING_GROUPS = "ALIGNING_GROUPS"
+    ENCODING = "ENCODING"
+    CALCULATING_SIMILARITY = "CALCULATING_SIMILARITY"
+    CHECKING_CONSISTENCY = "CHECKING_CONSISTENCY"
+    AGGREGATING = "AGGREGATING"
+    GENERATING_FINDINGS = "GENERATING_FINDINGS"
+    PERSISTING = "PERSISTING"
+    COMPLETED = "COMPLETED"
+    PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED"
+    FAILED = "FAILED"
+    CANCEL_REQUESTED = "CANCEL_REQUESTED"
+    CANCELLED = "CANCELLED"
+
+
+ACTIVE_SIMILARITY_JOB_STATUSES = frozenset(
+    {
+        SimilarityJobStatus.QUEUED,
+        SimilarityJobStatus.LOADING_CONTEXT,
+        SimilarityJobStatus.LOADING_MODEL,
+        SimilarityJobStatus.ALIGNING_GROUPS,
+        SimilarityJobStatus.ENCODING,
+        SimilarityJobStatus.CALCULATING_SIMILARITY,
+        SimilarityJobStatus.CHECKING_CONSISTENCY,
+        SimilarityJobStatus.AGGREGATING,
+        SimilarityJobStatus.GENERATING_FINDINGS,
+        SimilarityJobStatus.PERSISTING,
+        SimilarityJobStatus.CANCEL_REQUESTED,
+    }
+)
+
+TERMINAL_SIMILARITY_JOB_STATUSES = frozenset(
+    {
+        SimilarityJobStatus.COMPLETED,
+        SimilarityJobStatus.PARTIALLY_COMPLETED,
+        SimilarityJobStatus.FAILED,
+        SimilarityJobStatus.CANCELLED,
+    }
+)
+
+
+class SimilarityRunStatus(StrEnum):
+    COMPLETED = "COMPLETED"
+    PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED"
+    FAILED = "FAILED"
+
+
+class SimilarityCategory(StrEnum):
+    HIGH = "HIGH"
+    ACCEPTABLE = "ACCEPTABLE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    LOW = "LOW"
+    NOT_EVALUATED = "NOT_EVALUATED"
+
+
+class SimilarityAnalysisStatus(StrEnum):
+    COMPLETED = "COMPLETED"
+    SKIPPED_TOO_SHORT = "SKIPPED_TOO_SHORT"
+    SKIPPED_UNSUPPORTED = "SKIPPED_UNSUPPORTED"
+    FAILED = "FAILED"
+    INSUFFICIENT_CONTENT = "INSUFFICIENT_CONTENT"
+
+
+class ConsistencyStatus(StrEnum):
+    MATCH = "MATCH"
+    MISMATCH = "MISMATCH"
+    AMBIGUOUS = "AMBIGUOUS"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    POTENTIALLY_EQUIVALENT = "POTENTIALLY_EQUIVALENT"
+    POSSIBLE_NEGATION_MISMATCH = "POSSIBLE_NEGATION_MISMATCH"
+
+
+SIMILARITY_FINDING_CODES = frozenset(
+    {
+        "LOW_TRANSLATION_SIMILARITY",
+        "TRANSLATION_SIMILARITY_NEEDS_REVIEW",
+        "TRANSLATION_NOT_EVALUATED",
+        "TRANSLATION_LENGTH_RATIO_ANOMALY",
+        "TRANSLATION_NUMBER_MISMATCH",
+        "TRANSLATION_DATE_MISMATCH",
+        "TRANSLATION_MEASUREMENT_MISMATCH",
+        "TRANSLATION_REFERENCE_MISMATCH",
+        "TRANSLATION_NEGATION_MISMATCH",
+        "TRANSLATION_CONTENT_TOO_SHORT",
+        "TRANSLATION_MODEL_UNAVAILABLE",
+    }
+)

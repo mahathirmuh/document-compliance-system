@@ -67,6 +67,11 @@ const SectionDefinitionsPage = lazy(() =>
     default: module.SectionDefinitionsPage,
   })),
 );
+const GlossaryPage = lazy(() =>
+  import('../pages/master-data/GlossaryPage').then((module) => ({
+    default: module.GlossaryPage,
+  })),
+);
 const DocumentsPage = lazy(() =>
   import('../pages/documents/DocumentsPage').then((module) => ({
     default: module.DocumentsPage,
@@ -142,6 +147,21 @@ const ValidationHistoryPage = lazy(() =>
     default: module.ValidationHistoryPage,
   })),
 );
+const SimilarityQueuePage = lazy(() =>
+  import('../pages/documents/SimilarityQueuePage').then((module) => ({
+    default: module.SimilarityQueuePage,
+  })),
+);
+const SimilarityHistoryPage = lazy(() =>
+  import('../pages/documents/SimilarityHistoryPage').then((module) => ({
+    default: module.SimilarityHistoryPage,
+  })),
+);
+const RevisionComparisonPage = lazy(() =>
+  import('../pages/documents/RevisionComparisonPage').then((module) => ({
+    default: module.RevisionComparisonPage,
+  })),
+);
 const ComplianceOverviewPage = lazy(() =>
   import('../pages/compliance/ComplianceOverviewPage').then((module) => ({
     default: module.ComplianceOverviewPage,
@@ -160,6 +180,16 @@ const SectionCompliancePage = lazy(() =>
 const LanguageOrderPage = lazy(() =>
   import('../pages/compliance/LanguageOrderPage').then((module) => ({
     default: module.LanguageOrderPage,
+  })),
+);
+const TranslationSimilarityPage = lazy(() =>
+  import('../pages/compliance/TranslationSimilarityPage').then((module) => ({
+    default: module.TranslationSimilarityPage,
+  })),
+);
+const GlossaryCompliancePage = lazy(() =>
+  import('../pages/compliance/GlossaryCompliancePage').then((module) => ({
+    default: module.GlossaryCompliancePage,
   })),
 );
 const FindingsPage = lazy(() =>
@@ -190,6 +220,21 @@ const ComplianceReportPage = lazy(() =>
 const FindingsReportPage = lazy(() =>
   import('../pages/reports/FindingsReportPage').then((module) => ({
     default: module.FindingsReportPage,
+  })),
+);
+const AdvancedAnalyticsPage = lazy(() =>
+  import('../pages/reports/AdvancedAnalyticsPage').then((module) => ({
+    default: module.AdvancedAnalyticsPage,
+  })),
+);
+const ReportSnapshotsPage = lazy(() =>
+  import('../pages/reports/ReportSnapshotsPage').then((module) => ({
+    default: module.ReportSnapshotsPage,
+  })),
+);
+const ReportSchedulesPage = lazy(() =>
+  import('../pages/reports/ReportSchedulesPage').then((module) => ({
+    default: module.ReportSchedulesPage,
   })),
 );
 const ExtractedContentPage = lazy(() =>
@@ -352,6 +397,30 @@ export function AppRoutes() {
               }
             />
             <Route
+              path="/documents/similarity-queue"
+              element={
+                <PermissionGuard permission="similarity:view">
+                  <SimilarityQueuePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/similarity-history"
+              element={
+                <PermissionGuard permission="similarity:view">
+                  <SimilarityHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/revision-comparison"
+              element={
+                <PermissionGuard permission="revision_comparison:view">
+                  <RevisionComparisonPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
               path="/documents/:documentId/ocr-results"
               element={
                 <PermissionGuard permission="documents:view_ocr_results">
@@ -396,6 +465,38 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="compliance:view">
                   <DocumentCompliancePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/similarity"
+              element={
+                <PermissionGuard permission="similarity:view">
+                  <TranslationSimilarityPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/similarity"
+              element={
+                <PermissionGuard permission="similarity:view">
+                  <TranslationSimilarityPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revision-comparison"
+              element={
+                <PermissionGuard permission="revision_comparison:view">
+                  <RevisionComparisonPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/compare"
+              element={
+                <PermissionGuard permission="revision_comparison:view">
+                  <RevisionComparisonPage />
                 </PermissionGuard>
               }
             />
@@ -512,6 +613,22 @@ export function AppRoutes() {
               }
             />
             <Route
+              path="/master-data/glossary"
+              element={
+                <PermissionGuard permission="glossary:view">
+                  <GlossaryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/master-data/glossary/:glossaryId"
+              element={
+                <PermissionGuard permission="glossary:view">
+                  <GlossaryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
               path="/compliance"
               element={
                 <PermissionGuard permission="compliance:view">
@@ -540,6 +657,22 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="compliance:view">
                   <LanguageOrderPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/translation-similarity"
+              element={
+                <PermissionGuard permission="similarity:view">
+                  <TranslationSimilarityPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/glossary"
+              element={
+                <PermissionGuard permission="glossary:view">
+                  <GlossaryCompliancePage />
                 </PermissionGuard>
               }
             />
@@ -584,6 +717,54 @@ export function AppRoutes() {
                   <PermissionGuard permission="findings:view">
                     <FindingsReportPage />
                   </PermissionGuard>
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/translation-similarity"
+              element={
+                <PermissionGuard permission="advanced_reports:view">
+                  <AdvancedAnalyticsPage initialReportType="TRANSLATION_SIMILARITY" />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/glossary-compliance"
+              element={
+                <PermissionGuard permission="advanced_reports:view">
+                  <AdvancedAnalyticsPage initialReportType="GLOSSARY_COMPLIANCE" />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/revision-changes"
+              element={
+                <PermissionGuard permission="advanced_reports:view">
+                  <AdvancedAnalyticsPage initialReportType="REVISION_CHANGES" />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/advanced-analytics"
+              element={
+                <PermissionGuard permission="advanced_reports:view">
+                  <AdvancedAnalyticsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/snapshots"
+              element={
+                <PermissionGuard permission="advanced_reports:view">
+                  <ReportSnapshotsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/schedules"
+              element={
+                <PermissionGuard permission="advanced_reports:configure">
+                  <ReportSchedulesPage />
                 </PermissionGuard>
               }
             />

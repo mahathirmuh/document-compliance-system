@@ -12,6 +12,7 @@ from app.models.validation_rule import (
     DEFAULT_LANGUAGE_ORDER,
     DEFAULT_REQUIRED_LANGUAGES,
     DEFAULT_REQUIRED_SECTIONS,
+    QualityScoreMode,
 )
 from app.schemas.base import ApiSchema
 from app.schemas.common import PaginationData
@@ -71,14 +72,10 @@ def normalize_coverage_map(value: dict[str, float]) -> dict[str, float]:
     for language, percentage in value.items():
         code = language.strip().lower()
         if code not in SUPPORTED_LANGUAGES:
-            raise ValueError(
-                f"Coverage contains unsupported language: {language}."
-            )
+            raise ValueError(f"Coverage contains unsupported language: {language}.")
         numeric = float(percentage)
         if not 0 <= numeric <= 100:
-            raise ValueError(
-                "Language coverage percentages must be between 0 and 100."
-            )
+            raise ValueError("Language coverage percentages must be between 0 and 100.")
         normalized[code] = numeric
     return normalized
 
@@ -136,6 +133,17 @@ class ValidationRuleValues(ApiSchema):
     language_order_weight: float = Field(default=10, ge=0, le=100)
     translation_group_weight: float = Field(default=15, ge=0, le=100)
     table_completeness_weight: float = Field(default=5, ge=0, le=100)
+    translation_similarity_weight: float = Field(
+        default=25,
+        ge=0,
+        le=100,
+    )
+    glossary_compliance_weight: float = Field(
+        default=15,
+        ge=0,
+        le=100,
+    )
+    quality_score_mode: QualityScoreMode = QualityScoreMode.SEPARATE_QUALITY_SCORE
     critical_finding_score_cap: float = Field(default=69, ge=0, le=100)
     major_finding_penalty: float = Field(default=5, ge=0, le=100)
     minor_finding_penalty: float = Field(default=1, ge=0, le=100)
@@ -153,9 +161,7 @@ class ValidationRuleValues(ApiSchema):
 
     _code = field_validator("code", mode="before")(normalize_flexible_code)
     _name = field_validator("name", mode="before")(normalize_name)
-    _description = field_validator("description", mode="before")(
-        normalize_description
-    )
+    _description = field_validator("description", mode="before")(normalize_description)
     _language_order = field_validator("language_order", mode="before")(
         normalize_language_order
     )
@@ -203,17 +209,12 @@ class ValidationRuleValues(ApiSchema):
         elif "minimum_compliance_score" in explicit_fields:
             self.compliant_score = float(self.minimum_compliance_score)
         if "partially_compliant_score" in explicit_fields:
-            self.partial_compliance_score = int(
-                self.partially_compliant_score
-            )
+            self.partial_compliance_score = int(self.partially_compliant_score)
         elif "partial_compliance_score" in explicit_fields:
-            self.partially_compliant_score = float(
-                self.partial_compliance_score
-            )
+            self.partially_compliant_score = float(self.partial_compliance_score)
         if self.partial_compliance_score > self.minimum_compliance_score:
             raise ValueError(
-                "Partial compliance score must not exceed minimum "
-                "compliance score."
+                "Partial compliance score must not exceed minimum compliance score."
             )
         if not (
             self.needs_review_score
@@ -237,6 +238,11 @@ class ValidationRuleValues(ApiSchema):
         )
         if abs(weight_total - 100) > 0.001:
             raise ValueError("Validation rule weights must total exactly 100.")
+        if self.translation_similarity_weight + self.glossary_compliance_weight > 100:
+            raise ValueError(
+                "Translation similarity and glossary compliance weights "
+                "must total 100 or less."
+            )
         if self.validate_language_order and not self.language_order:
             raise ValueError(
                 "Language order must contain at least one supported language."
@@ -247,12 +253,8 @@ class ValidationRuleValues(ApiSchema):
 
     def _synchronize_coverages(self, explicit_fields: set[str]) -> None:
         advanced_block = "minimum_language_block_coverage" in explicit_fields
-        advanced_character = (
-            "minimum_language_character_coverage" in explicit_fields
-        )
-        explicit_legacy = (
-            explicit_fields & _LEGACY_COVERAGE_FIELDS.keys()
-        )
+        advanced_character = "minimum_language_character_coverage" in explicit_fields
+        explicit_legacy = explicit_fields & _LEGACY_COVERAGE_FIELDS.keys()
         if advanced_block or advanced_character:
             # Block coverage is the Phase 3 mirror when both advanced
             # dimensions are supplied. Character-only payloads still update
@@ -269,9 +271,7 @@ class ValidationRuleValues(ApiSchema):
         if not explicit_legacy:
             return
         block_coverage = dict(self.minimum_language_block_coverage)
-        character_coverage = dict(
-            self.minimum_language_character_coverage
-        )
+        character_coverage = dict(self.minimum_language_character_coverage)
         for field in explicit_legacy:
             language = _LEGACY_COVERAGE_FIELDS[field]
             coverage = float(getattr(self, field))
@@ -305,15 +305,9 @@ class ValidationRuleUpdate(ApiSchema):
     validate_language_presence: bool | None = None
     validate_language_coverage: bool | None = None
     validate_container_completeness: bool | None = None
-    minimum_indonesian_coverage: int | None = Field(
-        default=None, ge=0, le=100
-    )
-    minimum_english_coverage: int | None = Field(
-        default=None, ge=0, le=100
-    )
-    minimum_chinese_coverage: int | None = Field(
-        default=None, ge=0, le=100
-    )
+    minimum_indonesian_coverage: int | None = Field(default=None, ge=0, le=100)
+    minimum_english_coverage: int | None = Field(default=None, ge=0, le=100)
+    minimum_chinese_coverage: int | None = Field(default=None, ge=0, le=100)
     validate_language_order: bool | None = None
     language_order: list[str] | None = None
     validate_sections: bool | None = None
@@ -370,6 +364,17 @@ class ValidationRuleUpdate(ApiSchema):
         ge=0,
         le=100,
     )
+    translation_similarity_weight: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+    glossary_compliance_weight: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+    quality_score_mode: QualityScoreMode | None = None
     critical_finding_score_cap: float | None = Field(
         default=None,
         ge=0,
@@ -400,12 +405,8 @@ class ValidationRuleUpdate(ApiSchema):
     fail_on_missing_required_section: bool | None = None
     fail_on_critical_finding: bool | None = None
     validation_options: dict[str, object] | None = None
-    minimum_compliance_score: int | None = Field(
-        default=None, ge=0, le=100
-    )
-    partial_compliance_score: int | None = Field(
-        default=None, ge=0, le=100
-    )
+    minimum_compliance_score: int | None = Field(default=None, ge=0, le=100)
+    partial_compliance_score: int | None = Field(default=None, ge=0, le=100)
     is_default: bool | None = None
     is_active: bool | None = None
 
@@ -419,9 +420,7 @@ class ValidationRuleUpdate(ApiSchema):
     def validate_name(cls, value: object) -> object:
         return normalize_name(value) if isinstance(value, str) else value
 
-    _description = field_validator("description", mode="before")(
-        normalize_description
-    )
+    _description = field_validator("description", mode="before")(normalize_description)
 
     @field_validator("language_order", mode="before")
     @classmethod
@@ -450,11 +449,7 @@ class ValidationRuleUpdate(ApiSchema):
     @field_validator("validation_options", mode="before")
     @classmethod
     def validate_validation_options(cls, value: object) -> object:
-        return (
-            None
-            if value is None
-            else normalize_validation_options(value)
-        )
+        return None if value is None else normalize_validation_options(value)
 
 
 class ValidationRuleResponse(ValidationRuleValues):

@@ -15,6 +15,10 @@ celery_app = Celery(
         "app.workers.ocr_tasks",
         "app.workers.language_detection_tasks",
         "app.workers.compliance_tasks",
+        "app.workers.similarity_tasks",
+        "app.workers.glossary_tasks",
+        "app.workers.revision_comparison_tasks",
+        "app.workers.reporting_tasks",
     ),
 )
 celery_app.conf.update(
@@ -44,6 +48,35 @@ celery_app.conf.update(
             ),
             "time_limit": settings.compliance_task_time_limit_seconds,
         },
+        "app.workers.similarity_tasks.process_similarity_job": {
+            "soft_time_limit": (
+                settings.similarity_task_soft_time_limit_seconds
+            ),
+            "time_limit": settings.similarity_task_time_limit_seconds,
+        },
+        "app.workers.glossary_tasks.process_glossary_validation_job": {
+            "soft_time_limit": (
+                settings.glossary_task_soft_time_limit_seconds
+            ),
+            "time_limit": settings.glossary_task_time_limit_seconds,
+        },
+        (
+            "app.workers.revision_comparison_tasks."
+            "process_revision_comparison_job"
+        ): {
+            "soft_time_limit": (
+                settings.revision_comparison_task_soft_time_limit_seconds
+            ),
+            "time_limit": (
+                settings.revision_comparison_task_time_limit_seconds
+            ),
+        },
+        "app.workers.reporting_tasks.process_report_job": {
+            "soft_time_limit": (
+                settings.reporting_task_soft_time_limit_seconds
+            ),
+            "time_limit": settings.reporting_task_time_limit_seconds,
+        },
     },
     task_default_queue=settings.extraction_queue_name,
     task_reject_on_worker_lost=True,
@@ -62,6 +95,21 @@ celery_app.conf.update(
         },
         "app.workers.compliance_tasks.process_compliance_job": {
             "queue": settings.compliance_queue_name,
+        },
+        "app.workers.similarity_tasks.process_similarity_job": {
+            "queue": settings.similarity_queue_name,
+        },
+        "app.workers.glossary_tasks.process_glossary_validation_job": {
+            "queue": settings.glossary_queue_name,
+        },
+        (
+            "app.workers.revision_comparison_tasks."
+            "process_revision_comparison_job"
+        ): {
+            "queue": settings.revision_comparison_queue_name,
+        },
+        "app.workers.reporting_tasks.process_report_job": {
+            "queue": settings.reporting_queue_name,
         },
     },
     task_serializer="json",

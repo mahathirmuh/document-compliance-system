@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
     environment: &backend_environment
       APP_NAME: ${APP_NAME:-Document Compliance API}
-      APP_VERSION: ${APP_VERSION:-0.8.0}
+      APP_VERSION: ${APP_VERSION:-0.9.0}
       APP_ENV: ${APP_ENV:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
@@ -170,6 +170,60 @@ services:
       FINDING_EXPORT_MAX_ROWS: ${FINDING_EXPORT_MAX_ROWS:-200000}
       COMPLIANCE_EXPORT_MAX_ROWS: ${COMPLIANCE_EXPORT_MAX_ROWS:-200000}
       FINDING_BULK_ACTION_MAX_ITEMS: ${FINDING_BULK_ACTION_MAX_ITEMS:-100}
+      SIMILARITY_QUEUE_NAME: ${SIMILARITY_QUEUE_NAME:-similarity}
+      GLOSSARY_QUEUE_NAME: ${GLOSSARY_QUEUE_NAME:-glossary}
+      REVISION_COMPARISON_QUEUE_NAME: ${REVISION_COMPARISON_QUEUE_NAME:-revision-comparison}
+      REPORTING_QUEUE_NAME: ${REPORTING_QUEUE_NAME:-reporting}
+      SIMILARITY_PROVIDER: ${SIMILARITY_PROVIDER:-sentence_transformer}
+      SIMILARITY_MODEL_NAME: ${SIMILARITY_MODEL_NAME:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      SIMILARITY_MODEL_PATH: ${SIMILARITY_MODEL_PATH:-/app/models/similarity}
+      SIMILARITY_DEVICE: ${SIMILARITY_DEVICE:-cpu}
+      SIMILARITY_BATCH_SIZE: ${SIMILARITY_BATCH_SIZE:-32}
+      SIMILARITY_MAX_SEQUENCE_LENGTH: ${SIMILARITY_MAX_SEQUENCE_LENGTH:-512}
+      SIMILARITY_NORMALIZE_EMBEDDINGS: ${SIMILARITY_NORMALIZE_EMBEDDINGS:-true}
+      SIMILARITY_SKIP_CODE_LIKE_TEXT: ${SIMILARITY_SKIP_CODE_LIKE_TEXT:-true}
+      SIMILARITY_SKIP_NUMERIC_ONLY_TEXT: ${SIMILARITY_SKIP_NUMERIC_ONLY_TEXT:-true}
+      SIMILARITY_HIGH_THRESHOLD: ${SIMILARITY_HIGH_THRESHOLD:-0.85}
+      SIMILARITY_ACCEPTABLE_THRESHOLD: ${SIMILARITY_ACCEPTABLE_THRESHOLD:-0.72}
+      SIMILARITY_REVIEW_THRESHOLD: ${SIMILARITY_REVIEW_THRESHOLD:-0.58}
+      SIMILARITY_CRITICAL_LOW_THRESHOLD: ${SIMILARITY_CRITICAL_LOW_THRESHOLD:-0.35}
+      SIMILARITY_MIN_CHARACTERS_PER_TEXT: ${SIMILARITY_MIN_CHARACTERS_PER_TEXT:-10}
+      SIMILARITY_MIN_GROUP_CONFIDENCE: ${SIMILARITY_MIN_GROUP_CONFIDENCE:-0.65}
+      SIMILARITY_TEXT_MAX_CHARACTERS: ${SIMILARITY_TEXT_MAX_CHARACTERS:-12000}
+      SIMILARITY_SNIPPET_MAX_CHARACTERS: ${SIMILARITY_SNIPPET_MAX_CHARACTERS:-500}
+      SIMILARITY_CHUNK_MAX_CHARACTERS: ${SIMILARITY_CHUNK_MAX_CHARACTERS:-1500}
+      SIMILARITY_CHUNK_OVERLAP_CHARACTERS: ${SIMILARITY_CHUNK_OVERLAP_CHARACTERS:-150}
+      SIMILARITY_MAX_CHUNKS_PER_TEXT: ${SIMILARITY_MAX_CHUNKS_PER_TEXT:-50}
+      SIMILARITY_TASK_TIME_LIMIT_SECONDS: ${SIMILARITY_TASK_TIME_LIMIT_SECONDS:-3600}
+      SIMILARITY_TASK_SOFT_TIME_LIMIT_SECONDS: ${SIMILARITY_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      SIMILARITY_MAX_RETRIES: ${SIMILARITY_MAX_RETRIES:-1}
+      SIMILARITY_DB_BATCH_SIZE: ${SIMILARITY_DB_BATCH_SIZE:-500}
+      GLOSSARY_TERM_MAX_LENGTH: ${GLOSSARY_TERM_MAX_LENGTH:-500}
+      GLOSSARY_REGEX_MAX_LENGTH: ${GLOSSARY_REGEX_MAX_LENGTH:-500}
+      GLOSSARY_REGEX_TIMEOUT_MS: ${GLOSSARY_REGEX_TIMEOUT_MS:-100}
+      GLOSSARY_IMPORT_MAX_ROWS: ${GLOSSARY_IMPORT_MAX_ROWS:-100000}
+      GLOSSARY_VALIDATION_MAX_BLOCKS: ${GLOSSARY_VALIDATION_MAX_BLOCKS:-2000000}
+      GLOSSARY_DB_BATCH_SIZE: ${GLOSSARY_DB_BATCH_SIZE:-1000}
+      GLOSSARY_TASK_TIME_LIMIT_SECONDS: ${GLOSSARY_TASK_TIME_LIMIT_SECONDS:-3600}
+      GLOSSARY_TASK_SOFT_TIME_LIMIT_SECONDS: ${GLOSSARY_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      GLOSSARY_MAX_RETRIES: ${GLOSSARY_MAX_RETRIES:-1}
+      REVISION_COMPARISON_MAX_BLOCKS: ${REVISION_COMPARISON_MAX_BLOCKS:-3000000}
+      REVISION_COMPARISON_MAX_CHANGES: ${REVISION_COMPARISON_MAX_CHANGES:-1000000}
+      REVISION_COMPARISON_TASK_TIME_LIMIT_SECONDS: ${REVISION_COMPARISON_TASK_TIME_LIMIT_SECONDS:-3600}
+      REVISION_COMPARISON_TASK_SOFT_TIME_LIMIT_SECONDS: ${REVISION_COMPARISON_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      REVISION_COMPARISON_DB_BATCH_SIZE: ${REVISION_COMPARISON_DB_BATCH_SIZE:-1000}
+      REVISION_COMPARISON_MAX_RETRIES: ${REVISION_COMPARISON_MAX_RETRIES:-1}
+      REVISION_ALIGNMENT_FUZZY_THRESHOLD: ${REVISION_ALIGNMENT_FUZZY_THRESHOLD:-0.58}
+      REPORT_EXPORT_MAX_ROWS: ${REPORT_EXPORT_MAX_ROWS:-500000}
+      REPORT_SNAPSHOT_RETENTION_DAYS: ${REPORT_SNAPSHOT_RETENTION_DAYS:-30}
+      REPORT_TASK_TIME_LIMIT_SECONDS: ${REPORT_TASK_TIME_LIMIT_SECONDS:-3600}
+      REPORTING_TASK_SOFT_TIME_LIMIT_SECONDS: ${REPORTING_TASK_SOFT_TIME_LIMIT_SECONDS:-3300}
+      REPORTING_MAX_RETRIES: ${REPORTING_MAX_RETRIES:-1}
+      REPORT_PDF_MAX_TABLE_ROWS: ${REPORT_PDF_MAX_TABLE_ROWS:-5000}
+      REPORT_XLSX_MAX_ROWS_PER_SHEET: ${REPORT_XLSX_MAX_ROWS_PER_SHEET:-1000000}
+      REPORT_CHART_MAX_CATEGORIES: ${REPORT_CHART_MAX_CATEGORIES:-50}
+      REPORT_TEXT_SNIPPET_MAX_CHARACTERS: ${REPORT_TEXT_SNIPPET_MAX_CHARACTERS:-500}
+      REPORT_INCLUDE_FULL_TEXT: ${REPORT_INCLUDE_FULL_TEXT:-false}
       AUTO_RUN_OCR_AFTER_EXTRACTION: ${AUTO_RUN_OCR_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR:-false}
@@ -362,6 +416,166 @@ services:
     networks:
       - compliance_network
 
+  worker-similarity:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${SIMILARITY_QUEUE_NAME:-similarity}",
+        "--concurrency=${SIMILARITY_WORKER_CONCURRENCY:-1}",
+        "--hostname=similarity@%h",
+        "--max-tasks-per-child=10",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=similarity@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
+    networks:
+      - compliance_network
+
+  worker-glossary:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${GLOSSARY_QUEUE_NAME:-glossary}",
+        "--concurrency=${GLOSSARY_WORKER_CONCURRENCY:-2}",
+        "--hostname=glossary@%h",
+        "--max-tasks-per-child=100",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=glossary@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
+  worker-revision:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${REVISION_COMPARISON_QUEUE_NAME:-revision-comparison}",
+        "--concurrency=${REVISION_WORKER_CONCURRENCY:-2}",
+        "--hostname=revision@%h",
+        "--max-tasks-per-child=50",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=revision@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
+  worker-reporting:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${REPORTING_QUEUE_NAME:-reporting}",
+        "--concurrency=${REPORTING_WORKER_CONCURRENCY:-1}",
+        "--hostname=reporting@%h",
+        "--max-tasks-per-child=50",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=reporting@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
   frontend:
     build:
       context: ./frontend
@@ -369,7 +583,7 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.8.0}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.9.0}
         VITE_DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
         VITE_DOCUMENT_MAX_FILE_SIZE_MB: ${DOCUMENT_MAX_FILE_SIZE_MB:-50}
         VITE_DOCUMENT_BATCH_MAX_FILES: ${DOCUMENT_BATCH_MAX_FILES:-50}

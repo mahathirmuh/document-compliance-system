@@ -36,8 +36,11 @@ if TYPE_CHECKING:
     from app.models.document_revision import DocumentRevision
     from app.models.extraction_job import ExtractionJob
     from app.models.extraction_run import ExtractionRun
+    from app.models.glossary_validation_run import GlossaryValidationRun
     from app.models.language_detection_run import LanguageDetectionRun
     from app.models.ocr_run import OCRRun
+    from app.models.similarity_job import SimilarityJob
+    from app.models.similarity_run import SimilarityRun
     from app.models.user import User
     from app.models.validation_finding import ValidationFinding
 
@@ -98,6 +101,14 @@ class DocumentFile(Base):
         Index(
             "ix_document_files_latest_compliance_run_id",
             "latest_compliance_run_id",
+        ),
+        Index(
+            "ix_document_files_latest_similarity_run_id",
+            "latest_similarity_run_id",
+        ),
+        Index(
+            "ix_document_files_latest_glossary_validation_run_id",
+            "latest_glossary_validation_run_id",
         ),
         Index(
             "uq_document_files_one_current_primary",
@@ -264,6 +275,26 @@ class DocumentFile(Base):
         ),
         nullable=True,
     )
+    latest_similarity_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "similarity_runs.id",
+            name="fk_doc_files_latest_similarity_run",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
+    latest_glossary_validation_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "glossary_validation_runs.id",
+            name="fk_doc_files_latest_glossary_run",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -342,6 +373,33 @@ class DocumentFile(Base):
     )
     latest_compliance_run: Mapped[ComplianceRun | None] = relationship(
         foreign_keys=[latest_compliance_run_id],
+        post_update=True,
+    )
+    similarity_jobs: Mapped[list[SimilarityJob]] = relationship(
+        foreign_keys="SimilarityJob.document_file_id",
+        passive_deletes=True,
+        order_by="SimilarityJob.requested_at",
+    )
+    similarity_runs: Mapped[list[SimilarityRun]] = relationship(
+        foreign_keys="SimilarityRun.document_file_id",
+        passive_deletes=True,
+        order_by="SimilarityRun.created_at",
+    )
+    latest_similarity_run: Mapped[SimilarityRun | None] = relationship(
+        foreign_keys=[latest_similarity_run_id],
+        post_update=True,
+    )
+    glossary_validation_runs: Mapped[list[GlossaryValidationRun]] = (
+        relationship(
+            foreign_keys="GlossaryValidationRun.document_file_id",
+            passive_deletes=True,
+            order_by="GlossaryValidationRun.created_at",
+        )
+    )
+    latest_glossary_validation_run: Mapped[
+        GlossaryValidationRun | None
+    ] = relationship(
+        foreign_keys=[latest_glossary_validation_run_id],
         post_update=True,
     )
 

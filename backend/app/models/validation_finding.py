@@ -57,10 +57,17 @@ class ValidationFinding(Base):
             name="validation_findings_page_positive",
         ),
         CheckConstraint(
-            "NOT is_system_generated OR compliance_run_id IS NOT NULL",
+            "NOT is_system_generated OR compliance_run_id IS NOT NULL "
+            "OR similarity_run_id IS NOT NULL "
+            "OR glossary_validation_run_id IS NOT NULL",
             name="validation_findings_system_run_required",
         ),
         Index("ix_validation_findings_compliance_run_id", "compliance_run_id"),
+        Index("ix_validation_findings_similarity_run_id", "similarity_run_id"),
+        Index(
+            "ix_validation_findings_glossary_validation_run_id",
+            "glossary_validation_run_id",
+        ),
         Index("ix_validation_findings_document_id", "document_id"),
         Index(
             "ix_validation_findings_document_revision_id",
@@ -101,6 +108,16 @@ class ValidationFinding(Base):
     compliance_run_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("compliance_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    similarity_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("similarity_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    glossary_validation_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("glossary_validation_runs.id", ondelete="RESTRICT"),
         nullable=True,
     )
     document_id: Mapped[UUID] = mapped_column(

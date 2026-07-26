@@ -26,6 +26,7 @@ export interface NavigationItem {
   path?: string;
   icon: LucideIcon;
   permission?: Permission;
+  anyPermissions?: readonly Permission[];
   roles?: readonly UserRole[];
   children?: readonly NavigationItem[];
 }
@@ -42,6 +43,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: '/documents',
     icon: Files,
     permission: 'documents:view',
+    anyPermissions: ['documents:view', 'similarity:view', 'revision_comparison:view'],
     children: [
       {
         label: 'Document Register',
@@ -92,6 +94,18 @@ export const navigationItems: readonly NavigationItem[] = [
         permission: 'compliance:view',
       },
       {
+        label: 'Similarity Queue',
+        path: '/documents/similarity-queue',
+        icon: Languages,
+        permission: 'similarity:view',
+      },
+      {
+        label: 'Revision Comparison',
+        path: '/documents/revision-comparison',
+        icon: Workflow,
+        permission: 'revision_comparison:view',
+      },
+      {
         label: 'Extraction History',
         path: '/documents/extraction-history',
         icon: FileSearch,
@@ -108,6 +122,12 @@ export const navigationItems: readonly NavigationItem[] = [
         path: '/documents/validation-history',
         icon: FileClock,
         permission: 'compliance:view',
+      },
+      {
+        label: 'Similarity History',
+        path: '/documents/similarity-history',
+        icon: FileClock,
+        permission: 'similarity:view',
       },
       {
         label: 'Archived Documents',
@@ -128,6 +148,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: '/master-data',
     icon: Database,
     permission: 'master_data:view',
+    anyPermissions: ['master_data:view', 'glossary:view'],
     children: [
       {
         label: 'Overview',
@@ -171,6 +192,12 @@ export const navigationItems: readonly NavigationItem[] = [
         icon: Layers3,
         permission: 'master_data:view',
       },
+      {
+        label: 'Glossary',
+        path: '/master-data/glossary',
+        icon: Languages,
+        permission: 'glossary:view',
+      },
     ],
   },
   {
@@ -178,6 +205,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: '/compliance',
     icon: ShieldCheck,
     permission: 'compliance:view',
+    anyPermissions: ['compliance:view', 'similarity:view', 'glossary:view'],
     children: [
       {
         label: 'Compliance Overview',
@@ -192,6 +220,12 @@ export const navigationItems: readonly NavigationItem[] = [
         permission: 'compliance:view',
       },
       {
+        label: 'Translation Similarity',
+        path: '/compliance/translation-similarity',
+        icon: Languages,
+        permission: 'similarity:view',
+      },
+      {
         label: 'Section Compliance',
         path: '/compliance/sections',
         icon: Layers3,
@@ -202,6 +236,12 @@ export const navigationItems: readonly NavigationItem[] = [
         path: '/compliance/language-order',
         icon: Workflow,
         permission: 'compliance:view',
+      },
+      {
+        label: 'Glossary Compliance',
+        path: '/compliance/glossary',
+        icon: ShieldCheck,
+        permission: 'glossary:view',
       },
       {
         label: 'Findings',
@@ -222,6 +262,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: '/reports/compliance',
     icon: BarChart3,
     permission: 'reports:view',
+    anyPermissions: ['reports:view', 'advanced_reports:view'],
     children: [
       {
         label: 'Compliance Report',
@@ -235,6 +276,42 @@ export const navigationItems: readonly NavigationItem[] = [
         icon: FileSearch,
         permission: 'reports:view',
       },
+      {
+        label: 'Translation Similarity',
+        path: '/reports/translation-similarity',
+        icon: Languages,
+        permission: 'advanced_reports:view',
+      },
+      {
+        label: 'Glossary Compliance',
+        path: '/reports/glossary-compliance',
+        icon: ShieldCheck,
+        permission: 'advanced_reports:view',
+      },
+      {
+        label: 'Revision Changes',
+        path: '/reports/revision-changes',
+        icon: Workflow,
+        permission: 'advanced_reports:view',
+      },
+      {
+        label: 'Advanced Analytics',
+        path: '/reports/advanced-analytics',
+        icon: BarChart3,
+        permission: 'advanced_reports:view',
+      },
+      {
+        label: 'Report Snapshots',
+        path: '/reports/snapshots',
+        icon: FileClock,
+        permission: 'advanced_reports:view',
+      },
+      {
+        label: 'Report Schedules',
+        path: '/reports/schedules',
+        icon: FileClock,
+        permission: 'advanced_reports:configure',
+      },
     ],
   },
 ];
@@ -246,7 +323,16 @@ export const filterNavigationItems = (
 ): NavigationItem[] =>
   items.flatMap((item) => {
     const hasPermission =
-      item.permission === undefined || grantedPermissions.includes(item.permission);
+      (item.permission === undefined &&
+        (item.anyPermissions === undefined ||
+          item.anyPermissions.some((permission) =>
+            grantedPermissions.includes(permission),
+          ))) ||
+      (item.permission !== undefined &&
+        (grantedPermissions.includes(item.permission) ||
+          item.anyPermissions?.some((permission) =>
+            grantedPermissions.includes(permission),
+          ) === true));
     const hasRole =
       item.roles === undefined || (role !== undefined && item.roles.includes(role));
 
@@ -261,6 +347,11 @@ export const filterNavigationItems = (
     return [
       {
         ...item,
+        ...(item.permission !== undefined &&
+        !grantedPermissions.includes(item.permission) &&
+        children?.[0]?.path
+          ? { path: children[0].path }
+          : {}),
         ...(children === undefined ? {} : { children }),
       },
     ];

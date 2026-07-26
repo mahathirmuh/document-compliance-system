@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -63,6 +64,14 @@ ALLOWED_SECTION_CODES = frozenset(
 )
 DEFAULT_LANGUAGE_BLOCK_COVERAGE = {"id": 95, "en": 95, "zh": 95}
 DEFAULT_LANGUAGE_CHARACTER_COVERAGE = {"id": 95, "en": 95, "zh": 95}
+
+
+class QualityScoreMode(StrEnum):
+    """Explicitly controls whether Phase 9 quality affects another score."""
+
+    SEPARATE_QUALITY_SCORE = "SEPARATE_QUALITY_SCORE"
+    INCLUDE_IN_COMPLIANCE_SCORE = "INCLUDE_IN_COMPLIANCE_SCORE"
+    INCLUDE_IN_OVERALL_QUALITY_SCORE = "INCLUDE_IN_OVERALL_QUALITY_SCORE"
 
 
 class ValidationRule(Base):
@@ -141,6 +150,19 @@ class ValidationRule(Base):
             "AND partially_compliant_score <= compliant_score",
             name="validation_rules_phase8_score_order",
         ),
+        CheckConstraint(
+            "translation_similarity_weight BETWEEN 0 AND 100 "
+            "AND glossary_compliance_weight BETWEEN 0 AND 100 "
+            "AND translation_similarity_weight "
+            "+ glossary_compliance_weight <= 100",
+            name="validation_rules_quality_weight_range",
+        ),
+        CheckConstraint(
+            "quality_score_mode IN "
+            "('SEPARATE_QUALITY_SCORE', 'INCLUDE_IN_COMPLIANCE_SCORE', "
+            "'INCLUDE_IN_OVERALL_QUALITY_SCORE')",
+            name="validation_rules_quality_score_mode",
+        ),
         Index("ix_validation_rules_code", "code"),
         Index("ix_validation_rules_name", "name"),
         Index("ix_validation_rules_document_type_id", "document_type_id"),
@@ -154,12 +176,10 @@ class ValidationRule(Base):
             "is_default",
             unique=True,
             postgresql_where=text(
-                "is_default IS TRUE AND document_type_id IS NULL "
-                "AND deleted_at IS NULL"
+                "is_default IS TRUE AND document_type_id IS NULL AND deleted_at IS NULL"
             ),
             sqlite_where=text(
-                "is_default = 1 AND document_type_id IS NULL "
-                "AND deleted_at IS NULL"
+                "is_default = 1 AND document_type_id IS NULL AND deleted_at IS NULL"
             ),
         ),
         Index(
@@ -171,8 +191,7 @@ class ValidationRule(Base):
                 "AND deleted_at IS NULL"
             ),
             sqlite_where=text(
-                "is_default = 1 AND document_type_id IS NOT NULL "
-                "AND deleted_at IS NULL"
+                "is_default = 1 AND document_type_id IS NOT NULL AND deleted_at IS NULL"
             ),
         ),
     )
@@ -255,19 +274,15 @@ class ValidationRule(Base):
         ForeignKey("section_alias_profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
-    minimum_language_block_coverage_json: Mapped[dict[str, float]] = (
-        mapped_column(
-            JSON().with_variant(JSONB, "postgresql"),
-            nullable=False,
-            default=lambda: dict(DEFAULT_LANGUAGE_BLOCK_COVERAGE),
-        )
+    minimum_language_block_coverage_json: Mapped[dict[str, float]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=lambda: dict(DEFAULT_LANGUAGE_BLOCK_COVERAGE),
     )
-    minimum_language_character_coverage_json: Mapped[dict[str, float]] = (
-        mapped_column(
-            JSON().with_variant(JSONB, "postgresql"),
-            nullable=False,
-            default=lambda: dict(DEFAULT_LANGUAGE_CHARACTER_COVERAGE),
-        )
+    minimum_language_character_coverage_json: Mapped[dict[str, float]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=lambda: dict(DEFAULT_LANGUAGE_CHARACTER_COVERAGE),
     )
     maximum_unknown_block_percentage: Mapped[float] = mapped_column(
         Numeric(6, 2), nullable=False, default=10, server_default="10"
@@ -295,6 +310,18 @@ class ValidationRule(Base):
     )
     table_completeness_weight: Mapped[float] = mapped_column(
         Numeric(6, 2), nullable=False, default=5, server_default="5"
+    )
+    translation_similarity_weight: Mapped[float] = mapped_column(
+        Numeric(6, 2), nullable=False, default=25, server_default="25"
+    )
+    glossary_compliance_weight: Mapped[float] = mapped_column(
+        Numeric(6, 2), nullable=False, default=15, server_default="15"
+    )
+    quality_score_mode: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default=QualityScoreMode.SEPARATE_QUALITY_SCORE.value,
+        server_default=QualityScoreMode.SEPARATE_QUALITY_SCORE.value,
     )
     critical_finding_score_cap: Mapped[float] = mapped_column(
         Numeric(6, 2), nullable=False, default=69, server_default="69"

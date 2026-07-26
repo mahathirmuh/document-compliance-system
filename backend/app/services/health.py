@@ -45,6 +45,10 @@ class HealthService:
             compliance_worker=workers["compliance"],
             ocr_provider=self._ocr_provider_state(settings),
             language_model=self._file_state(settings.language_model_path),
+            similarity_model=self._similarity_model_state(settings),
+            glossary_service=database,
+            revision_comparison_worker=workers["revision"],
+            reporting_worker=workers["reporting"],
         )
 
     @staticmethod
@@ -76,6 +80,10 @@ class HealthService:
             "ocr": "unavailable",
             "language": "unavailable",
             "compliance": "unavailable",
+            "similarity": "unavailable",
+            "glossary": "unavailable",
+            "revision": "unavailable",
+            "reporting": "unavailable",
         }
         try:
             replies = celery_app.control.inspect(timeout=1).ping() or {}
@@ -113,6 +121,24 @@ class HealthService:
     def _file_state(path: Path) -> DependencyState:
         return (
             "healthy" if path.is_file() and path.stat().st_size > 0 else "unavailable"
+        )
+
+    @staticmethod
+    def _similarity_model_state(settings: Settings) -> DependencyState:
+        root = settings.similarity_model_path
+        safe_name = settings.similarity_model_name.replace("/", "--")
+        candidates = (root, root / safe_name)
+        return (
+            "healthy"
+            if any(
+                candidate.is_dir()
+                and (
+                    (candidate / "config.json").is_file()
+                    or (candidate / "modules.json").is_file()
+                )
+                for candidate in candidates
+            )
+            else "unavailable"
         )
 
 

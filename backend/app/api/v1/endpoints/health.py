@@ -46,7 +46,7 @@ async def dependency_health_check(
     settings: Configuration,
     service: Annotated[HealthService, Depends(get_health_service)],
 ) -> ApiResponse[DependencyHealthData]:
-    """Report readiness without loading PaddleOCR or fastText models."""
+    """Report readiness without loading OCR, language, or similarity models."""
     return ApiResponse(
         success=True,
         message="Dependency readiness checked.",

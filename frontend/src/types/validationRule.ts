@@ -25,6 +25,13 @@ export const validationSectionCodes = [
 
 export type ValidationSectionCode = (typeof validationSectionCodes)[number];
 
+export const qualityScoreModes = [
+  'SEPARATE_QUALITY_SCORE',
+  'INCLUDE_IN_COMPLIANCE_SCORE',
+  'INCLUDE_IN_OVERALL_QUALITY_SCORE',
+] as const;
+export type QualityScoreMode = (typeof qualityScoreModes)[number];
+
 export interface ValidationRuleDocumentType {
   id: string;
   code: string;
@@ -70,6 +77,9 @@ export interface ValidationRule extends MasterDataAuditFields {
   languageOrderWeight: number;
   translationGroupWeight: number;
   tableCompletenessWeight: number;
+  translationSimilarityWeight: number;
+  glossaryComplianceWeight: number;
+  qualityScoreMode: QualityScoreMode;
   criticalFindingScoreCap: number;
   majorFindingPenalty: number;
   minorFindingPenalty: number;
@@ -102,6 +112,9 @@ export interface ValidationRuleCreate {
   validateSections: boolean;
   requiredSections: ValidationSectionCode[];
   validateTables: boolean;
+  translationSimilarityWeight: number;
+  glossaryComplianceWeight: number;
+  qualityScoreMode: QualityScoreMode;
   minimumComplianceScore: number;
   partialComplianceScore: number;
   isDefault: boolean;
