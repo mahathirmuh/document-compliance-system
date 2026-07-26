@@ -142,4 +142,60 @@ describe('Sidebar', () => {
       screen.getByRole('link', { name: 'Language Detection' }),
     ).toBeInTheDocument();
   });
+
+  it('shows Phase 8 compliance, finding, report, and validation menus by permission', () => {
+    useAuthStore.getState().setAuth(superAdminSession);
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'Compliance' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Compliance Overview' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Validation Queue' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Validation History' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Compliance Report' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Findings Report' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Section Definitions' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides compliance navigation without compliance and finding permissions', () => {
+    useAuthStore.getState().setAuth({
+      ...superAdminSession,
+      permissions: ['documents:view'],
+    });
+    renderSidebar();
+
+    expect(screen.queryByRole('link', { name: 'Compliance' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Validation Queue' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Findings' })).not.toBeInTheDocument();
+  });
+
+  it('hides report navigation without reports:view', () => {
+    useAuthStore.getState().setAuth({
+      ...superAdminSession,
+      permissions: ['compliance:view', 'findings:view'],
+      user: {
+        ...superAdminSession.user,
+        role: 'VIEWER',
+      },
+    });
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: 'Compliance' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Findings' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Compliance Report' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Findings Report' }),
+    ).not.toBeInTheDocument();
+  });
 });

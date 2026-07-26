@@ -915,6 +915,18 @@ class MasterDataImportExportService:
         if entity_type is ImportEntityType.VALIDATION_RULES:
             values["language_order_json"] = values.pop("language_order")
             values["required_sections_json"] = values.pop("required_sections")
+            values["required_languages_json"] = values.pop(
+                "required_languages"
+            )
+            values["minimum_language_block_coverage_json"] = values.pop(
+                "minimum_language_block_coverage"
+            )
+            values["minimum_language_character_coverage_json"] = values.pop(
+                "minimum_language_character_coverage"
+            )
+            values["validation_options_json"] = values.pop(
+                "validation_options"
+            )
         category = values.get("category")
         if category is not None:
             values["category"] = category.value
@@ -961,6 +973,18 @@ class MasterDataImportExportService:
         if entity_type is ImportEntityType.VALIDATION_RULES:
             values["language_order_json"] = values.pop("language_order")
             values["required_sections_json"] = values.pop("required_sections")
+            values["required_languages_json"] = values.pop(
+                "required_languages"
+            )
+            values["minimum_language_block_coverage_json"] = values.pop(
+                "minimum_language_block_coverage"
+            )
+            values["minimum_language_character_coverage_json"] = values.pop(
+                "minimum_language_character_coverage"
+            )
+            values["validation_options_json"] = values.pop(
+                "validation_options"
+            )
         category = values.get("category")
         if category is not None:
             values["category"] = category.value

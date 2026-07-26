@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -19,8 +19,10 @@ from app.models.language_detection_job import (
     LanguageDetectionJob,
     LanguageDetectionJobStatus,
 )
+from app.models.language_detection_run import LanguageDetectionRun
 from app.models.ocr_block import OCRBlock
 from app.models.ocr_job import OCRJob, OCRJobStatus
+from app.models.ocr_run import OCRRun, OCRRunStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,19 +71,97 @@ class LanguageDetectionDocumentRepository:
             .correlate(DocumentFile)
             .scalar_subquery()
         )
+        usable_ocr_pointer = (
+            select(OCRRun.id)
+            .where(
+                OCRRun.id == DocumentFile.latest_ocr_run_id,
+                OCRRun.document_file_id == DocumentFile.id,
+                OCRRun.source_extraction_run_id
+                == DocumentFile.latest_extraction_run_id,
+                OCRRun.status.in_(
+                    {
+                        OCRRunStatus.COMPLETED,
+                        OCRRunStatus.PARTIALLY_COMPLETED,
+                    }
+                ),
+            )
+            .correlate(DocumentFile)
+            .exists()
+        )
+        ocr_run_is_latest = (
+            select(OCRRun.id)
+            .where(
+                OCRRun.ocr_job_id == OCRJob.id,
+                OCRRun.id == DocumentFile.latest_ocr_run_id,
+                OCRRun.source_extraction_run_id
+                == DocumentFile.latest_extraction_run_id,
+            )
+            .correlate(DocumentFile, OCRJob)
+            .exists()
+        )
+        current_ocr_job_predicates = (
+            OCRJob.document_file_id == DocumentFile.id,
+            OCRJob.extraction_run_id == DocumentFile.latest_extraction_run_id,
+            or_(
+                OCRJob.status.not_in(
+                    {
+                        OCRJobStatus.COMPLETED,
+                        OCRJobStatus.PARTIALLY_COMPLETED,
+                    }
+                ),
+                ocr_run_is_latest,
+            ),
+        )
         latest_ocr_status = (
             select(OCRJob.status)
-            .where(OCRJob.document_file_id == DocumentFile.id)
+            .where(*current_ocr_job_predicates)
             .order_by(OCRJob.requested_at.desc(), OCRJob.id.desc())
             .limit(1)
             .correlate(DocumentFile)
             .scalar_subquery()
         )
+        current_language_source = (
+            LanguageDetectionJob.document_file_id == DocumentFile.id,
+            LanguageDetectionJob.extraction_run_id
+            == DocumentFile.latest_extraction_run_id,
+            or_(
+                and_(
+                    LanguageDetectionJob.ocr_run_id.is_(None),
+                    ~usable_ocr_pointer,
+                ),
+                and_(
+                    LanguageDetectionJob.ocr_run_id == DocumentFile.latest_ocr_run_id,
+                    usable_ocr_pointer,
+                ),
+            ),
+        )
+        language_run_is_latest = (
+            select(LanguageDetectionRun.id)
+            .where(
+                LanguageDetectionRun.job_id == LanguageDetectionJob.id,
+                LanguageDetectionRun.id
+                == DocumentFile.latest_language_detection_run_id,
+                LanguageDetectionRun.extraction_run_id
+                == DocumentFile.latest_extraction_run_id,
+            )
+            .correlate(DocumentFile, LanguageDetectionJob)
+            .exists()
+        )
+        current_language_job_predicates = (
+            *current_language_source,
+            or_(
+                LanguageDetectionJob.status.not_in(
+                    {
+                        LanguageDetectionJobStatus.COMPLETED,
+                        LanguageDetectionJobStatus.PARTIALLY_COMPLETED,
+                    }
+                ),
+                language_run_is_latest,
+            ),
+        )
         latest_language_status = (
             select(LanguageDetectionJob.status)
-            .where(
-                LanguageDetectionJob.document_file_id == DocumentFile.id
-            )
+            .where(*current_language_job_predicates)
             .order_by(
                 LanguageDetectionJob.requested_at.desc(),
                 LanguageDetectionJob.id.desc(),
@@ -92,9 +172,7 @@ class LanguageDetectionDocumentRepository:
         )
         latest_language_progress = (
             select(LanguageDetectionJob.progress)
-            .where(
-                LanguageDetectionJob.document_file_id == DocumentFile.id
-            )
+            .where(*current_language_job_predicates)
             .order_by(
                 LanguageDetectionJob.requested_at.desc(),
                 LanguageDetectionJob.id.desc(),
@@ -105,9 +183,7 @@ class LanguageDetectionDocumentRepository:
         )
         latest_language_current_stage = (
             select(LanguageDetectionJob.current_stage)
-            .where(
-                LanguageDetectionJob.document_file_id == DocumentFile.id
-            )
+            .where(*current_language_job_predicates)
             .order_by(
                 LanguageDetectionJob.requested_at.desc(),
                 LanguageDetectionJob.id.desc(),
@@ -119,10 +195,8 @@ class LanguageDetectionDocumentRepository:
         language_active = (
             select(func.count(LanguageDetectionJob.id))
             .where(
-                LanguageDetectionJob.document_file_id == DocumentFile.id,
-                LanguageDetectionJob.status.in_(
-                    ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES
-                ),
+                *current_language_source,
+                LanguageDetectionJob.status.in_(ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES),
             )
             .correlate(DocumentFile)
             .scalar_subquery()
@@ -180,15 +254,12 @@ class LanguageDetectionDocumentRepository:
             .join(Document, Document.id == DocumentFile.document_id)
             .join(
                 DocumentRevision,
-                DocumentRevision.id
-                == DocumentFile.document_revision_id,
+                DocumentRevision.id == DocumentFile.document_revision_id,
             )
             .where(*predicates)
         )
         total = int(
-            await self.session.scalar(
-                select(func.count()).select_from(base.subquery())
-            )
+            await self.session.scalar(select(func.count()).select_from(base.subquery()))
             or 0
         )
 
@@ -203,9 +274,7 @@ class LanguageDetectionDocumentRepository:
         )
         ascending = sort_order.lower() == "asc"
         ordering = sort_column.asc() if ascending else sort_column.desc()
-        tie_breaker = (
-            DocumentFile.id.asc() if ascending else DocumentFile.id.desc()
-        )
+        tie_breaker = DocumentFile.id.asc() if ascending else DocumentFile.id.desc()
         statement = (
             select(
                 DocumentFile,
@@ -213,9 +282,7 @@ class LanguageDetectionDocumentRepository:
                 latest_ocr_status.label("ocr_status"),
                 latest_language_status.label("language_status"),
                 latest_language_progress.label("language_progress"),
-                latest_language_current_stage.label(
-                    "language_current_stage"
-                ),
+                latest_language_current_stage.label("language_current_stage"),
                 language_active.label("language_active"),
                 native_block_count.label("native_block_count"),
                 ocr_block_count.label("ocr_block_count"),
@@ -223,8 +290,7 @@ class LanguageDetectionDocumentRepository:
             .join(Document, Document.id == DocumentFile.document_id)
             .join(
                 DocumentRevision,
-                DocumentRevision.id
-                == DocumentFile.document_revision_id,
+                DocumentRevision.id == DocumentFile.document_revision_id,
             )
             .where(*predicates)
             .options(

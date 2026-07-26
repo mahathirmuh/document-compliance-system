@@ -189,6 +189,12 @@ export interface LanguagePresenceSummary {
   zh: LanguagePresenceStatus;
 }
 
+export interface LanguageAverageConfidence {
+  id: number | null;
+  en: number | null;
+  zh: number | null;
+}
+
 export interface LanguageSummary {
   runId: string;
   totalBlocks: number;
@@ -207,6 +213,7 @@ export interface LanguageSummary {
   mixedCharacters: number;
   unknownCharacters: number;
   averageConfidence: number | null;
+  averageConfidenceByLanguage: LanguageAverageConfidence;
   languagePresence: LanguagePresenceSummary;
   coverage: LanguageCoverage;
   preliminaryLabel: string;

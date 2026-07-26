@@ -83,9 +83,7 @@ class ExtractionRunRepository:
             .offset(offset)
             .limit(limit)
         )
-        return list(
-            (await self.session.scalars(statement)).unique().all()
-        )
+        return list((await self.session.scalars(statement)).unique().all())
 
     async def find_by_source_hash(
         self,
@@ -96,8 +94,7 @@ class ExtractionRunRepository:
             select(ExtractionRun)
             .where(
                 ExtractionRun.document_file_id == document_file_id,
-                ExtractionRun.source_sha256_hash
-                == source_sha256_hash.strip().lower(),
+                ExtractionRun.source_sha256_hash == source_sha256_hash.strip().lower(),
             )
             .options(*self._options())
             .order_by(
@@ -123,10 +120,10 @@ class ExtractionRunRepository:
         extraction_run: ExtractionRun,
     ) -> DocumentFile:
         if extraction_run.document_file_id != document_file.id:
-            raise ValueError(
-                "Latest extraction run must belong to the document file."
-            )
+            raise ValueError("Latest extraction run must belong to the document file.")
         document_file.latest_extraction_run_id = extraction_run.id
+        document_file.latest_ocr_run_id = None
+        document_file.latest_language_detection_run_id = None
         await self.session.flush()
         return document_file
 
@@ -139,6 +136,10 @@ class ExtractionRunRepository:
         await self.session.execute(
             update(DocumentFile)
             .where(DocumentFile.id == document_file_id)
-            .values(latest_extraction_run_id=extraction_run_id)
+            .values(
+                latest_extraction_run_id=extraction_run_id,
+                latest_ocr_run_id=None,
+                latest_language_detection_run_id=None,
+            )
         )
         await self.session.flush()

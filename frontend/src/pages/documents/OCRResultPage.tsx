@@ -79,6 +79,8 @@ export function OCRResultPage() {
     (run ? files.find((candidate) => candidate.id === run.file.id) : undefined) ?? file;
   const canReOCRRun =
     hasPermission('documents:reocr') &&
+    run !== null &&
+    (run.status === 'COMPLETED' || run.status === 'PARTIALLY_COMPLETED') &&
     displayedFile?.isCurrent === true &&
     displayedFile.fileStatus === 'AVAILABLE' &&
     documentQuery.data?.isArchived !== true;
@@ -108,11 +110,29 @@ export function OCRResultPage() {
   const pageQuery = useOCRPage(runId, effectivePageNumber, run !== null);
   const page = pageQuery.data?.page ?? selectedListPage;
   const [confidenceFilter, setConfidenceFilter] = useState<OCRConfidenceFilter>('ALL');
+  const [blockPage, setBlockPage] = useState(1);
   const blocksQuery = useOCRBlocks(
     runId,
     {
       ...(effectivePageNumber ? { pageNumber: effectivePageNumber } : {}),
-      page: 1,
+      ...(confidenceFilter === 'HIGH' && run
+        ? { minimumConfidence: run.reviewConfidenceThreshold }
+        : {}),
+      ...(confidenceFilter === 'REVIEW' && run
+        ? {
+            minimumConfidence: run.lowConfidenceThreshold,
+            maximumConfidence: Math.max(
+              0,
+              run.reviewConfidenceThreshold - Number.EPSILON,
+            ),
+          }
+        : {}),
+      ...(confidenceFilter === 'LOW' && run
+        ? {
+            maximumConfidence: Math.max(0, run.lowConfidenceThreshold - Number.EPSILON),
+          }
+        : {}),
+      page: blockPage,
       pageSize: 500,
     },
     run !== null && effectivePageNumber !== null,
@@ -363,6 +383,7 @@ export function OCRResultPage() {
                         onClick={() => {
                           setSelectedPageNumber(item.pageNumber);
                           setConfidenceFilter('ALL');
+                          setBlockPage(1);
                         }}
                         className={`w-full rounded-xl border p-3 text-left ${
                           effectivePageNumber === item.pageNumber
@@ -385,15 +406,48 @@ export function OCRResultPage() {
             </aside>
             <main>
               {page ? (
-                <OCRPageViewer
-                  page={page}
-                  blocks={blocksQuery.data?.items ?? []}
-                  isLoading={blocksQuery.isLoading}
-                  confidenceFilter={confidenceFilter}
-                  lowConfidenceThreshold={run.lowConfidenceThreshold}
-                  reviewConfidenceThreshold={run.reviewConfidenceThreshold}
-                  onConfidenceFilterChange={setConfidenceFilter}
-                />
+                <div className="space-y-3">
+                  <OCRPageViewer
+                    page={page}
+                    blocks={blocksQuery.data?.items ?? []}
+                    isLoading={blocksQuery.isLoading}
+                    confidenceFilter={confidenceFilter}
+                    lowConfidenceThreshold={run.lowConfidenceThreshold}
+                    reviewConfidenceThreshold={run.reviewConfidenceThreshold}
+                    onConfidenceFilterChange={(filter) => {
+                      setConfidenceFilter(filter);
+                      setBlockPage(1);
+                    }}
+                  />
+                  {blocksQuery.data && blocksQuery.data.totalPages > 1 && (
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                      <span>
+                        Block page {blockPage} of {blocksQuery.data.totalPages} ·{' '}
+                        {blocksQuery.data.totalItems.toLocaleString()} matching blocks
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBlockPage((current) => Math.max(1, current - 1))
+                          }
+                          disabled={blockPage <= 1}
+                          className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBlockPage((current) => current + 1)}
+                          disabled={blockPage >= blocksQuery.data.totalPages}
+                          className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-600">
                   This OCR run has no page result.

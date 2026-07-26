@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -41,6 +41,36 @@ const validationRule: ValidationRule = {
   validateSections: false,
   requiredSections: ['TITLE', 'PURPOSE'],
   validateTables: false,
+  validateDocumentCode: true,
+  validateLanguagePresence: true,
+  validateLanguageCoverage: true,
+  validateContainerCompleteness: false,
+  validateTranslationGroups: true,
+  validateCells: true,
+  requiredLanguages: ['id', 'en', 'zh'],
+  sectionAliasProfileId: null,
+  sectionAliasProfile: null,
+  minimumLanguageBlockCoverage: { id: 95, en: 95, zh: 95 },
+  minimumLanguageCharacterCoverage: { id: 95, en: 95, zh: 95 },
+  maximumUnknownBlockPercentage: 10,
+  maximumMixedBlockPercentage: 20,
+  documentCodeWeight: 10,
+  languagePresenceWeight: 25,
+  languageCoverageWeight: 15,
+  sectionCompletenessWeight: 20,
+  languageOrderWeight: 10,
+  translationGroupWeight: 15,
+  tableCompletenessWeight: 5,
+  criticalFindingScoreCap: 69,
+  majorFindingPenalty: 5,
+  minorFindingPenalty: 1,
+  compliantScore: 95,
+  partiallyCompliantScore: 70,
+  needsReviewScore: 50,
+  failOnMissingRequiredLanguage: true,
+  failOnMissingRequiredSection: false,
+  failOnCriticalFinding: true,
+  validationOptions: {},
   minimumComplianceScore: 95,
   partialComplianceScore: 70,
   isDefault: true,
@@ -48,6 +78,64 @@ const validationRule: ValidationRule = {
 };
 
 describe('edit form status permissions', () => {
+  it('offers every seeded canonical section and submits approval and distribution', async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ValidationRuleForm
+        validationRule={null}
+        documentTypes={[]}
+        isLoadingDocumentTypes={false}
+        isPending={false}
+        onCancel={vi.fn()}
+        onSubmit={submit}
+      />,
+    );
+
+    const requiredSections = screen.getByRole('group', {
+      name: 'Required sections',
+    });
+    expect(
+      within(requiredSections)
+        .getAllByRole('checkbox')
+        .map((checkbox) => (checkbox as HTMLInputElement).value),
+    ).toEqual([
+      'TITLE',
+      'PURPOSE',
+      'SCOPE',
+      'DEFINITION',
+      'REFERENCE',
+      'RESPONSIBILITY',
+      'PROCEDURE',
+      'RECORDS',
+      'ATTACHMENT',
+      'REVISION_HISTORY',
+      'APPROVAL',
+      'DISTRIBUTION',
+    ]);
+
+    await user.type(screen.getByLabelText('Code'), 'PHASE8-SECTIONS');
+    await user.type(screen.getByLabelText('Name'), 'Phase 8 canonical sections');
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Validate required sections' }),
+    );
+    await user.click(
+      within(requiredSections).getByRole('checkbox', { name: 'APPROVAL' }),
+    );
+    await user.click(
+      within(requiredSections).getByRole('checkbox', { name: 'DISTRIBUTION' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Create validation rule' }));
+
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requiredSections: expect.arrayContaining(['APPROVAL', 'DISTRIBUTION']),
+        }),
+      ),
+    );
+  });
+
   it('preserves department status so edits cannot bypass the row action', async () => {
     const user = userEvent.setup();
     const submit = vi.fn().mockResolvedValue(undefined);

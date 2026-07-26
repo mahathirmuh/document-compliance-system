@@ -19,6 +19,7 @@ PyMuPDF==1.28.0
 python-docx==1.2.0
 celery==5.6.3
 redis==8.0.1
+regex==2026.7.19
 paddleocr==3.7.0
 paddlepaddle==3.3.1
 opencv-python-headless==4.10.0.84

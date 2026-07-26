@@ -27,6 +27,7 @@ from app.repositories.language_container_summary_repository import (
 from app.schemas.language_detection import LanguageDetectionRunResponse
 from app.services.auth.auth_service import RequestMetadata
 from app.services.documents.base import document_error
+from app.services.documents.xlsx_safety import excel_safe
 from app.services.language.language_detection_job_service import (
     LanguageResultService,
     language_block_response,
@@ -94,8 +95,7 @@ class LanguageExportService(LanguageResultService):
             else:
                 await self._write_xlsx(path, run, run_response)
                 media_type = (
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             await self.audit(
                 action=AuditAction.EXPORT_LANGUAGE_RESULT,
@@ -219,7 +219,7 @@ class LanguageExportService(LanguageResultService):
             for item in items:
                 container_sheet.append(
                     [
-                        _safe_cell(item.container_name or ""),
+                        excel_safe(item.container_name or ""),
                         item.container_type,
                         item.container_index,
                         item.dominant_language,
@@ -290,22 +290,29 @@ class LanguageExportService(LanguageResultService):
                 "Average Confidence",
             ]
         )
-        averages = await self.export_blocks.average_confidence_by_language(
-            run.id
-        )
+        averages = await self.export_blocks.average_confidence_by_language(run.id)
         summary = run_response
+        raw_other_characters = (run.metadata_json or {}).get(
+            "otherCharacters",
+            0,
+        )
+        other_characters = (
+            raw_other_characters
+            if isinstance(raw_other_characters, int)
+            and not isinstance(raw_other_characters, bool)
+            and raw_other_characters >= 0
+            else 0
+        )
         count_values = {
             "id": (summary.indonesian_blocks, summary.indonesian_characters),
             "en": (summary.english_blocks, summary.english_characters),
             "zh": (summary.chinese_blocks, summary.chinese_characters),
             "mixed": (summary.mixed_blocks, summary.mixed_characters),
             "unknown": (summary.unknown_blocks, summary.unknown_characters),
-            "other": (summary.other_blocks, 0),
+            "other": (summary.other_blocks, other_characters),
         }
         block_coverage = summary.coverage.block_coverage.model_dump()
-        character_coverage = (
-            summary.coverage.character_coverage.model_dump()
-        )
+        character_coverage = summary.coverage.character_coverage.model_dump()
         presence = summary.language_presence.model_dump(mode="json")
         for code in ("id", "en", "zh", "mixed", "unknown", "other"):
             block_count, character_count = count_values[code]
@@ -344,8 +351,8 @@ class LanguageExportService(LanguageResultService):
             [
                 result.source_type.value,
                 container,
-                _safe_cell(result.source_reference),
-                _safe_cell(row.text),
+                excel_safe(result.source_reference),
+                excel_safe(row.text),
                 result.language_code.value,
                 result.primary_language_code.value,
                 float(result.confidence),
@@ -381,11 +388,6 @@ def _write_json_value(output: object, value: object) -> None:
         ensure_ascii=False,
         separators=(",", ":"),
     )
-
-
-def _safe_cell(value: str) -> str:
-    """Prevent spreadsheet formula execution while retaining exact text."""
-    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
 
 
 def _safe_filename(value: str) -> str:

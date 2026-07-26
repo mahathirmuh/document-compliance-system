@@ -62,6 +62,11 @@ const ValidationRulesPage = lazy(() =>
     default: module.ValidationRulesPage,
   })),
 );
+const SectionDefinitionsPage = lazy(() =>
+  import('../pages/master-data/SectionDefinitionsPage').then((module) => ({
+    default: module.SectionDefinitionsPage,
+  })),
+);
 const DocumentsPage = lazy(() =>
   import('../pages/documents/DocumentsPage').then((module) => ({
     default: module.DocumentsPage,
@@ -125,6 +130,66 @@ const LanguageDetectionPage = lazy(() =>
 const LanguageResultPage = lazy(() =>
   import('../pages/documents/LanguageResultPage').then((module) => ({
     default: module.LanguageResultPage,
+  })),
+);
+const ValidationQueuePage = lazy(() =>
+  import('../pages/documents/ValidationQueuePage').then((module) => ({
+    default: module.ValidationQueuePage,
+  })),
+);
+const ValidationHistoryPage = lazy(() =>
+  import('../pages/documents/ValidationHistoryPage').then((module) => ({
+    default: module.ValidationHistoryPage,
+  })),
+);
+const ComplianceOverviewPage = lazy(() =>
+  import('../pages/compliance/ComplianceOverviewPage').then((module) => ({
+    default: module.ComplianceOverviewPage,
+  })),
+);
+const LanguageCompliancePage = lazy(() =>
+  import('../pages/compliance/LanguageCompliancePage').then((module) => ({
+    default: module.LanguageCompliancePage,
+  })),
+);
+const SectionCompliancePage = lazy(() =>
+  import('../pages/compliance/SectionCompliancePage').then((module) => ({
+    default: module.SectionCompliancePage,
+  })),
+);
+const LanguageOrderPage = lazy(() =>
+  import('../pages/compliance/LanguageOrderPage').then((module) => ({
+    default: module.LanguageOrderPage,
+  })),
+);
+const FindingsPage = lazy(() =>
+  import('../pages/compliance/FindingsPage').then((module) => ({
+    default: module.FindingsPage,
+  })),
+);
+const ReviewFindingsPage = lazy(() =>
+  import('../pages/compliance/FindingsPage').then((module) => ({
+    default: module.ReviewFindingsPage,
+  })),
+);
+const FindingDetailPage = lazy(() =>
+  import('../pages/compliance/FindingDetailPage').then((module) => ({
+    default: module.FindingDetailPage,
+  })),
+);
+const DocumentCompliancePage = lazy(() =>
+  import('../pages/compliance/DocumentCompliancePage').then((module) => ({
+    default: module.DocumentCompliancePage,
+  })),
+);
+const ComplianceReportPage = lazy(() =>
+  import('../pages/reports/ComplianceReportPage').then((module) => ({
+    default: module.ComplianceReportPage,
+  })),
+);
+const FindingsReportPage = lazy(() =>
+  import('../pages/reports/FindingsReportPage').then((module) => ({
+    default: module.FindingsReportPage,
   })),
 );
 const ExtractedContentPage = lazy(() =>
@@ -271,6 +336,22 @@ export function AppRoutes() {
               }
             />
             <Route
+              path="/documents/validation-queue"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <ValidationQueuePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/validation-history"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <ValidationHistoryPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
               path="/documents/:documentId/ocr-results"
               element={
                 <PermissionGuard permission="documents:view_ocr_results">
@@ -299,6 +380,22 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="documents:view_language_results">
                   <LanguageResultPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/compliance"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <DocumentCompliancePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/documents/:documentId/revisions/:revisionId/compliance"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <DocumentCompliancePage />
                 </PermissionGuard>
               }
             />
@@ -403,6 +500,90 @@ export function AppRoutes() {
               element={
                 <PermissionGuard permission="master_data:view">
                   <ValidationRulesPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/master-data/section-definitions"
+              element={
+                <PermissionGuard permission="master_data:view">
+                  <SectionDefinitionsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <ComplianceOverviewPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/languages"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <LanguageCompliancePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/sections"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <SectionCompliancePage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/language-order"
+              element={
+                <PermissionGuard permission="compliance:view">
+                  <LanguageOrderPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/findings"
+              element={
+                <PermissionGuard permission="findings:view">
+                  <FindingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/findings/review"
+              element={
+                <PermissionGuard permission="findings:review">
+                  <ReviewFindingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/compliance/findings/:findingId"
+              element={
+                <PermissionGuard permission="findings:view">
+                  <FindingDetailPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/compliance"
+              element={
+                <PermissionGuard permission="reports:view">
+                  <PermissionGuard permission="compliance:view">
+                    <ComplianceReportPage />
+                  </PermissionGuard>
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="/reports/findings"
+              element={
+                <PermissionGuard permission="reports:view">
+                  <PermissionGuard permission="findings:view">
+                    <FindingsReportPage />
+                  </PermissionGuard>
                 </PermissionGuard>
               }
             />

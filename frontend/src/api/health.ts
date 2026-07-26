@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface ApiErrorDetail {
   field?: string;
   message: string;
+  code?: string;
 }
 
 export interface ApiEnvelope<TData> {

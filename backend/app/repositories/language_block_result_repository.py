@@ -22,6 +22,7 @@ from app.models.language_block_result import (
 )
 from app.models.ocr_block import OCRBlock
 from app.models.ocr_page_result import OCRPageResult
+from app.schemas.compliance_internal import ComplianceBlockData
 from app.schemas.language_internal import LanguageSourceBlockData
 
 
@@ -47,6 +48,39 @@ class LanguageBlockResultRepository:
         self.session.add_all(results)
         await self.session.flush()
         return list(results)
+
+    async def average_confidence_by_target_language(
+        self,
+        language_detection_run_id: UUID,
+    ) -> dict[LanguageCode, float | None]:
+        """Return independent averages for Indonesian, English, and Chinese."""
+        target_languages = (
+            LanguageCode.INDONESIAN,
+            LanguageCode.ENGLISH,
+            LanguageCode.CHINESE,
+        )
+        rows = (
+            await self.session.execute(
+                select(
+                    LanguageBlockResult.language_code,
+                    func.avg(LanguageBlockResult.confidence),
+                )
+                .where(
+                    LanguageBlockResult.language_detection_run_id
+                    == language_detection_run_id,
+                    LanguageBlockResult.eligibility_status
+                    == LanguageEligibilityStatus.ELIGIBLE,
+                    LanguageBlockResult.language_code.in_(target_languages),
+                )
+                .group_by(LanguageBlockResult.language_code)
+            )
+        ).all()
+        averages: dict[LanguageCode, float | None] = {
+            language: None for language in target_languages
+        }
+        for language, average in rows:
+            averages[language] = float(average) if average is not None else None
+        return averages
 
     async def load_native_sources(
         self,
@@ -80,8 +114,7 @@ class LanguageBlockResultRepository:
                 container_index=container.container_index,
                 page_number=(
                     container.container_index
-                    if container.container_type
-                    is ExtractedContainerType.PDF_PAGE
+                    if container.container_type is ExtractedContainerType.PDF_PAGE
                     else None
                 ),
                 block_order=block.block_order,
@@ -99,8 +132,11 @@ class LanguageBlockResultRepository:
         ocr_run_id: UUID,
         *,
         extraction_run_id: UUID,
+        page_numbers: Sequence[int] | None = None,
         limit: int,
     ) -> list[LanguageSourceBlockData]:
+        if page_numbers is not None and not page_numbers:
+            return []
         statement = (
             select(OCRBlock, OCRPageResult, ExtractedContainer)
             .join(
@@ -109,18 +145,9 @@ class LanguageBlockResultRepository:
             )
             .outerjoin(
                 ExtractedContainer,
-                (
-                    ExtractedContainer.extraction_run_id
-                    == extraction_run_id
-                )
-                & (
-                    ExtractedContainer.container_type
-                    == ExtractedContainerType.PDF_PAGE
-                )
-                & (
-                    ExtractedContainer.container_index
-                    == OCRPageResult.page_number
-                ),
+                (ExtractedContainer.extraction_run_id == extraction_run_id)
+                & (ExtractedContainer.container_type == ExtractedContainerType.PDF_PAGE)
+                & (ExtractedContainer.container_index == OCRPageResult.page_number),
             )
             .where(OCRBlock.ocr_run_id == ocr_run_id)
             .order_by(
@@ -130,6 +157,10 @@ class LanguageBlockResultRepository:
             )
             .limit(limit)
         )
+        if page_numbers is not None:
+            statement = statement.where(
+                OCRPageResult.page_number.in_(tuple(page_numbers))
+            )
         rows = (await self.session.execute(statement)).all()
         return [
             LanguageSourceBlockData(
@@ -180,35 +211,23 @@ class LanguageBlockResultRepository:
         page_size: int = 100,
     ) -> tuple[list[LanguageBlockReadRow], int]:
         predicates: list[object] = [
-            LanguageBlockResult.language_detection_run_id
-            == language_detection_run_id
+            LanguageBlockResult.language_detection_run_id == language_detection_run_id
         ]
         if language_code is not None:
-            predicates.append(
-                LanguageBlockResult.language_code == language_code
-            )
+            predicates.append(LanguageBlockResult.language_code == language_code)
         if source_type is not None:
-            predicates.append(
-                LanguageBlockResult.source_type == source_type
-            )
+            predicates.append(LanguageBlockResult.source_type == source_type)
         if container_id is not None:
-            predicates.append(
-                LanguageBlockResult.container_id == container_id
-            )
+            predicates.append(LanguageBlockResult.container_id == container_id)
         if minimum_confidence is not None:
-            predicates.append(
-                LanguageBlockResult.confidence >= minimum_confidence
-            )
+            predicates.append(LanguageBlockResult.confidence >= minimum_confidence)
         if maximum_confidence is not None:
-            predicates.append(
-                LanguageBlockResult.confidence <= maximum_confidence
-            )
+            predicates.append(LanguageBlockResult.confidence <= maximum_confidence)
         if is_mixed is not None:
             predicates.append(LanguageBlockResult.is_mixed == is_mixed)
         if eligibility_status is not None:
             predicates.append(
-                LanguageBlockResult.eligibility_status
-                == eligibility_status
+                LanguageBlockResult.eligibility_status == eligibility_status
             )
         source_text = func.coalesce(ExtractedBlock.text, OCRBlock.text, "")
         if search and search.strip():
@@ -228,8 +247,7 @@ class LanguageBlockResultRepository:
             )
             .outerjoin(
                 ExtractedBlock,
-                ExtractedBlock.id
-                == LanguageBlockResult.extracted_block_id,
+                ExtractedBlock.id == LanguageBlockResult.extracted_block_id,
             )
             .outerjoin(
                 OCRBlock,
@@ -237,15 +255,12 @@ class LanguageBlockResultRepository:
             )
             .outerjoin(
                 ExtractedContainer,
-                ExtractedContainer.id
-                == LanguageBlockResult.container_id,
+                ExtractedContainer.id == LanguageBlockResult.container_id,
             )
             .where(*predicates)
         )
         total = int(
-            await self.session.scalar(
-                select(func.count()).select_from(base.subquery())
-            )
+            await self.session.scalar(select(func.count()).select_from(base.subquery()))
             or 0
         )
         source_order = func.coalesce(
@@ -267,9 +282,7 @@ class LanguageBlockResultRepository:
             LanguageBlockReadRow(
                 result=row[0],
                 text=str(row[1] or ""),
-                source_confidence=(
-                    float(row[2]) if row[2] is not None else None
-                ),
+                source_confidence=(float(row[2]) if row[2] is not None else None),
             )
             for row in rows
         ], total
@@ -287,6 +300,154 @@ class LanguageBlockResultRepository:
         )
         return rows
 
+    async def list_compliance_sources(
+        self,
+        language_detection_run_id: UUID,
+        *,
+        limit: int,
+    ) -> list[ComplianceBlockData]:
+        """Load bounded Phase 6/7 source, structure, and language provenance."""
+        statement = (
+            select(
+                LanguageBlockResult,
+                ExtractedBlock,
+                OCRBlock,
+                ExtractedContainer,
+                OCRPageResult,
+            )
+            .outerjoin(
+                ExtractedBlock,
+                ExtractedBlock.id
+                == LanguageBlockResult.extracted_block_id,
+            )
+            .outerjoin(
+                OCRBlock,
+                OCRBlock.id == LanguageBlockResult.ocr_block_id,
+            )
+            .outerjoin(
+                OCRPageResult,
+                OCRPageResult.id == OCRBlock.ocr_page_result_id,
+            )
+            .outerjoin(
+                ExtractedContainer,
+                ExtractedContainer.id
+                == LanguageBlockResult.container_id,
+            )
+            .where(
+                LanguageBlockResult.language_detection_run_id
+                == language_detection_run_id
+            )
+            .order_by(
+                func.coalesce(
+                    ExtractedContainer.container_index,
+                    OCRPageResult.page_number,
+                    0,
+                ),
+                func.coalesce(
+                    ExtractedBlock.block_order,
+                    OCRBlock.block_order,
+                    0,
+                ),
+                LanguageBlockResult.id,
+            )
+            .limit(limit)
+        )
+        rows = (await self.session.execute(statement)).all()
+        sources: list[ComplianceBlockData] = []
+        for result, native, ocr, container, page in rows:
+            is_native = native is not None
+            source_block = native if is_native else ocr
+            if source_block is None:
+                continue
+            page_number = (
+                page.page_number
+                if page is not None
+                else (
+                    container.container_index
+                    if container is not None
+                    and container.container_type
+                    is ExtractedContainerType.PDF_PAGE
+                    else None
+                )
+            )
+            location = (
+                dict(native.location_json or {})
+                if native is not None
+                else {
+                    "bbox": dict(ocr.bbox_json),
+                    "polygon": list(ocr.polygon_json),
+                    "pageNumber": page_number,
+                }
+            )
+            source_metadata = (
+                dict(native.metadata_json or {})
+                if native is not None
+                else dict(ocr.metadata_json or {})
+            )
+            sources.append(
+                ComplianceBlockData(
+                    id=source_block.id,
+                    container_id=(
+                        container.id
+                        if container is not None
+                        else result.container_id
+                    ),
+                    container_type=(
+                        container.container_type.value
+                        if container is not None
+                        else ExtractedContainerType.PDF_PAGE.value
+                    ),
+                    container_name=(
+                        (container.name or container.title)
+                        if container is not None
+                        else (
+                            f"Page {page_number}"
+                            if page_number is not None
+                            else None
+                        )
+                    ),
+                    container_index=(
+                        container.container_index
+                        if container is not None
+                        else (page_number or 0)
+                    ),
+                    block_order=source_block.block_order,
+                    block_type=(
+                        native.block_type.value
+                        if native is not None
+                        else "OCR_TEXT"
+                    ),
+                    source_reference=result.source_reference,
+                    text=source_block.text,
+                    normalised_text=source_block.normalised_text,
+                    style_name=(
+                        native.style_name if native is not None else None
+                    ),
+                    heading_level=(
+                        native.heading_level if native is not None else None
+                    ),
+                    page_number=page_number,
+                    language_code=result.language_code.value,
+                    language_confidence=float(result.confidence),
+                    character_count=result.character_count,
+                    eligibility_status=result.eligibility_status.value,
+                    location=location,
+                    metadata={
+                        **source_metadata,
+                        "languageBlockResultId": str(result.id),
+                        "sourceType": result.source_type.value,
+                        "detectedLanguages": list(
+                            result.detected_languages_json
+                        ),
+                        "scriptStatistics": dict(
+                            result.script_statistics_json
+                        ),
+                        "isMixed": result.is_mixed,
+                    },
+                )
+            )
+        return sources
+
     async def list_source_annotations(
         self,
         language_detection_run_id: UUID,
@@ -297,8 +458,7 @@ class LanguageBlockResultRepository:
     ) -> list[LanguageBlockResult]:
         """Load viewer annotations without joining or returning source text."""
         statement = select(LanguageBlockResult).where(
-            LanguageBlockResult.language_detection_run_id
-            == language_detection_run_id
+            LanguageBlockResult.language_detection_run_id == language_detection_run_id
         )
         source_filter_requested = (
             extracted_block_ids is not None or ocr_block_ids is not None
@@ -306,9 +466,7 @@ class LanguageBlockResultRepository:
         source_predicates: list[object] = []
         if extracted_block_ids:
             source_predicates.append(
-                LanguageBlockResult.extracted_block_id.in_(
-                    extracted_block_ids
-                )
+                LanguageBlockResult.extracted_block_id.in_(extracted_block_ids)
             )
         if ocr_block_ids:
             source_predicates.append(
@@ -358,7 +516,5 @@ class LanguageBlockResultRepository:
         )
         rows = (await self.session.execute(statement)).all()
         return {
-            code.value: float(average)
-            for code, average in rows
-            if average is not None
+            code.value: float(average) for code, average in rows if average is not None
         }

@@ -229,6 +229,15 @@ class OCRPageService:
                         "providerRotation": provider_rotation,
                         "pageAttempt": attempt,
                     }
+                    if preprocessed.metadata.get("resized") is True:
+                        result.warning_codes = list(
+                            dict.fromkeys(
+                                [
+                                    *result.warning_codes,
+                                    "OCR_LOW_RESOLUTION",
+                                ]
+                            )
+                        )
                     self._classify_confidence(result)
                     return result
                 except OCRProviderUnavailableError:

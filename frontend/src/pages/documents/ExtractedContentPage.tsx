@@ -9,7 +9,7 @@ import {
   Search,
   Table2,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 
 import { getApiErrorMessage } from '../../api/errors';
@@ -60,6 +60,32 @@ export function ExtractedContentPage() {
   const requestedRunId = searchParams.get('runId');
   const requestedContainerId = searchParams.get('containerId');
   const requestedBlockId = searchParams.get('blockId');
+  const requestedOcrBlockId = searchParams.get('ocrBlockId');
+  const requestedPageNumber = Number.parseInt(searchParams.get('page') ?? '', 10);
+  const requestedWorksheet = searchParams.get('worksheet');
+  const requestedCell = searchParams.get('cell');
+  const requestedSourceReference = searchParams.get('sourceReference');
+  const requestedSourceSearch = searchParams.get('sourceSearch');
+  const hasRequestedPage =
+    Number.isFinite(requestedPageNumber) && requestedPageNumber > 0;
+  const effectiveSourceSearch = (
+    requestedSourceReference ??
+    requestedSourceSearch ??
+    requestedCell ??
+    (hasRequestedPage ? `page=${requestedPageNumber}` : '')
+  )
+    .trim()
+    .slice(0, 500);
+  const hasSourceTarget = Boolean(
+    requestedContainerId ||
+    requestedBlockId ||
+    requestedOcrBlockId ||
+    requestedWorksheet ||
+    requestedCell ||
+    requestedSourceReference ||
+    requestedSourceSearch ||
+    hasRequestedPage,
+  );
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const canViewContent = hasPermission('documents:view_extracted_content');
   const canTrackJobs =
@@ -122,30 +148,52 @@ export function ExtractedContentPage() {
   const lastFailedJobQuery = useExtractionJob(lastFailedJob?.id ?? null, {
     enabled: canTrackJobs && lastFailedJob !== undefined,
   });
-  const [containerPage, setContainerPage] = useState(1);
+  const [containerPage, setContainerPage] = useState(
+    hasRequestedPage ? Math.floor((requestedPageNumber - 1) / 100) + 1 : 1,
+  );
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(
     requestedContainerId,
   );
   const [blockPage, setBlockPage] = useState(1);
-  const [activeBlockId, setActiveBlockId] = useState<string | null>(requestedBlockId);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(
+    requestedBlockId ?? requestedOcrBlockId,
+  );
+  const [sourceTargetActive, setSourceTargetActive] = useState(hasSourceTarget);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('blocks');
-  const [contentSourceFilter, setContentSourceFilter] =
-    useState<ContentSourceFilter>('ALL');
+  const [contentSourceFilter, setContentSourceFilter] = useState<ContentSourceFilter>(
+    requestedOcrBlockId ? 'OCR' : 'ALL',
+  );
   const [languageFilter, setLanguageFilter] = useState<LanguageCode | ''>('');
   const [searchInput, setSearchInput] = useState('');
   const searchQuery = useDebouncedValue(searchInput.trim(), 400);
   const [reextractOpen, setReextractOpen] = useState(false);
   const containersQuery = useExtractionContainers(
     runId,
-    { page: containerPage, pageSize: 100 },
+    {
+      page: containerPage,
+      pageSize: 100,
+      ...(sourceTargetActive && requestedWorksheet && !requestedContainerId
+        ? { search: requestedWorksheet }
+        : {}),
+    },
     run !== null,
   );
   const containers = containersQuery.data?.items ?? [];
+  const requestedContainer = containers.find(
+    (container) =>
+      container.id === requestedContainerId ||
+      (requestedWorksheet !== null &&
+        (container.name === requestedWorksheet ||
+          container.title === requestedWorksheet)) ||
+      (hasRequestedPage && container.containerIndex === requestedPageNumber),
+  );
   const selectedContainer =
     containers.find((container) => container.id === selectedContainerId) ??
+    requestedContainer ??
     containers[0] ??
     null;
-  const effectiveContainerId = selectedContainerId ?? selectedContainer?.id ?? null;
+  const effectiveContainerId =
+    selectedContainerId ?? requestedContainer?.id ?? selectedContainer?.id ?? null;
   const blockPageSize = run?.extractorType === 'XLSX' ? 200 : 100;
   const blocksQuery = useExtractionBlocks(
     runId,
@@ -153,6 +201,9 @@ export function ExtractedContentPage() {
       ...(effectiveContainerId ? { containerId: effectiveContainerId } : {}),
       ...(contentSourceFilter === 'ALL' ? {} : { contentSource: contentSourceFilter }),
       ...(languageFilter ? { languageCode: languageFilter } : {}),
+      ...(sourceTargetActive && effectiveSourceSearch
+        ? { search: effectiveSourceSearch }
+        : {}),
       page: blockPage,
       pageSize: blockPageSize,
       sortOrder: 'asc',
@@ -202,15 +253,39 @@ export function ExtractedContentPage() {
       }),
     [blocksQuery.data?.items, contentSourceFilter, languageFilter],
   );
+  const locatedSourceBlock = visibleBlocks.find(
+    (block) =>
+      block.id === requestedBlockId ||
+      block.id === requestedOcrBlockId ||
+      (requestedCell !== null &&
+        (block.metadata?.coordinate === requestedCell ||
+          block.sourceReference.includes(`cell=${requestedCell}`))) ||
+      (requestedSourceReference !== null &&
+        block.sourceReference === requestedSourceReference),
+  );
+  const effectiveActiveBlockId = activeBlockId ?? locatedSourceBlock?.id ?? null;
   const exportMutation = useExtractionExport();
   const mutations = useExtractionMutations();
   const { showToast } = useToast();
 
   const selectContainer = (container: ExtractedContainer): void => {
+    setSourceTargetActive(false);
     setSelectedContainerId(container.id);
     setBlockPage(1);
     setActiveBlockId(null);
   };
+
+  useEffect(() => {
+    if (!sourceTargetActive || !effectiveActiveBlockId) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      document
+        .getElementById(`block-${effectiveActiveBlockId}`)
+        ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [effectiveActiveBlockId, sourceTargetActive, visibleBlocks]);
 
   const openSearchResult = (result: ExtractionSearchResult): void => {
     setContainerPage(Math.floor(Math.max(0, result.containerIndex - 1) / 100) + 1);
@@ -512,6 +587,18 @@ export function ExtractedContentPage() {
                   from Microsoft Word.
                 </p>
               )}
+              {sourceTargetActive && (
+                <p
+                  role="status"
+                  className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800"
+                >
+                  Source navigation is scoped to the immutable extraction run
+                  {hasRequestedPage ? `, page ${requestedPageNumber}` : ''}
+                  {requestedWorksheet ? `, worksheet ${requestedWorksheet}` : ''}
+                  {requestedCell ? `, cell ${requestedCell}` : ''}. The matching source
+                  block is highlighted below.
+                </p>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
                 <div className="flex gap-1">
                   <ModeButton
@@ -542,6 +629,7 @@ export function ExtractedContentPage() {
                       aria-label="Content Source"
                       value={contentSourceFilter}
                       onChange={(event) => {
+                        setSourceTargetActive(false);
                         setContentSourceFilter(
                           event.target.value as ContentSourceFilter,
                         );
@@ -560,6 +648,7 @@ export function ExtractedContentPage() {
                       aria-label="Detected Language"
                       value={languageFilter}
                       onChange={(event) => {
+                        setSourceTargetActive(false);
                         setLanguageFilter(event.target.value as LanguageCode | '');
                         setBlockPage(1);
                       }}
@@ -621,7 +710,7 @@ export function ExtractedContentPage() {
                   <ExtractedBlockViewer
                     blocks={visibleBlocks}
                     extractorType={run.extractorType}
-                    activeBlockId={activeBlockId}
+                    activeBlockId={effectiveActiveBlockId}
                     highlightQuery={searchQuery}
                     onSelectBlock={(block: ExtractedBlock) =>
                       setActiveBlockId(block.id)

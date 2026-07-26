@@ -76,7 +76,7 @@ def download_model(
     downloaded = 0
     request = urllib.request.Request(
         source_url,
-        headers={"User-Agent": "document-compliance-model-setup/0.7.0"},
+        headers={"User-Agent": "document-compliance-model-setup/0.8.0"},
         method="GET",
     )
     try:

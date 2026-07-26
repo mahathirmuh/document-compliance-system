@@ -15,6 +15,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { useState } from 'react';
 
 import { getApiErrorMessage } from '../../api/errors';
+import { ComplianceStatusBadge } from '../../components/compliance/ComplianceStatusBadge';
 import { ArchiveDocumentDialog } from '../../components/documents/ArchiveDocumentDialog';
 import { ArchivedBadge } from '../../components/documents/ArchivedBadge';
 import { DocumentCodeField } from '../../components/documents/DocumentCodeField';
@@ -28,6 +29,7 @@ import { RevisionBadge } from '../../components/documents/RevisionBadge';
 import { SharePointLink } from '../../components/documents/SharePointLink';
 import { ConfirmationDialog } from '../../components/master-data/ConfirmationDialog';
 import { useDocument } from '../../hooks/useDocument';
+import { useLatestCompliance } from '../../hooks/useCompliance';
 import { useRevisionFiles } from '../../hooks/useDocumentFiles';
 import { useDocumentMutations } from '../../hooks/useDocumentMutations';
 import { useToast } from '../../providers/useToast';
@@ -35,7 +37,8 @@ import { useAuthStore } from '../../store/authStore';
 import type { DocumentDetail } from '../../types/document';
 import { formatDate, formatDateTime } from '../../utils/formatters';
 
-type DetailTab = 'overview' | 'revisions' | 'files' | 'intelligence' | 'history';
+type DetailTab =
+  'overview' | 'revisions' | 'files' | 'intelligence' | 'compliance' | 'history';
 
 export function DocumentDetailPage() {
   const { documentId = '' } = useParams();
@@ -56,12 +59,14 @@ export function DocumentDetailPage() {
     hasPermission('documents:view_ocr_history') ||
     hasPermission('documents:detect_language') ||
     hasPermission('documents:view_language_results');
+  const canUseCompliance = hasPermission('compliance:view');
   const { showToast } = useToast();
   const requestedTab = searchParams.get('tab');
   const tab: DetailTab =
     requestedTab === 'revisions' ||
     requestedTab === 'files' ||
     (requestedTab === 'intelligence' && canUseIntelligence) ||
+    (requestedTab === 'compliance' && canUseCompliance) ||
     requestedTab === 'history'
       ? requestedTab
       : 'overview';
@@ -274,6 +279,7 @@ export function DocumentDetailPage() {
               'revisions',
               'files',
               ...(canUseIntelligence ? (['intelligence'] as const) : []),
+              ...(canUseCompliance ? (['compliance'] as const) : []),
               'history',
             ] as const
           ).map((candidate) => (
@@ -304,6 +310,7 @@ export function DocumentDetailPage() {
           {tab === 'intelligence' && (
             <CurrentDocumentIntelligence document={document} />
           )}
+          {tab === 'compliance' && <CurrentDocumentCompliance document={document} />}
           {tab === 'history' && <DocumentActivitySummary document={document} />}
         </div>
       </section>
@@ -324,6 +331,147 @@ export function DocumentDetailPage() {
         onCancel={() => setRestoreOpen(false)}
         onConfirm={() => void restore()}
       />
+    </div>
+  );
+}
+
+function CurrentDocumentCompliance({ document }: { document: DocumentDetail }) {
+  const revisionId = document.currentRevision?.id ?? null;
+  const filesQuery = useRevisionFiles(document.id, revisionId);
+  const currentFile =
+    (filesQuery.data ?? []).find(
+      (file) => file.isCurrent && file.fileStatus === 'AVAILABLE',
+    ) ?? null;
+  const complianceQuery = useLatestCompliance(currentFile?.id ?? null);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+
+  if (!revisionId) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Create a revision and assign a validation rule before validating compliance.
+      </p>
+    );
+  }
+  if (filesQuery.isLoading || complianceQuery.isLoading) {
+    return (
+      <div
+        aria-label="Loading compliance status"
+        className="h-56 animate-pulse rounded-2xl bg-slate-100"
+      />
+    );
+  }
+  if (filesQuery.error || complianceQuery.error) {
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        {getApiErrorMessage(
+          filesQuery.error ?? complianceQuery.error,
+          'Compliance status could not be loaded.',
+        )}
+      </p>
+    );
+  }
+  if (!currentFile) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
+        Upload an available current physical file before validating compliance.
+      </p>
+    );
+  }
+
+  const run = complianceQuery.data;
+  const compliancePath = `/documents/${document.id}/revisions/${revisionId}/compliance?fileId=${currentFile.id}${run ? `&runId=${run.id}` : ''}`;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ComplianceMetric
+          label="Compliance Status"
+          value={
+            run ? (
+              <ComplianceStatusBadge status={run.complianceStatus} />
+            ) : (
+              'Not Evaluated'
+            )
+          }
+        />
+        <ComplianceMetric
+          label="Compliance Score"
+          value={run?.complianceScore?.toFixed(1) ?? '—'}
+        />
+        <ComplianceMetric
+          label="Last Validated"
+          value={run?.completedAt ? formatDateTime(run.completedAt) : 'Never'}
+        />
+        <ComplianceMetric
+          label="Open Findings"
+          value={run?.openFindings.toString() ?? '—'}
+        />
+        <ComplianceMetric
+          label="Critical Findings"
+          value={run?.criticalFindings.toString() ?? '—'}
+        />
+        <ComplianceMetric
+          label="Missing Languages"
+          value={
+            run?.missingLanguages.map((code) => code.toUpperCase()).join(', ') || 'None'
+          }
+        />
+        <ComplianceMetric
+          label="Missing Sections"
+          value={run?.missingSections.join(', ') || 'None'}
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!run && hasPermission('compliance:validate') && (
+          <Link
+            to={compliancePath}
+            className="inline-flex min-h-10 items-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white"
+          >
+            Validate Compliance
+          </Link>
+        )}
+        {run && (
+          <>
+            <Link
+              to={compliancePath}
+              className="inline-flex min-h-10 items-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white"
+            >
+              View Compliance
+            </Link>
+            <Link
+              to={`/compliance/findings?runId=${run.id}`}
+              className="inline-flex min-h-10 items-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700"
+            >
+              View Findings
+            </Link>
+            {hasPermission('compliance:revalidate') && (
+              <Link
+                to={`${compliancePath}&action=revalidate`}
+                className="inline-flex min-h-10 items-center rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700"
+              >
+                Revalidate
+              </Link>
+            )}
+          </>
+        )}
+      </div>
+      {!run && (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+          Open the compliance page to review extraction, OCR, language detection, and
+          validation-rule prerequisites.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ComplianceMetric({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <div className="mt-2 text-sm font-semibold text-slate-900">{value}</div>
     </div>
   );
 }

@@ -15,6 +15,11 @@ class ErrorDetail(BaseModel):
 
     field: str | None = None
     message: str
+    code: str | None = Field(
+        default=None,
+        pattern=r"^[A-Z][A-Z0-9_]*$",
+        exclude_if=lambda value: value is None,
+    )
 
 
 class ApiResponse(BaseModel, Generic[DataT]):

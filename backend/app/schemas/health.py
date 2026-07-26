@@ -25,5 +25,6 @@ class DependencyHealthData(ApiSchema):
     extraction_worker: Literal["healthy", "unavailable"]
     ocr_worker: Literal["healthy", "unavailable"]
     language_worker: Literal["healthy", "unavailable"]
+    compliance_worker: Literal["healthy", "unavailable"]
     ocr_provider: Literal["healthy", "unavailable"]
     language_model: Literal["healthy", "unavailable"]

@@ -42,6 +42,7 @@ class HealthService:
             extraction_worker=workers["extraction"],
             ocr_worker=workers["ocr"],
             language_worker=workers["language"],
+            compliance_worker=workers["compliance"],
             ocr_provider=self._ocr_provider_state(settings),
             language_model=self._file_state(settings.language_model_path),
         )
@@ -74,6 +75,7 @@ class HealthService:
             "extraction": "unavailable",
             "ocr": "unavailable",
             "language": "unavailable",
+            "compliance": "unavailable",
         }
         try:
             replies = celery_app.control.inspect(timeout=1).ping() or {}

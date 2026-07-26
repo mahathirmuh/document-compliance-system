@@ -45,9 +45,20 @@ export const permissions = [
   'documents:review_language_result',
   'documents:validate',
   'documents:assign_reviewer',
+  'compliance:view',
+  'compliance:validate',
+  'compliance:revalidate',
+  'compliance:view_all_departments',
+  'compliance:export',
+  'compliance:configure_rules',
   'findings:view',
+  'findings:create_manual',
   'findings:update',
+  'findings:review',
   'findings:resolve',
+  'findings:reopen',
+  'findings:false_positive',
+  'findings:export',
   'master_data:view',
   'master_data:create',
   'master_data:update',
@@ -107,6 +118,7 @@ export interface CurrentUserResponse {
 export interface ApiErrorDetail {
   field: string | null;
   message: string;
+  code?: string;
 }
 
 export interface ApiResponse<TData> {

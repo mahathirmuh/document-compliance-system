@@ -1,11 +1,11 @@
 # Document Compliance & Multilingual Validation System
 
-Version 0.7.0 completes Phase 7 of the foundation for a Document Control
+Version 0.8.0 completes Phase 8 of the foundation for a Document Control
 application that registers document metadata and revisions, stores their
 private physical files, extracts normalized PDF, DOCX, and XLSX content,
-performs local OCR on scanned PDF pages, and reports preliminary Indonesian,
-English, and Mandarin language coverage. It is intentionally not a full
-Document Management System.
+performs local OCR on scanned PDF pages, detects Indonesian, English, and
+Mandarin content, and validates multilingual structural compliance. It is
+intentionally not a full Document Management System.
 
 Phase 1 established the React, FastAPI, async SQLAlchemy, Alembic, PostgreSQL,
 and Docker foundation. Phase 2 added authentication, authorization, and the
@@ -20,8 +20,11 @@ export.
 Phase 7 adds separate local OCR and language-detection workers, retained OCR
 provenance and confidence, hybrid Unicode/fastText language detection, and
 preliminary block/container/document language coverage.
+Phase 8 adds retained compliance jobs and runs, rule snapshots, canonical
+section matching, structural translation groups, language-order and table
+checks, weighted scoring, auditable findings, comparison, and reports.
 
-## Scope through Phase 7
+## Scope through Phase 8
 
 Implemented in this phase:
 
@@ -70,12 +73,25 @@ Implemented in this phase:
   reporting that does not load inference models
 - Permission-aware OCR queue/history/results and language-detection/result
   pages integrated into document detail and extracted-content workflows
+- Background compliance validation over compatible extraction, OCR, and
+  language-detection sources without rereading or modifying source binaries
+- Backward-compatible validation-rule controls for required languages,
+  coverage, sections, ordering, grouping, tables, scoring, penalties, and caps
+- Canonical section profiles and Indonesian, English, Mandarin, or
+  language-neutral aliases with confidence-aware and regex-bounded matching
+- PDF positional, DOCX paragraph/table, and XLSX row/column structural
+  translation grouping without semantic-equivalence claims
+- Immutable compliance history, rule snapshots, score breakdowns, revalidation
+  comparisons, bounded JSON/XLSX exports, and department-scoped reports
+- Auditable finding generation, manual findings, assignment, review,
+  resolution, false-positive, accepted-risk, and reopen workflows
+- Separate `compliance` Celery queue and worker readiness reporting
 
 All Phase 1 health, Phase 2 authentication, Phase 3 Master Data, and Phase 4
 Document Register behavior and Phase 5 physical-file workflows remain
-available. Translation-equivalence validation, final compliance findings and
-scoring, full review and approval workflows, antivirus claims, and SharePoint
-API synchronization remain intentionally unimplemented.
+available. Translation-equivalence and glossary validation, automatic
+translation, full approval workflows, antivirus claims, and SharePoint API
+synchronization remain intentionally unimplemented.
 
 ## Architecture
 
@@ -107,7 +123,9 @@ PostgreSQL 16             Redis 7
   |         |-- local PaddleOCR Latin / Simplified Chinese
   |         +-- PDF render, preprocess, recognize, merge, persist
   +------ Celery language worker (queue: language)
-            |-- local Unicode + fastText hybrid detector
+  |         |-- local Unicode + fastText hybrid detector
+  +------ Celery compliance worker (queue: compliance)
+            |-- section/group validators, score, findings, persistence
             +-- block/container coverage aggregation
 
 FastAPI + workers ---> ./storage/documents (private persistent bind mount)
@@ -198,17 +216,17 @@ download only.
 
 Phase 7 authorization remains in the same backend mapping:
 
-| Permission                          | Capability                                      |
-| ----------------------------------- | ----------------------------------------------- |
-| `documents:ocr`                     | Queue OCR for an eligible current PDF           |
-| `documents:reocr`                   | Queue a retained re-OCR run                     |
-| `documents:view_ocr_results`        | Read OCR runs, pages, blocks, and safe exports  |
-| `documents:view_ocr_history`        | Read retained OCR history                       |
-| `documents:cancel_ocr`              | Cooperatively cancel an active OCR job          |
-| `documents:detect_language`         | Queue language detection for extracted content  |
-| `documents:redetect_language`       | Queue a retained language re-detection run      |
-| `documents:view_language_results`   | Read language results and preliminary coverage  |
-| `documents:export_language_results` | Download bounded JSON/XLSX language exports     |
+| Permission                          | Capability                                     |
+| ----------------------------------- | ---------------------------------------------- |
+| `documents:ocr`                     | Queue OCR for an eligible current PDF          |
+| `documents:reocr`                   | Queue a retained re-OCR run                    |
+| `documents:view_ocr_results`        | Read OCR runs, pages, blocks, and safe exports |
+| `documents:view_ocr_history`        | Read retained OCR history                      |
+| `documents:cancel_ocr`              | Cooperatively cancel an active OCR job         |
+| `documents:detect_language`         | Queue language detection for extracted content |
+| `documents:redetect_language`       | Queue a retained language re-detection run     |
+| `documents:view_language_results`   | Read language results and preliminary coverage |
+| `documents:export_language_results` | Download bounded JSON/XLSX language exports    |
 
 `DOCUMENT_CONTROLLER` receives the complete set. `DEPARTMENT_USER` can queue
 initial OCR and language detection only inside its own department.
@@ -216,6 +234,33 @@ initial OCR and language detection only inside its own department.
 the auditor can export accessible language results across departments.
 Replaced, deleted, historical, non-PDF, and cross-department files are rejected
 by the service even if a client sends a handcrafted request.
+
+Phase 8 adds a separate compliance and finding permission set:
+
+| Permission                         | Capability                                      |
+| ---------------------------------- | ----------------------------------------------- |
+| `compliance:view`                  | Read accessible jobs, runs, and result details  |
+| `compliance:validate`              | Queue initial validation in department scope    |
+| `compliance:revalidate`            | Queue an audited retained revalidation           |
+| `compliance:view_all_departments`  | Read compliance data across departments          |
+| `compliance:export`                | Download bounded compliance exports              |
+| `compliance:configure_rules`       | Maintain canonical sections and aliases          |
+| `findings:view`                    | Read accessible findings                         |
+| `findings:create_manual`           | Create a retained manual finding                 |
+| `findings:update`                  | Update permitted finding details                 |
+| `findings:review`                  | Move a finding into review                       |
+| `findings:resolve`                 | Resolve or accept the risk of a finding          |
+| `findings:reopen`                  | Reopen a terminal finding                        |
+| `findings:false_positive`          | Mark a finding as a false positive               |
+| `findings:export`                  | Download bounded finding exports                 |
+
+The backend applies compliance department scope independently from Document
+Register scope. Auditors can read and export across departments but cannot
+validate or mutate findings. Viewers remain read-only, department users can
+validate only their own department, and only a super administrator or a user
+with `compliance:configure_rules` can change section profiles and aliases.
+Compliance and finding report pages additionally require the existing
+`reports:view` permission; the frontend applies the same guard as the backend.
 
 ## Access and refresh token strategy
 
@@ -311,8 +356,8 @@ internal company documents.
 | Variable                                  | Example/default              | Purpose                                            |
 | ----------------------------------------- | ---------------------------- | -------------------------------------------------- |
 | `APP_NAME`                                | `Document Compliance API`    | Backend service name                               |
-| `APP_VERSION`                             | `0.7.0`                      | Backend version                                    |
-| `VITE_APP_VERSION`                        | `0.7.0`                      | Frontend version                                   |
+| `APP_VERSION`                             | `0.8.0`                      | Backend version                                    |
+| `VITE_APP_VERSION`                        | `0.8.0`                      | Frontend version                                   |
 | `APP_ENV`                                 | `development`                | Backend runtime environment                        |
 | `APP_TIMEZONE`                            | `Asia/Makassar`              | IANA timezone used for export timestamps           |
 | `BACKEND_DEBUG`                           | `false`                      | Backend debug mode                                 |
@@ -389,46 +434,70 @@ internal company documents.
 
 Phase 7 inference and worker limits:
 
-| Variable                                       | Default                                      | Purpose                                      |
-| ---------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
-| `OCR_QUEUE_NAME`                               | `ocr`                                        | Dedicated OCR queue                          |
-| `LANGUAGE_QUEUE_NAME`                          | `language`                                   | Dedicated language queue                     |
-| `OCR_WORKER_CONCURRENCY`                       | `1`                                          | OCR processes per worker                     |
-| `LANGUAGE_WORKER_CONCURRENCY`                  | `2`                                          | Language processes per worker                |
-| `OCR_PROVIDER`                                 | `paddleocr`                                  | Local OCR provider                           |
-| `OCR_MODEL_ROOT`                               | `/app/models/ocr`                            | Mounted OCR model root                       |
-| `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK`        | `True`                                       | Disable Paddle model-host connectivity check |
-| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS`           | `true`                                       | Enable the bounded Chinese pass for `AUTO_MULTILINGUAL` |
-| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS_CONFIDENCE_THRESHOLD` | `0.65`                           | Confidence trigger for Chinese second pass   |
-| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS_MINIMUM_CHARACTERS` | `20`                              | Text-length trigger for Chinese second pass  |
-| `OCR_RENDER_DPI`                               | `300`                                        | PDF render density                           |
-| `OCR_MAX_RENDER_WIDTH` / `HEIGHT`              | `6000`                                       | Render dimension guards                      |
-| `OCR_MAX_PAGES_PER_JOB`                        | `500`                                        | Page-count guard                             |
-| `OCR_MAX_CONCURRENT_JOBS_PER_USER`             | `3`                                          | Per-requester active-job limit               |
-| `OCR_TASK_TIME_LIMIT_SECONDS`                  | `3600`                                       | Celery hard limit                            |
-| `OCR_TASK_SOFT_TIME_LIMIT_SECONDS`             | `3300`                                       | Controlled timeout threshold                 |
-| `OCR_MAX_RETRIES`                              | `1`                                          | Transient OCR retry count                    |
-| `OCR_LOW_CONFIDENCE_THRESHOLD`                 | `0.60`                                       | Low-confidence classification                |
-| `OCR_REVIEW_CONFIDENCE_THRESHOLD`              | `0.80`                                       | Review indicator threshold                   |
-| `OCR_SKIP_PAGES_WITH_SELECTABLE_TEXT`          | `true`                                       | Preserve native page text                    |
-| `OCR_SELECTABLE_TEXT_MIN_CHARACTERS`           | `50`                                         | Native-text page threshold                   |
-| `OCR_DEFAULT_PREPROCESSING_PROFILE`            | `STANDARD`                                   | Default image preprocessing                  |
-| `LANGUAGE_MODEL_PATH`                          | `/app/models/language/lid.176.bin`           | Mounted fastText model                       |
-| `LANGUAGE_CONFIDENCE_MINIMUM`                  | `0.55`                                       | Minimum classified-language confidence       |
-| `LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD`         | `0.75`                                       | Low-confidence review indicator              |
-| `LANGUAGE_HAN_CHARACTER_RATIO_THRESHOLD`       | `0.20`                                       | Strong Mandarin candidate threshold          |
-| `LANGUAGE_MIXED_SECONDARY_SCORE_THRESHOLD`     | `0.25`                                       | Secondary mixed-language signal threshold    |
-| `LANGUAGE_MIXED_MIN_CHARACTER_RATIO`           | `0.15`                                       | Han/Latin mixed-script ratio                 |
-| `LANGUAGE_PRESENCE_MIN_BLOCKS`                 | `2`                                          | Minimum language-presence block evidence     |
-| `LANGUAGE_PRESENCE_MIN_CHARACTERS`             | `20`                                         | Minimum language-presence character evidence |
-| `LANGUAGE_DETECTION_DB_BATCH_SIZE`             | `1000`                                       | Language result insert batch                 |
-| `LANGUAGE_DETECTION_MAX_BLOCKS`                | `2000000`                                    | Detection guard                              |
-| `LANGUAGE_EXPORT_MAX_BLOCKS`                   | `2000000`                                    | Export guard                                 |
-| `LANGUAGE_TASK_TIME_LIMIT_SECONDS`             | `1800`                                       | Celery hard limit                            |
-| `LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS`        | `1500`                                       | Controlled timeout threshold                 |
-| `AUTO_RUN_OCR_AFTER_EXTRACTION`                | `false`                                      | Optional pipeline chaining                   |
-| `AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION` | `false`                                      | Optional pipeline chaining                   |
-| `AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR`        | `false`                                      | Optional pipeline chaining                   |
+| Variable                                                  | Default                            | Purpose                                                 |
+| --------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------- |
+| `OCR_QUEUE_NAME`                                          | `ocr`                              | Dedicated OCR queue                                     |
+| `LANGUAGE_QUEUE_NAME`                                     | `language`                         | Dedicated language queue                                |
+| `OCR_WORKER_CONCURRENCY`                                  | `1`                                | OCR processes per worker                                |
+| `LANGUAGE_WORKER_CONCURRENCY`                             | `2`                                | Language processes per worker                           |
+| `OCR_PROVIDER`                                            | `paddleocr`                        | Local OCR provider                                      |
+| `OCR_MODEL_ROOT`                                          | `/app/models/ocr`                  | Mounted OCR model root                                  |
+| `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK`                   | `True`                             | Disable Paddle model-host connectivity check            |
+| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS`                      | `true`                             | Enable the bounded Chinese pass for `AUTO_MULTILINGUAL` |
+| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS_CONFIDENCE_THRESHOLD` | `0.65`                             | Confidence trigger for Chinese second pass              |
+| `OCR_AUTO_MULTILINGUAL_CHINESE_PASS_MINIMUM_CHARACTERS`   | `20`                               | Text-length trigger for Chinese second pass             |
+| `OCR_RENDER_DPI`                                          | `300`                              | PDF render density                                      |
+| `OCR_MAX_RENDER_WIDTH` / `HEIGHT`                         | `6000`                             | Render dimension guards                                 |
+| `OCR_MAX_PAGES_PER_JOB`                                   | `500`                              | Page-count guard                                        |
+| `OCR_MAX_CONCURRENT_JOBS_PER_USER`                        | `3`                                | Per-requester active-job limit                          |
+| `OCR_TASK_TIME_LIMIT_SECONDS`                             | `3600`                             | Celery hard limit                                       |
+| `OCR_TASK_SOFT_TIME_LIMIT_SECONDS`                        | `3300`                             | Controlled timeout threshold                            |
+| `OCR_MAX_RETRIES`                                         | `1`                                | Transient OCR retry count                               |
+| `OCR_LOW_CONFIDENCE_THRESHOLD`                            | `0.60`                             | Low-confidence classification                           |
+| `OCR_REVIEW_CONFIDENCE_THRESHOLD`                         | `0.80`                             | Review indicator threshold                              |
+| `OCR_SKIP_PAGES_WITH_SELECTABLE_TEXT`                     | `true`                             | Preserve native page text                               |
+| `OCR_SELECTABLE_TEXT_MIN_CHARACTERS`                      | `50`                               | Native-text page threshold                              |
+| `OCR_DEFAULT_PREPROCESSING_PROFILE`                       | `STANDARD`                         | Default image preprocessing                             |
+| `LANGUAGE_MODEL_PATH`                                     | `/app/models/language/lid.176.bin` | Mounted fastText model                                  |
+| `LANGUAGE_CONFIDENCE_MINIMUM`                             | `0.55`                             | Minimum classified-language confidence                  |
+| `LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD`                    | `0.75`                             | Low-confidence review indicator                         |
+| `LANGUAGE_HAN_CHARACTER_RATIO_THRESHOLD`                  | `0.20`                             | Strong Mandarin candidate threshold                     |
+| `LANGUAGE_MIXED_SECONDARY_SCORE_THRESHOLD`                | `0.25`                             | Secondary mixed-language signal threshold               |
+| `LANGUAGE_MIXED_MIN_CHARACTER_RATIO`                      | `0.15`                             | Han/Latin mixed-script ratio                            |
+| `LANGUAGE_PRESENCE_MIN_BLOCKS`                            | `2`                                | Minimum language-presence block evidence                |
+| `LANGUAGE_PRESENCE_MIN_CHARACTERS`                        | `20`                               | Minimum language-presence character evidence            |
+| `LANGUAGE_DETECTION_DB_BATCH_SIZE`                        | `1000`                             | Language result insert batch                            |
+| `LANGUAGE_DETECTION_MAX_BLOCKS`                           | `2000000`                          | Detection guard                                         |
+| `LANGUAGE_EXPORT_MAX_BLOCKS`                              | `2000000`                          | Export guard                                            |
+| `LANGUAGE_TASK_TIME_LIMIT_SECONDS`                        | `1800`                             | Celery hard limit                                       |
+| `LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS`                   | `1500`                             | Controlled timeout threshold                            |
+| `AUTO_RUN_OCR_AFTER_EXTRACTION`                           | `false`                            | Optional pipeline chaining                              |
+| `AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION`            | `false`                            | Optional pipeline chaining                              |
+| `AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR`                   | `false`                            | Optional pipeline chaining                              |
+
+Phase 8 validation, matching, and export limits:
+
+| Variable                                      | Default      | Purpose                                              |
+| --------------------------------------------- | ------------ | ---------------------------------------------------- |
+| `COMPLIANCE_QUEUE_NAME`                       | `compliance` | Dedicated compliance queue                           |
+| `COMPLIANCE_WORKER_CONCURRENCY`               | `2`          | Compliance processes per worker                      |
+| `COMPLIANCE_MAX_BLOCKS`                       | `2000000`    | Maximum source blocks in one validation context      |
+| `COMPLIANCE_MAX_TRANSLATION_GROUPS`           | `500000`     | Maximum structural groups per run                    |
+| `COMPLIANCE_DB_BATCH_SIZE`                    | `1000`       | Compliance result persistence batch size             |
+| `COMPLIANCE_TASK_TIME_LIMIT_SECONDS`          | `1800`       | Celery hard task limit                               |
+| `COMPLIANCE_TASK_SOFT_TIME_LIMIT_SECONDS`     | `1500`       | Controlled timeout threshold                         |
+| `COMPLIANCE_MAX_RETRIES`                      | `1`          | Transient compliance retry count                     |
+| `SECTION_MATCH_MIN_CONFIDENCE`                | `0.80`       | Minimum accepted canonical-section confidence        |
+| `SECTION_FUZZY_MATCH_THRESHOLD`               | `0.88`       | Minimum fuzzy Latin alias similarity                 |
+| `SECTION_HEADING_MAX_CHARACTERS`              | `200`        | Heading-candidate length guard                       |
+| `SECTION_ALIAS_REGEX_MAX_LENGTH`              | `500`        | Maximum stored alias-regex length                    |
+| `SECTION_ALIAS_REGEX_TIMEOUT_MS`              | `100`        | Alias-regex execution budget                         |
+| `TRANSLATION_GROUP_MAX_BLOCK_DISTANCE`        | `3`          | Maximum structural block separation                 |
+| `TRANSLATION_GROUP_MAX_VERTICAL_GAP`          | `120`        | Maximum PDF vertical grouping gap                    |
+| `TRANSLATION_GROUP_MIN_CONFIDENCE`            | `0.65`       | Minimum group confidence used by strict validation   |
+| `FINDING_EXPORT_MAX_ROWS`                     | `200000`     | Maximum finding rows per export                      |
+| `COMPLIANCE_EXPORT_MAX_ROWS`                  | `200000`     | Maximum compliance rows per export                   |
+| `FINDING_BULK_ACTION_MAX_ITEMS`               | `100`        | Maximum atomic finding bulk-action size              |
 
 Docker Compose changes `DATABASE_HOST` to the internal `postgres` hostname.
 `BACKEND_CORS_ORIGINS` can contain multiple comma-separated origins without
@@ -437,7 +506,7 @@ spaces.
 ## Running with Docker
 
 After configuring `.env` and installing the local models, build and start the
-Phase 7 stack:
+Phase 8 stack:
 
 ```bash
 docker compose up --build -d
@@ -450,6 +519,7 @@ Apply the database migration and create the bootstrap administrator:
 docker compose exec backend alembic upgrade head
 docker compose exec backend python -m scripts.create_admin
 docker compose exec backend python -m scripts.seed_master_data
+docker compose exec backend python scripts/seed_section_definitions.py
 ```
 
 Useful URLs:
@@ -493,9 +563,11 @@ The workers are intentionally separate:
 docker compose logs worker
 docker compose logs worker-ocr
 docker compose logs worker-language
+docker compose logs worker-compliance
 docker compose exec worker celery -A app.workers.celery_app inspect ping
 docker compose exec worker-ocr celery -A app.workers.celery_app inspect ping
 docker compose exec worker-language celery -A app.workers.celery_app inspect ping
+docker compose exec worker-compliance celery -A app.workers.celery_app inspect ping
 ```
 
 ## Running local development
@@ -511,6 +583,7 @@ pip install -r requirements.txt
 alembic upgrade head
 python -m scripts.create_admin
 python -m scripts.seed_master_data
+python scripts/seed_section_definitions.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -535,6 +608,7 @@ from another activated backend terminal:
 celery -A app.workers.celery_app worker --loglevel=INFO --queues=extraction --concurrency=2 --hostname="extraction@%h"
 celery -A app.workers.celery_app worker --loglevel=INFO --queues=ocr --concurrency=1 --hostname="ocr@%h"
 celery -A app.workers.celery_app worker --loglevel=INFO --queues=language --concurrency=2 --hostname="language@%h"
+celery -A app.workers.celery_app worker --loglevel=INFO --queues=compliance --concurrency=2 --hostname="compliance@%h"
 ```
 
 The OCR worker is deliberately concurrency one because Paddle models and
@@ -574,11 +648,23 @@ results, container summaries, detector enums/audit actions, and
 `document_files.latest_language_detection_run_id`. Active-job partial unique
 indexes prevent duplicate OCR or language jobs for one file while retained
 completed runs remain immutable history.
+The Phase 8 migration,
+`20260726_0008_phase8_compliance_foundation.py`, adds canonical section
+profiles, definitions and aliases; compliance jobs and immutable runs;
+detected sections and per-language results; translation groups and members;
+validation findings and occurrences; the latest-compliance-run link; and the
+required compliance/finding audit actions and indexes.
 Apply all pending migrations from `backend`:
 
 ```bash
 alembic upgrade head
 alembic current
+```
+
+To roll back only Phase 8 while retaining Phase 7 OCR and language data:
+
+```bash
+alembic downgrade 20260725_0007
 ```
 
 To roll back only Phase 7 while retaining Phase 6 extraction data:
@@ -625,10 +711,14 @@ Seed the idempotent Master Data defaults after migrating:
 
 ```bash
 python -m scripts.seed_master_data
+python scripts/seed_section_definitions.py
 ```
 
-The script creates only missing defaults and does not replace custom
-administrator data.
+Both scripts create only missing defaults and do not replace custom
+administrator data. `seed_section_definitions.py` creates the idempotent
+`DEFAULT-3LANG` compliance profile, 12 canonical section definitions, and 46
+Indonesian, English, and Simplified Chinese aliases, then links the default
+validation rule.
 
 Default seed content:
 
@@ -639,8 +729,9 @@ Default seed content:
 - Validation Rule: `DEFAULT-3LANG` with Indonesian, English, and Chinese
   required at 95% minimum coverage, compliance score 95, and partial score 70
 
-Sections are intentionally not seeded because organization-specific section
-codes are not yet known.
+Organization-specific department sections remain unseeded; the Phase 8
+canonical compliance section catalog is separate and is seeded by
+`seed_section_definitions.py`.
 
 ## Seed administrator and default login
 
@@ -1260,12 +1351,13 @@ Preprocessing profiles:
 - `AGGRESSIVE`: stronger contrast/denoise/sharpen plus adaptive thresholding
   and morphology
 
-Rendering defaults to 300 DPI and is bounded to 6000 × 6000 pixels. Block
+Rendering defaults to 300 DPI and is bounded to 6000 x 6000 pixels. Block
 confidence, page minimum/maximum/average confidence, rotation, deskew angle,
 polygon, bounding box, model/profile, source page, content hashes, and safe
 warnings are retained. A page becomes `LOW_CONFIDENCE` when the configured
 proportion of blocks falls below `OCR_LOW_CONFIDENCE_THRESHOLD`; low-confidence
-blocks are retained for review.
+blocks are retained for review. Upscaled low-resolution input also retains the
+explicit `OCR_LOW_RESOLUTION` warning.
 
 OCR API:
 
@@ -1285,9 +1377,15 @@ GET  /api/v1/document-files/{fileId}/ocr
 GET  /api/v1/document-files/{fileId}/ocr-history
 ```
 
-Re-OCR creates a new job and immutable run; older results are not deleted.
-Cancellation is cooperative between page and provider checkpoints. It cannot
-interrupt an individual native inference call instantaneously.
+Re-OCR requires an audit reason and creates a new immutable run; older results
+are not deleted. A targeted run stores only its selected pages. The merged
+viewer and downstream detector resolve a bounded, same-file/same-extraction
+ancestry where the newest page result wins and unselected pages remain backed
+by the earlier run without copying rows. Failed or cancelled runs cannot be
+used as re-OCR ancestry. Synchronous duplicate-job responses expose
+`OCR_ACTIVE_JOB_EXISTS`. Cancellation is cooperative between page and provider
+checkpoints and cannot interrupt an individual native inference call
+instantaneously.
 
 ## Hybrid language detection
 
@@ -1355,8 +1453,10 @@ GET  /api/v1/document-files/{fileId}/language-detection-history
 ```
 
 JSON/XLSX exports are bounded, use sanitized filenames, prefix
-formula-triggering spreadsheet text, and remove their private temporary
-artifact after the response. Re-detection retains older runs.
+formula-triggering spreadsheet text, remove XML-illegal control characters,
+and remove their private temporary artifact after the response. Re-detection
+requires an audit reason and retains older runs. Synchronous duplicate-job
+responses expose `LANGUAGE_ACTIVE_JOB_EXISTS`.
 
 ## Phase 7 frontend
 
@@ -1378,9 +1478,151 @@ language job states without deriving placeholder statuses. It starts detection
 with the latest usable extraction/OCR source and exposes permission-gated view,
 re-detect, and JSON/XLSX export actions. Result pages keep OCR confidence
 separate from detector confidence, show language presence and the preliminary
-disclaimer, and support block/source/confidence/search filters and history.
+disclaimer, report target-specific average confidence, paginate every retained
+container beyond the first 500, and support block/source/confidence/search
+filters and paginated history.
 Document detail exposes actions only when the file type/state and permission
 allow them; it never shows OCR for DOCX/XLSX.
+
+## Phase 8 validation
+
+Phase 8 evaluates retained extraction, OCR, and language-detection evidence. A
+run stores the exact source identifiers, source-content hash, and immutable
+validation-rule snapshot used to produce it. Validation never reads arbitrary
+client paths and never mutates the source runs.
+
+The default rule evaluates document-code validity, required-language presence,
+language block/character coverage, required canonical sections, language
+order, structural translation groups, and multilingual table completeness.
+Required-section validation can additionally enforce optional per-language
+block and character coverage inside each section through snapshotted
+`validationOptions` (`validateSectionCoverage`, evaluation mode, confidence
+floor, and default or canonical-section thresholds). Existing rules retain
+their former presence-only section behavior until this option is enabled.
+The default weights are `10/25/15/20/10/15/5` and must total 100. Major and
+minor findings subtract configured penalties before the critical-finding cap
+is applied. By default, a score of at least 95 with every required language
+and no open critical finding is compliant; 70–94.99 is partially compliant,
+and a lower score is non-compliant. Missing prerequisites produce
+`NOT_EVALUATED`; unreliable extraction, OCR, unknown-language, or grouping
+evidence can produce `NEEDS_REVIEW`.
+
+Section matching uses one active alias profile, canonical section definitions,
+and Indonesian, English, or Simplified Chinese aliases. It tries normalized
+exact matching before bounded prefix, regex, contains, and fuzzy strategies,
+then applies the configured confidence floor. User-provided regular
+expressions have length and complexity guards and a bounded execution time.
+The default `DEFAULT-3LANG` seed includes TITLE, PURPOSE, SCOPE, DEFINITION,
+REFERENCE, RESPONSIBILITY, PROCEDURE, RECORDS, ATTACHMENT,
+REVISION_HISTORY, APPROVAL, and DISTRIBUTION.
+
+Translation grouping is structural, not semantic: PDF uses page/order and
+bounded vertical proximity, DOCX uses paragraph/table structure, and XLSX
+supports adjacent language columns or language rows. Low-confidence groups
+remain review evidence and may be excluded from strict denominators. Phase 8
+does not judge whether translations have equivalent meaning. A document with
+no table evidence treats table validation as not applicable (`SKIPPED`) rather
+than making the complete run `NOT_EVALUATED`.
+
+Rule snapshots retain the code, name, version, configuration, and weights used
+by the run. Run responses, exports, and reports prefer this snapshot metadata,
+so a later Validation Rule rename does not rewrite retained history. Legacy
+Phase 3 language, coverage, and score fields remain synchronized with their
+Phase 8 counterparts according to the fields actually supplied by the client.
+
+Detected-section, translation-group, and run-finding endpoints use bounded
+`page`/`pageSize` queries with a maximum page size of 500. The frontend keeps
+server-side pagination and requests only the visible result page, while
+XLSX/JSON exports count first and read retained rows in configured batches.
+Summary responses include per-language presence, block/character coverage,
+configured thresholds, confidence, and finding counts.
+
+Compliance tasks run on the dedicated `compliance` queue. PostgreSQL workers
+hold a session advisory execution lease across transaction commits, combine
+it with row-level job ownership checks, and release it automatically if the
+worker connection is lost. This prevents concurrent duplicate execution while
+still allowing Celery redelivery after a hard worker loss.
+
+Finding workflow is retained and audited:
+
+```text
+OPEN/REOPENED -> IN_REVIEW -> RESOLVED | FALSE_POSITIVE | ACCEPTED_RISK
+IN_REVIEW -> OPEN when more source evidence is required
+RESOLVED/FALSE_POSITIVE/ACCEPTED_RISK -> REOPENED
+```
+
+Revalidation creates a new run. Matching system findings are linked through
+`previous_finding_id` and retained occurrences; old findings are not silently
+resolved when no longer reproduced. Manual findings are never deleted by
+revalidation. Bulk assignment and review validate the complete de-duplicated
+set, department scope, assignee, permissions, and every transition before
+committing one atomic transaction; the configured server-side item limit is
+authoritative.
+
+Phase 8 frontend routes:
+
+```text
+/documents/validation-queue
+/documents/validation-history
+/documents/:documentId/compliance
+/documents/:documentId/revisions/:revisionId/compliance
+/compliance
+/compliance/languages
+/compliance/sections
+/compliance/language-order
+/compliance/findings
+/compliance/findings/review
+/compliance/findings/:findingId
+/reports/compliance
+/reports/findings
+/master-data/section-definitions
+```
+
+Phase 8 API:
+
+```text
+POST /api/v1/compliance/jobs
+GET  /api/v1/compliance/jobs
+GET  /api/v1/compliance/jobs/{jobId}
+POST /api/v1/compliance/jobs/{jobId}/cancel
+GET  /api/v1/compliance/runs/{runId}
+GET  /api/v1/compliance/runs/{runId}/summary
+GET  /api/v1/compliance/runs/{runId}/score-breakdown
+GET  /api/v1/compliance/runs/{runId}/sections
+GET  /api/v1/compliance/runs/{runId}/translation-groups
+GET  /api/v1/compliance/runs/{runId}/findings
+GET  /api/v1/compliance/runs/{runId}/export
+POST /api/v1/compliance/runs/{runId}/revalidate
+GET  /api/v1/compliance/runs/{runId}/compare/{otherRunId}
+GET  /api/v1/document-files/{fileId}/compliance
+GET  /api/v1/document-files/{fileId}/compliance-history
+
+GET  /api/v1/findings
+POST /api/v1/findings/manual
+POST /api/v1/findings/bulk-actions
+GET  /api/v1/findings/{findingId}
+PUT  /api/v1/findings/{findingId}
+POST /api/v1/findings/{findingId}/review
+POST /api/v1/findings/{findingId}/return-to-open
+POST /api/v1/findings/{findingId}/resolve
+POST /api/v1/findings/{findingId}/reopen
+POST /api/v1/findings/{findingId}/false-positive
+POST /api/v1/findings/{findingId}/accept-risk
+POST /api/v1/findings/{findingId}/assign
+GET  /api/v1/findings/export
+
+GET/POST/PUT/PATCH /api/v1/master-data/section-alias-profiles
+GET/POST/PUT/PATCH /api/v1/master-data/section-definitions
+GET/POST/PUT/PATCH /api/v1/master-data/section-aliases
+POST /api/v1/master-data/section-definitions/test-match
+POST /api/v1/master-data/section-definitions/import/preview
+POST /api/v1/master-data/section-definitions/import/confirm
+GET  /api/v1/master-data/section-definitions/export
+
+GET /api/v1/compliance/overview
+GET /api/v1/reports/compliance
+GET /api/v1/reports/findings
+```
 
 ## Quality checks
 
@@ -1390,8 +1632,10 @@ Backend:
 cd backend
 python -m ruff check app alembic scripts
 python -W error -m pytest
-python -m compileall -q app
+python -m compileall -q app alembic scripts
 python scripts/generate_phase7_sample_documents.py
+python scripts/generate_phase8_sample_documents.py
+python scripts/seed_section_definitions.py
 ```
 
 Frontend:
@@ -1412,6 +1656,7 @@ docker compose ps
 docker compose exec worker celery -A app.workers.celery_app inspect ping
 docker compose exec worker-ocr celery -A app.workers.celery_app inspect ping
 docker compose exec worker-language celery -A app.workers.celery_app inspect ping
+docker compose exec worker-compliance celery -A app.workers.celery_app inspect ping
 curl http://localhost:8000/api/v1/health/dependencies
 ```
 
@@ -1437,9 +1682,15 @@ curl http://localhost:8000/api/v1/health/dependencies
 - The bundled nginx limit is 550 MB. Keep it aligned if backend batch limits
   are raised, and ensure the container user can write the storage bind mount on
   Linux deployments.
-- A process crash in the narrow interval after an extraction job commits but
-  before its Celery dispatch can leave a durable `QUEUED` row without a queued
-  message. An outbox/reconciliation process is not yet included.
+- A process crash in the narrow interval after an extraction or compliance job
+  commits but before its Celery dispatch can leave a durable `QUEUED` row
+  without a queued message. An outbox/reconciliation process is not yet
+  included.
+- The Validation Rule API and typed response expose all Phase 8 configuration,
+  but the existing administrator form still edits the legacy subset plus the
+  complete 12-code required-section selector. Configure advanced weights,
+  penalties, confidence thresholds, and section-coverage options through the
+  authorized API until a dedicated advanced form is added.
 - PDF multi-column reading order and PDF table recognition are best-effort;
   low-confidence tables remain text blocks.
 - Container/table list responses omit unbounded aggregate raw text. Table
@@ -1457,10 +1708,11 @@ curl http://localhost:8000/api/v1/health/dependencies
 - Language detection is block-level evidence, not translation-equivalence or
   semantic validation. Very short/technical content may remain `unknown`;
   presence and coverage are preliminary.
-- Manual language override is not enabled in Phase 7, so the UI does not show a
+- Manual language override is not enabled, so the UI does not show a
   nonfunctional review control.
-- Final trilingual compliance, findings/scoring, automatic translation, cloud
-  OCR, and SharePoint synchronization are intentionally deferred.
+- Structural grouping does not establish semantic translation equivalence.
+  Automatic translation, glossary enforcement, cloud OCR, and SharePoint
+  synchronization are intentionally deferred.
 
 ## Troubleshooting
 
@@ -1513,10 +1765,27 @@ window requires an administrator to reconcile the stale job.
 most pages. Queue Phase 7 OCR from the current PDF file, choose the appropriate
 language/preprocessing profile, and monitor the OCR queue.
 
-**An OCR or language job stays `QUEUED`.** Confirm Redis and the dedicated
-worker are healthy, inspect `worker-ocr` or `worker-language` logs, and verify
-that the worker consumes the same queue name configured on the API. The
-dependency-readiness endpoint reports all three workers independently.
+**An OCR, language, or compliance job stays `QUEUED`.** Confirm Redis and the
+dedicated worker are healthy, inspect `worker-ocr`, `worker-language`, or
+`worker-compliance` logs, and verify that the worker consumes the same queue
+name configured on the API. The dependency-readiness endpoint reports all
+workers independently.
+
+**A compliance run is `NOT_EVALUATED`.** Inspect its prerequisite summary.
+The latest compatible extraction and language-detection runs must exist; a
+scan that requires OCR also needs a compatible completed OCR run. Queue the
+missing prerequisite first instead of forcing a score from incomplete
+evidence.
+
+**A section heading is not matched.** Verify the active alias profile,
+language, alias match type, confidence threshold, and definition state. Use
+the test-match endpoint before changing production aliases. A rejected regex
+must be simplified to satisfy the configured length, safety, and execution
+limits.
+
+**A finding action is rejected.** Check the finding's current state and your
+atomic permission. Terminal findings can only be reopened; auditors and
+viewers are read-only, and department scope is enforced by the backend.
 
 **The OCR model cannot be loaded.** Run
 `backend/scripts/download_ocr_models.py`, verify that the four Latin/Chinese
@@ -1578,16 +1847,15 @@ Use `UPSERT` only when existing records are intentionally being updated.
 **Changes are not reflected in containers.** Rebuild the affected services:
 
 ```bash
-docker compose up --build -d frontend backend worker worker-ocr worker-language
+docker compose up --build -d frontend backend worker worker-ocr worker-language worker-compliance
 ```
 
-Phase 7 is complete only when the Phase 1-6 regression suite, migration chain
-and both seeds, health and authentication checks, Master Data, Document
-Register and physical-file workflows, PDF/DOCX/XLSX extractor tests, queue and
-worker lifecycle, cancellation, retained re-extraction history, content
-pagination/search/export, real local OCR/language model checks, retained OCR
-and language history, preliminary coverage, safe exports, frontend
-lint/tests/build, and Docker smoke checks all pass. Translation-equivalence
-validation, final findings/compliance scoring, full review/approval workflows,
-cloud OCR, and SharePoint synchronization remain intentionally outside this
-release.
+Phase 8 is complete only when the Phase 1-7 regression suite, migration chain
+and idempotent seeds, health and authentication checks, Master Data, Document
+Register and physical-file workflows, extraction/OCR/language workers,
+canonical section matching, language presence and coverage, PDF/DOCX/XLSX
+grouping, language order, table completeness, score/status decisions, finding
+state transitions and history, comparison and bounded exports, frontend
+lint/tests/build, and Docker smoke checks all pass. Semantic translation
+equivalence, automatic translation, glossary management, cloud OCR, and
+SharePoint synchronization remain intentionally outside this release.

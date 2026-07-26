@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import (
 from app.core.authorization import AuditAction
 from app.core.config import Settings, get_settings
 from app.database.session import AsyncSessionFactory
-from app.models.document_file import DocumentFileStatus
+from app.models.document_file import DocumentFile, DocumentFileStatus
 from app.models.language_detection_job import (
     ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES,
     LanguageDetectionJob,
@@ -30,6 +30,7 @@ from app.models.language_detection_job import (
 )
 from app.models.ocr_run import OCRRunStatus
 from app.repositories.audit_log import AuditLogRepository
+from app.repositories.document_file_repository import DocumentFileRepository
 from app.repositories.extraction_run_repository import ExtractionRunRepository
 from app.repositories.language_block_result_repository import (
     LanguageBlockResultRepository,
@@ -62,6 +63,10 @@ from app.services.language.language_persistence_service import (
 )
 from app.services.language.language_runtime_config import (
     LanguageRuntimeConfig,
+)
+from app.services.ocr.ocr_source_chain_service import (
+    OCRSourceChainError,
+    OCRSourceChainService,
 )
 from app.utils.datetime import utc_now
 
@@ -120,9 +125,7 @@ class LanguageDetectionService:
         self.settings = settings or get_settings()
         self.config = LanguageRuntimeConfig.from_settings(self.settings)
         self.session_factory = session_factory or AsyncSessionFactory
-        self.detector = detector or LanguageDetectorFactory.create(
-            self.settings
-        )
+        self.detector = detector or LanguageDetectorFactory.create(self.settings)
         self.aggregation = LanguageAggregationService(self.config)
 
     async def process_job(
@@ -187,9 +190,7 @@ class LanguageDetectionService:
                         total,
                     )
                 ),
-                cancellation_checker=lambda: self._is_cancel_requested(
-                    job_id
-                ),
+                cancellation_checker=lambda: self._is_cancel_requested(job_id),
             )
             await self._set_status(
                 job_id,
@@ -236,9 +237,7 @@ class LanguageDetectionService:
             await self.fail_job(
                 job_id,
                 error_code="LANGUAGE_PERSISTENCE_FAILED",
-                error_message=(
-                    "Language detection results could not be saved."
-                ),
+                error_message=("Language detection results could not be saved."),
             )
             return LanguageDetectionJobStatus.FAILED
         except SoftTimeLimitExceeded:
@@ -274,20 +273,30 @@ class LanguageDetectionService:
                 )
             ocr: list[LanguageSourceBlockData] = []
             if ocr_run_id is not None:
-                remaining = self.config.maximum_blocks - len(native)
-                ocr = await repository.load_ocr_sources(
-                    ocr_run_id,
-                    extraction_run_id=extraction_run_id,
-                    limit=remaining + 1,
-                )
-                if len(ocr) > remaining:
+                try:
+                    effective_source = await OCRSourceChainService(
+                        session
+                    ).resolve_by_id(ocr_run_id)
+                except OCRSourceChainError as exc:
                     raise LanguagePipelineError(
                         "LANGUAGE_SOURCE_NOT_AVAILABLE",
-                        "Merged content exceeds the configured block limit.",
-                        details={
-                            "maximumBlocks": self.config.maximum_blocks
-                        },
+                        "The effective OCR source is not available.",
+                    ) from exc
+                for source_group in effective_source.pages_by_run:
+                    remaining = self.config.maximum_blocks - len(native) - len(ocr)
+                    source_rows = await repository.load_ocr_sources(
+                        source_group.run_id,
+                        extraction_run_id=extraction_run_id,
+                        page_numbers=source_group.page_numbers,
+                        limit=remaining + 1,
                     )
+                    if len(source_rows) > remaining:
+                        raise LanguagePipelineError(
+                            "LANGUAGE_SOURCE_NOT_AVAILABLE",
+                            ("Merged content exceeds the configured block limit."),
+                            details={"maximumBlocks": (self.config.maximum_blocks)},
+                        )
+                    ocr.extend(source_rows)
         return self.merge_sources(native, ocr)
 
     def merge_sources(
@@ -336,11 +345,7 @@ class LanguageDetectionService:
             key=lambda block: (
                 block.container_index,
                 block.block_order,
-                (
-                    0
-                    if block.extracted_block_id is not None
-                    else 1
-                ),
+                (0 if block.extracted_block_id is not None else 1),
                 block.source_reference,
             ),
         )
@@ -369,9 +374,8 @@ class LanguageDetectionService:
                 )
             )
             percent = int(index * 100 / max(1, total))
-            if (
-                progress_callback is not None
-                and (percent != last_percent or index == total)
+            if progress_callback is not None and (
+                percent != last_percent or index == total
             ):
                 await progress_callback(index, total)
                 last_percent = percent
@@ -384,11 +388,19 @@ class LanguageDetectionService:
         source_content_hash: str,
     ) -> LanguagePipelineResultData:
         info = self.detector.get_detector_info()
+        try:
+            containers = self.aggregation.aggregate_containers(blocks)
+            aggregate = self.aggregation.aggregate(blocks)
+        except Exception as exc:
+            raise LanguagePipelineError(
+                "LANGUAGE_AGGREGATION_FAILED",
+                "Language detection results could not be aggregated.",
+            ) from exc
         return LanguagePipelineResultData(
             source_content_hash=source_content_hash,
             blocks=list(blocks),
-            containers=self.aggregation.aggregate_containers(blocks),
-            aggregate=self.aggregation.aggregate(blocks),
+            containers=containers,
+            aggregate=aggregate,
             detector_name=str(info.get("name", "hybrid")),
             detector_version=str(info.get("version", "unknown")),
             warnings=[],
@@ -403,12 +415,16 @@ class LanguageDetectionService:
     ) -> PreparedLanguageJob | LanguageDetectionJobStatus:
         async with self.session_factory() as session:
             jobs = LanguageDetectionJobRepository(session)
-            job = await jobs.get_by_id(job_id, for_update=True)
+            job, document_file = await self._lock_job_and_source_file(
+                session,
+                job_id,
+            )
             if job is None:
                 raise LanguagePipelineError(
                     "LANGUAGE_RESULT_NOT_FOUND",
                     "The language detection job no longer exists.",
                 )
+            assert document_file is not None
             if job.status in {
                 LanguageDetectionJobStatus.COMPLETED,
                 LanguageDetectionJobStatus.PARTIALLY_COMPLETED,
@@ -416,72 +432,26 @@ class LanguageDetectionService:
                 LanguageDetectionJobStatus.CANCELLED,
             }:
                 return job.status
-            if (
-                job.status
-                is LanguageDetectionJobStatus.CANCEL_REQUESTED
-            ):
+            if job.status is LanguageDetectionJobStatus.CANCEL_REQUESTED:
                 await self._mark_cancelled(session, job)
                 await session.commit()
                 return LanguageDetectionJobStatus.CANCELLED
-            document_file = job.document_file
             if (
-                document_file.file_status
-                is not DocumentFileStatus.AVAILABLE
+                document_file.file_status is not DocumentFileStatus.AVAILABLE
                 or not document_file.is_current
                 or job.document.is_archived
                 or document_file.document_id != job.document_id
-                or document_file.document_revision_id
-                != job.document_revision_id
+                or document_file.document_revision_id != job.document_revision_id
             ):
                 raise LanguagePipelineError(
                     "LANGUAGE_SOURCE_NOT_AVAILABLE",
                     "The source document file is no longer available.",
                 )
-            extraction_run = await ExtractionRunRepository(
-                session
-            ).get_by_id(job.extraction_run_id)
-            if (
-                extraction_run is None
-                or extraction_run.document_file_id
-                != job.document_file_id
-            ):
-                raise LanguagePipelineError(
-                    "LANGUAGE_SOURCE_NOT_AVAILABLE",
-                    "The source extraction result is not available.",
-                )
-            ocr_content_hash: str | None = None
-            if job.ocr_run_id is not None:
-                ocr_run = await OCRRunRepository(session).get_by_id(
-                    job.ocr_run_id
-                )
-                if (
-                    ocr_run is None
-                    or ocr_run.document_file_id != job.document_file_id
-                    or ocr_run.source_extraction_run_id
-                    != job.extraction_run_id
-                    or ocr_run.status
-                    not in {
-                        OCRRunStatus.COMPLETED,
-                        OCRRunStatus.PARTIALLY_COMPLETED,
-                    }
-                ):
-                    raise LanguagePipelineError(
-                        "LANGUAGE_SOURCE_NOT_AVAILABLE",
-                        "The selected OCR result is not available.",
-                    )
-                ocr_content_hash = ocr_run.content_hash
-            source_hash = calculate_source_snapshot_hash(
-                extraction_run.content_hash,
-                ocr_content_hash,
+            source_hash = await self._validate_current_source_snapshot(
+                session,
+                job,
+                document_file,
             )
-            if (
-                job.source_content_hash is not None
-                and job.source_content_hash != source_hash
-            ):
-                raise LanguagePipelineError(
-                    "LANGUAGE_SOURCE_NOT_AVAILABLE",
-                    "The queued source snapshot no longer matches the job.",
-                )
             job.source_content_hash = source_hash
             job.attempt_number = min(
                 max(1, attempt_number),
@@ -505,9 +475,7 @@ class LanguageDetectionService:
                     "documentFileId": str(job.document_file_id),
                     "extractionRunId": str(job.extraction_run_id),
                     "ocrRunId": (
-                        str(job.ocr_run_id)
-                        if job.ocr_run_id is not None
-                        else None
+                        str(job.ocr_run_id) if job.ocr_run_id is not None else None
                     ),
                     "attemptNumber": job.attempt_number,
                 },
@@ -525,23 +493,26 @@ class LanguageDetectionService:
         result: LanguagePipelineResultData,
     ) -> LanguageDetectionJobStatus:
         async with self.session_factory() as session:
-            jobs = LanguageDetectionJobRepository(session)
-            job = await jobs.get_by_id(job_id, for_update=True)
+            job, document_file = await self._lock_job_and_source_file(
+                session,
+                job_id,
+            )
             if job is None:
                 raise LanguagePipelineError(
                     "LANGUAGE_RESULT_NOT_FOUND",
                     "The language detection job no longer exists.",
                 )
-            if (
-                job.status
-                is LanguageDetectionJobStatus.CANCEL_REQUESTED
-            ):
+            assert document_file is not None
+            if job.status is LanguageDetectionJobStatus.CANCEL_REQUESTED:
                 raise LanguageDetectionCancelledError
-            if (
-                job.status
-                not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES
-            ):
+            if job.status not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES:
                 return job.status
+            await self._validate_current_source_snapshot(
+                session,
+                job,
+                document_file,
+                result_source_content_hash=result.source_content_hash,
+            )
             started_at = job.started_at or utc_now()
             completed_at = utc_now()
             run = await LanguagePersistenceService(
@@ -570,6 +541,116 @@ class LanguageDetectionService:
             await session.commit()
             return job.status
 
+    async def _lock_job_and_source_file(
+        self,
+        session: AsyncSession,
+        job_id: UUID,
+    ) -> tuple[LanguageDetectionJob | None, DocumentFile | None]:
+        """Lock file before job to match queue-side lock ordering."""
+        document_file_id = await session.scalar(
+            select(LanguageDetectionJob.document_file_id).where(
+                LanguageDetectionJob.id == job_id
+            )
+        )
+        if document_file_id is None:
+            return None, None
+        document_file = await DocumentFileRepository(session).get_by_id(
+            document_file_id,
+            for_update=True,
+        )
+        job = await LanguageDetectionJobRepository(session).get_by_id(
+            job_id,
+            for_update=True,
+        )
+        if job is None:
+            return None, document_file
+        if document_file is None or job.document_file_id != document_file.id:
+            raise LanguagePipelineError(
+                "LANGUAGE_SOURCE_NOT_AVAILABLE",
+                "The source document file is no longer available.",
+            )
+        return job, document_file
+
+    async def _validate_current_source_snapshot(
+        self,
+        session: AsyncSession,
+        job: LanguageDetectionJob,
+        document_file: DocumentFile,
+        *,
+        result_source_content_hash: str | None = None,
+    ) -> str:
+        """Reject work whose extraction or effective OCR pointer moved."""
+        if document_file.latest_extraction_run_id != job.extraction_run_id:
+            raise self._source_changed("EXTRACTION")
+
+        extraction_run = await ExtractionRunRepository(session).get_by_id(
+            job.extraction_run_id
+        )
+        if (
+            extraction_run is None
+            or extraction_run.document_file_id != job.document_file_id
+        ):
+            raise LanguagePipelineError(
+                "LANGUAGE_SOURCE_NOT_AVAILABLE",
+                "The source extraction result is not available.",
+            )
+
+        usable_ocr_statuses = {
+            OCRRunStatus.COMPLETED,
+            OCRRunStatus.PARTIALLY_COMPLETED,
+        }
+        effective_ocr_run = None
+        if document_file.latest_ocr_run_id is not None:
+            candidate = await OCRRunRepository(session).get_by_id(
+                document_file.latest_ocr_run_id
+            )
+            if (
+                candidate is not None
+                and candidate.document_file_id == job.document_file_id
+                and candidate.source_extraction_run_id == job.extraction_run_id
+                and candidate.status in usable_ocr_statuses
+            ):
+                effective_ocr_run = candidate
+
+        effective_ocr_run_id = (
+            effective_ocr_run.id if effective_ocr_run is not None else None
+        )
+        if effective_ocr_run_id != job.ocr_run_id:
+            raise self._source_changed("OCR")
+        if extraction_run.requires_ocr and effective_ocr_run is None:
+            raise LanguagePipelineError(
+                "LANGUAGE_SOURCE_NOT_AVAILABLE",
+                "A completed OCR result is required for this source.",
+                details={"sourceType": "OCR"},
+            )
+
+        source_hash = calculate_source_snapshot_hash(
+            extraction_run.content_hash,
+            (effective_ocr_run.content_hash if effective_ocr_run is not None else None),
+        )
+        if (
+            job.source_content_hash is not None
+            and job.source_content_hash != source_hash
+        ):
+            raise self._source_changed("CONTENT")
+        if (
+            result_source_content_hash is not None
+            and result_source_content_hash != source_hash
+        ):
+            raise self._source_changed("CONTENT")
+        return source_hash
+
+    @staticmethod
+    def _source_changed(source_type: str) -> LanguagePipelineError:
+        return LanguagePipelineError(
+            "LANGUAGE_SOURCE_CHANGED",
+            (
+                "The source content changed while language detection was "
+                "running. Queue a new job for the latest source."
+            ),
+            details={"sourceType": source_type},
+        )
+
     async def _update_detection_progress(
         self,
         job_id: UUID,
@@ -596,8 +677,7 @@ class LanguageDetectionService:
             repository = LanguageDetectionJobRepository(session)
             job = await repository.get_by_id(job_id, for_update=True)
             if job is None or (
-                job.status
-                is LanguageDetectionJobStatus.CANCEL_REQUESTED
+                job.status is LanguageDetectionJobStatus.CANCEL_REQUESTED
             ):
                 raise LanguageDetectionCancelledError
             if job.status not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES:
@@ -612,13 +692,10 @@ class LanguageDetectionService:
 
     async def _is_cancel_requested(self, job_id: UUID) -> bool:
         async with self.session_factory() as session:
-            job = await LanguageDetectionJobRepository(
-                session
-            ).get_by_id(job_id)
+            job = await LanguageDetectionJobRepository(session).get_by_id(job_id)
             return (
                 job is None
-                or job.status
-                is LanguageDetectionJobStatus.CANCEL_REQUESTED
+                or job.status is LanguageDetectionJobStatus.CANCEL_REQUESTED
                 or job.status is LanguageDetectionJobStatus.CANCELLED
             )
 
@@ -639,14 +716,10 @@ class LanguageDetectionService:
                 )
                 if (
                     job is None
-                    or job.status
-                    not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES
+                    or job.status not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES
                 ):
                     return
-                if (
-                    job.status
-                    is LanguageDetectionJobStatus.CANCEL_REQUESTED
-                ):
+                if job.status is LanguageDetectionJobStatus.CANCEL_REQUESTED:
                     await self._mark_cancelled(session, job)
                 else:
                     await repository.mark_failed(
@@ -675,11 +748,7 @@ class LanguageDetectionService:
         async with self.session_factory() as session:
             repository = LanguageDetectionJobRepository(session)
             job = await repository.get_by_id(job_id, for_update=True)
-            if (
-                job is None
-                or job.status
-                not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES
-            ):
+            if job is None or job.status not in ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES:
                 return
             await self._mark_cancelled(session, job)
             await session.commit()
@@ -711,10 +780,7 @@ class LanguageDetectionService:
         job_id: UUID,
     ) -> AsyncIterator[None]:
         bind = self.session_factory.kw.get("bind")
-        if (
-            not isinstance(bind, AsyncEngine)
-            or bind.dialect.name != "postgresql"
-        ):
+        if not isinstance(bind, AsyncEngine) or bind.dialect.name != "postgresql":
             yield
             return
         lock_key = job_id.int & ((1 << 63) - 1)
@@ -729,9 +795,7 @@ class LanguageDetectionService:
                 try:
                     await asyncio.shield(
                         connection.execute(
-                            text(
-                                "SELECT pg_advisory_unlock(:lock_key)"
-                            ),
+                            text("SELECT pg_advisory_unlock(:lock_key)"),
                             {"lock_key": lock_key},
                         )
                     )

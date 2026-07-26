@@ -1,7 +1,27 @@
 """SQLAlchemy model exports registered with the shared Alembic metadata."""
 
 from app.models.audit_log import AuditLog
+from app.models.compliance_enums import (
+    ACTIVE_COMPLIANCE_JOB_STATUSES,
+    FINDING_STATUS_TRANSITIONS,
+    TERMINAL_COMPLIANCE_JOB_STATUSES,
+    ComplianceJobStatus,
+    ComplianceJobType,
+    ComplianceRunStatus,
+    ComplianceStatus,
+    FindingCode,
+    FindingSeverity,
+    FindingStatus,
+    FindingType,
+    SectionAliasLanguageCode,
+    SectionAliasMatchType,
+    SectionLanguagePresenceStatus,
+    TranslationGroupType,
+)
+from app.models.compliance_job import ComplianceJob
+from app.models.compliance_run import ComplianceRun
 from app.models.department import Department
+from app.models.detected_section import DetectedSection
 from app.models.document import Document
 from app.models.document_file import DocumentFile, DocumentFileStatus
 from app.models.document_revision import DocumentRevision
@@ -25,6 +45,7 @@ from app.models.extraction_run import (
     ExtractionRunStatus,
     ExtractorType,
 )
+from app.models.finding_occurrence import FindingOccurrence
 from app.models.language_block_result import (
     LanguageBlockResult,
     LanguageCode,
@@ -56,6 +77,12 @@ from app.models.ocr_page_result import OCRPageResult, OCRPageStatus
 from app.models.ocr_run import OCRRun, OCRRunStatus
 from app.models.refresh_token import RefreshToken
 from app.models.section import Section
+from app.models.section_alias import SectionAlias
+from app.models.section_alias_profile import SectionAliasProfile
+from app.models.section_definition import SectionDefinition
+from app.models.section_language_result import SectionLanguageResult
+from app.models.translation_group import TranslationGroup
+from app.models.translation_group_member import TranslationGroupMember
 from app.models.upload_session import (
     UploadSession,
     UploadSessionStatus,
@@ -68,14 +95,25 @@ from app.models.upload_session_item import (
     UploadSessionItemStatus,
 )
 from app.models.user import User
+from app.models.validation_finding import ValidationFinding
 from app.models.validation_rule import ValidationRule
 
 __all__ = [
+    "ACTIVE_COMPLIANCE_JOB_STATUSES",
     "ACTIVE_EXTRACTION_JOB_STATUSES",
     "ACTIVE_LANGUAGE_DETECTION_JOB_STATUSES",
     "ACTIVE_OCR_JOB_STATUSES",
+    "FINDING_STATUS_TRANSITIONS",
+    "TERMINAL_COMPLIANCE_JOB_STATUSES",
     "AuditLog",
+    "ComplianceJob",
+    "ComplianceJobStatus",
+    "ComplianceJobType",
+    "ComplianceRun",
+    "ComplianceRunStatus",
+    "ComplianceStatus",
     "Department",
+    "DetectedSection",
     "Document",
     "DocumentFile",
     "DocumentFileStatus",
@@ -94,6 +132,11 @@ __all__ = [
     "ExtractionRun",
     "ExtractionRunStatus",
     "ExtractorType",
+    "FindingCode",
+    "FindingOccurrence",
+    "FindingSeverity",
+    "FindingStatus",
+    "FindingType",
     "LanguageBlockResult",
     "LanguageCode",
     "LanguageContainerSummary",
@@ -117,6 +160,16 @@ __all__ = [
     "OCRRunStatus",
     "RefreshToken",
     "Section",
+    "SectionAlias",
+    "SectionAliasLanguageCode",
+    "SectionAliasMatchType",
+    "SectionAliasProfile",
+    "SectionDefinition",
+    "SectionLanguagePresenceStatus",
+    "SectionLanguageResult",
+    "TranslationGroup",
+    "TranslationGroupMember",
+    "TranslationGroupType",
     "UploadIdentificationStatus",
     "UploadProposedAction",
     "UploadSession",
@@ -125,5 +178,6 @@ __all__ = [
     "UploadSessionStatus",
     "UploadSessionType",
     "User",
+    "ValidationFinding",
     "ValidationRule",
 ]

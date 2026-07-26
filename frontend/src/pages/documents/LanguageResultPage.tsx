@@ -99,9 +99,11 @@ export function LanguageResultPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebouncedValue(searchInput.trim(), 400);
   const [blockPage, setBlockPage] = useState(1);
+  const [containerPage, setContainerPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const containersQuery = useLanguageContainers(
     runId,
-    { page: 1, pageSize: 500 },
+    { page: containerPage, pageSize: 500 },
     run !== null,
   );
   const blocksQuery = useLanguageBlocks(
@@ -121,7 +123,7 @@ export function LanguageResultPage() {
   );
   const historyQuery = useLanguageDetectionHistory(
     displayedFile?.id ?? null,
-    { page: 1, pageSize: 10 },
+    { page: historyPage, pageSize: 10 },
     displayedFile !== null && hasPermission('documents:view_language_results'),
   );
   const jobsQuery = useLanguageDetectionJobs(
@@ -376,7 +378,30 @@ export function LanguageResultPage() {
                   Coverage grouped by page, document part, or worksheet.
                 </p>
               </div>
+              {containersQuery.data && (
+                <span className="text-xs text-slate-500">
+                  Page {containersQuery.data.page} of{' '}
+                  {Math.max(containersQuery.data.totalPages, 1)}
+                </span>
+              )}
             </div>
+            {containersQuery.isLoading && (
+              <div
+                aria-label="Loading language containers"
+                className="mt-4 h-32 animate-pulse rounded-2xl bg-slate-100"
+              />
+            )}
+            {containersQuery.error && (
+              <p
+                role="alert"
+                className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700"
+              >
+                {getApiErrorMessage(
+                  containersQuery.error,
+                  'Container summaries could not be loaded.',
+                )}
+              </p>
+            )}
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-xs">
                 <thead className="bg-slate-50">
@@ -435,6 +460,47 @@ export function LanguageResultPage() {
                 </tbody>
               </table>
             </div>
+            {containersQuery.data && containersQuery.data.totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-600">
+                <span>
+                  Containers{' '}
+                  {(containersQuery.data.page - 1) * containersQuery.data.pageSize + 1}–
+                  {Math.min(
+                    containersQuery.data.page * containersQuery.data.pageSize,
+                    containersQuery.data.totalItems,
+                  )}{' '}
+                  of {containersQuery.data.totalItems}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous container page"
+                    disabled={containerPage <= 1}
+                    onClick={() => {
+                      setContainerId('');
+                      setBlockPage(1);
+                      setContainerPage((current) => Math.max(1, current - 1));
+                    }}
+                    className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next container page"
+                    disabled={containerPage >= containersQuery.data.totalPages}
+                    onClick={() => {
+                      setContainerId('');
+                      setBlockPage(1);
+                      setContainerPage((current) => current + 1);
+                    }}
+                    className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="space-y-4">
@@ -494,7 +560,7 @@ export function LanguageResultPage() {
                   </select>
                 </label>
                 <label className="text-xs font-semibold text-slate-700">
-                  Container
+                  Container (page {containerPage})
                   <select
                     aria-label="Container"
                     value={containerId}
@@ -643,6 +709,36 @@ export function LanguageResultPage() {
                   </li>
                 ))}
               </ol>
+              {historyQuery.data.totalPages > 1 && (
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs text-slate-600">
+                  <span>
+                    Page {historyPage} of {historyQuery.data.totalPages} ·{' '}
+                    {historyQuery.data.totalItems.toLocaleString()} runs
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      aria-label="Previous history page"
+                      disabled={historyPage <= 1}
+                      onClick={() =>
+                        setHistoryPage((current) => Math.max(1, current - 1))
+                      }
+                      className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next history page"
+                      disabled={historyPage >= historyQuery.data.totalPages}
+                      onClick={() => setHistoryPage((current) => current + 1)}
+                      className="min-h-9 rounded-lg border border-slate-300 px-3 font-semibold disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </>

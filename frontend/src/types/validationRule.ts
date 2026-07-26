@@ -1,6 +1,7 @@
 import type {
   MasterDataAuditFields,
   MasterDataListParams,
+  MasterDataOption,
   PaginatedData,
 } from './masterData';
 
@@ -12,12 +13,14 @@ export const validationSectionCodes = [
   'PURPOSE',
   'SCOPE',
   'DEFINITION',
+  'REFERENCE',
   'RESPONSIBILITY',
   'PROCEDURE',
   'RECORDS',
-  'REFERENCE',
   'ATTACHMENT',
   'REVISION_HISTORY',
+  'APPROVAL',
+  'DISTRIBUTION',
 ] as const;
 
 export type ValidationSectionCode = (typeof validationSectionCodes)[number];
@@ -47,6 +50,36 @@ export interface ValidationRule extends MasterDataAuditFields {
   validateSections: boolean;
   requiredSections: ValidationSectionCode[];
   validateTables: boolean;
+  validateDocumentCode: boolean;
+  validateLanguagePresence: boolean;
+  validateLanguageCoverage: boolean;
+  validateContainerCompleteness: boolean;
+  validateTranslationGroups: boolean;
+  validateCells: boolean;
+  requiredLanguages: SupportedLanguageCode[];
+  sectionAliasProfileId: string | null;
+  sectionAliasProfile?: MasterDataOption | null;
+  minimumLanguageBlockCoverage: Partial<Record<SupportedLanguageCode, number>>;
+  minimumLanguageCharacterCoverage: Partial<Record<SupportedLanguageCode, number>>;
+  maximumUnknownBlockPercentage: number;
+  maximumMixedBlockPercentage: number;
+  documentCodeWeight: number;
+  languagePresenceWeight: number;
+  languageCoverageWeight: number;
+  sectionCompletenessWeight: number;
+  languageOrderWeight: number;
+  translationGroupWeight: number;
+  tableCompletenessWeight: number;
+  criticalFindingScoreCap: number;
+  majorFindingPenalty: number;
+  minorFindingPenalty: number;
+  compliantScore: number;
+  partiallyCompliantScore: number;
+  needsReviewScore: number;
+  failOnMissingRequiredLanguage: boolean;
+  failOnMissingRequiredSection: boolean;
+  failOnCriticalFinding: boolean;
+  validationOptions: Record<string, unknown>;
   minimumComplianceScore: number;
   partialComplianceScore: number;
   isDefault: boolean;

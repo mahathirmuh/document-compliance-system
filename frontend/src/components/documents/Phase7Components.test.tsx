@@ -152,6 +152,9 @@ describe('Phase 7 language result components', () => {
     expect(screen.getAllByText('中文 / Mandarin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Present')).toHaveLength(2);
     expect(screen.getByText('Insufficient Evidence')).toBeInTheDocument();
+    expect(screen.getByText('91%')).toBeInTheDocument();
+    expect(screen.getByText('84%')).toBeInTheDocument();
+    expect(screen.getByText('Not available')).toBeInTheDocument();
     expect(
       screen.getByText(/does not represent translation equivalence/),
     ).toBeInTheDocument();

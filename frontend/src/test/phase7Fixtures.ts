@@ -214,6 +214,11 @@ export const languageSummary: LanguageSummary = {
   mixedCharacters: 15,
   unknownCharacters: 10,
   averageConfidence: 0.86,
+  averageConfidenceByLanguage: {
+    id: 0.91,
+    en: 0.84,
+    zh: null,
+  },
   languagePresence: {
     id: 'PRESENT',
     en: 'PRESENT',

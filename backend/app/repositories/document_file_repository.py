@@ -24,7 +24,9 @@ class DocumentFileRepository:
     def _options() -> tuple[object, ...]:
         return (
             joinedload(DocumentFile.document),
-            joinedload(DocumentFile.revision),
+            joinedload(DocumentFile.revision).joinedload(
+                DocumentRevision.document_status
+            ),
             joinedload(DocumentFile.uploader),
             joinedload(DocumentFile.deleter),
         )
@@ -46,7 +48,9 @@ class DocumentFileRepository:
             .options(*self._options())
         )
         if for_update:
-            statement = statement.with_for_update(of=DocumentFile)
+            statement = statement.with_for_update(
+                of=DocumentFile
+            ).execution_options(populate_existing=True)
         return await self.session.scalar(statement)
 
     async def list_by_document(
@@ -102,7 +106,9 @@ class DocumentFileRepository:
             .options(*self._options())
         )
         if for_update:
-            statement = statement.with_for_update(of=DocumentFile)
+            statement = statement.with_for_update(
+                of=DocumentFile
+            ).execution_options(populate_existing=True)
         return await self.session.scalar(statement)
 
     async def find_by_hash(

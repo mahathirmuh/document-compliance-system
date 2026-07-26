@@ -66,11 +66,12 @@ def test_phase5_model_metadata_contains_required_constraints_and_indexes() -> No
         "deleted_at",
         "deleted_by",
         "deletion_reason",
-            "metadata_json",
-            "latest_extraction_run_id",
-            "latest_ocr_run_id",
-            "latest_language_detection_run_id",
-            "created_at",
+        "metadata_json",
+        "latest_extraction_run_id",
+        "latest_ocr_run_id",
+        "latest_language_detection_run_id",
+        "latest_compliance_run_id",
+        "created_at",
         "updated_at",
     } == set(document_files.c.keys())
     index_names = {index.name for index in document_files.indexes}

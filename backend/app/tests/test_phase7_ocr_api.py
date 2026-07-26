@@ -484,6 +484,7 @@ async def test_ocr_jobs_api_start_list_get_cancel_permissions_and_scope(
     )
     assert duplicate.status_code == 409
     assert duplicate.json()["errors"][0]["field"] == "documentFileId"
+    assert duplicate.json()["errors"][0]["code"] == "OCR_ACTIVE_JOB_EXISTS"
 
     duplicate_pages = await api_client.post(
         "/api/v1/ocr/jobs",

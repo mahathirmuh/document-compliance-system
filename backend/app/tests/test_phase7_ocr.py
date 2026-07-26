@@ -51,13 +51,14 @@ from app.models.ocr_job import (
 )
 from app.models.ocr_page_result import OCRPageResult, OCRPageStatus
 from app.models.ocr_run import OCRRunStatus
+from app.repositories.extraction_run_repository import ExtractionRunRepository
 from app.repositories.ocr_block_repository import OCRBlockRepository
 from app.repositories.ocr_job_repository import OCRJobRepository
 from app.repositories.ocr_page_result_repository import (
     OCRPageResultRepository,
 )
 from app.repositories.ocr_run_repository import OCRRunRepository
-from app.schemas.ocr import OCRStartRequest
+from app.schemas.ocr import OCRReprocessRequest, OCRStartRequest
 from app.schemas.ocr_internal import (
     OCRBlockData,
     OCRBoundingBox,
@@ -702,7 +703,12 @@ async def test_page_pipeline_persists_low_confidence_signal_and_cleans_images(
         preprocessing_profile=OCRPreprocessingProfile.STANDARD,
     )
     assert result.status is OCRPageStatus.LOW_CONFIDENCE
-    assert result.warning_codes == ["OCR_LOW_CONFIDENCE"]
+    assert result.warning_codes == [
+        "OCR_LOW_RESOLUTION",
+        "OCR_LOW_CONFIDENCE",
+    ]
+    assert result.metadata is not None
+    assert result.metadata["preprocessing"]["resized"] is True
     assert provider.calls == 1
     assert list(output.glob("*.png")) == []
 
@@ -921,6 +927,7 @@ def _document_graph(
         requires_ocr=True,
         warnings_json=[],
     )
+    document_file.latest_extraction_run = extraction_run
     ocr_job = OCRJob(
         document=document,
         revision=revision,
@@ -944,6 +951,8 @@ async def test_page_persistence_updates_latest_and_retains_provenance(
     document, revision, document_file, _, job = _document_graph()
     async with session_factory() as session:
         session.add_all([document, revision, document_file, job])
+        await session.flush()
+        document_file.latest_extraction_run_id = job.extraction_run_id
         await session.flush()
         service = OCRPersistenceService(session)
         run = await service.create_or_get_run(
@@ -971,10 +980,13 @@ async def test_page_persistence_updates_latest_and_retains_provenance(
             completed_at=datetime.now(UTC),
         )
         await session.commit()
+        await session.refresh(document_file)
 
         assert job.status is OCRJobStatus.COMPLETED
         assert run.status is OCRRunStatus.COMPLETED
         assert document_file.latest_ocr_run_id == run.id
+        assert run.metadata_json is not None
+        assert run.metadata_json["latestPointerUpdated"] is True
         stored_run = await OCRRunRepository(session).get_by_id(run.id)
         assert stored_run is not None
         blocks = await session.get(
@@ -991,6 +1003,21 @@ async def test_page_persistence_updates_latest_and_retains_provenance(
         stored_page = await session.get(OCRPageResult, page.id)
         assert stored_page is not None
         assert stored_page.content_hash is not None
+
+        stale_update = await OCRRunRepository(session).set_latest_by_ids(
+            document_file_id=document_file.id,
+            ocr_run_id=uuid4(),
+            source_extraction_run_id=uuid4(),
+        )
+        assert stale_update is False
+        assert document_file.latest_ocr_run_id == run.id
+
+        await ExtractionRunRepository(session).set_latest(
+            document_file,
+            job.extraction_run,
+        )
+        assert document_file.latest_ocr_run_id is None
+        assert document_file.latest_language_detection_run_id is None
 
 
 @pytest.mark.asyncio
@@ -1206,6 +1233,62 @@ async def test_worker_pipeline_completes_multiple_pages_with_fake_provider(
 
 
 @pytest.mark.asyncio
+async def test_worker_provider_failure_retains_only_a_partial_run(
+    session_factory: Any,
+) -> None:
+    source = _pdf_bytes(page_count=2)
+    document, revision, document_file, _, job = _document_graph(
+        file_content=source,
+        requested_pages=[1, 2],
+    )
+    storage_key = document_file.storage_key
+    async with session_factory() as session:
+        session.add_all([document, revision, document_file, job])
+        await session.commit()
+        job_id = job.id
+
+    class FailOnSecondPageProvider(StaticProvider):
+        async def recognise_page(
+            self,
+            image_path: Path,
+            language_profile: str,
+            options: dict,
+        ) -> OCRPageData:
+            if self.calls == 1:
+                self.calls += 1
+                raise RuntimeError("generated provider failure")
+            return await super().recognise_page(
+                image_path,
+                language_profile,
+                options,
+            )
+
+    provider = FailOnSecondPageProvider([_block()])
+    status = await OCRService(
+        get_settings(),
+        session_factory=session_factory,
+        storage=MemoryStorage({storage_key: source}),
+        provider=provider,
+    ).process_job(job_id, worker_reference="test-worker")
+
+    async with session_factory() as session:
+        stored_job = await OCRJobRepository(session).get_by_id(job_id)
+        run = await OCRRunRepository(session).get_by_job_id(job_id)
+        assert status is OCRJobStatus.FAILED
+        assert stored_job is not None
+        assert stored_job.status is OCRJobStatus.FAILED
+        assert stored_job.error_code == "OCR_RECOGNITION_FAILED"
+        assert stored_job.processed_page_numbers_json == [1]
+        assert stored_job.failed_page_numbers_json == [2]
+        assert run is not None
+        assert run.status is OCRRunStatus.PARTIALLY_COMPLETED
+        assert run.page_count_processed == 1
+        assert run.page_count_failed == 1
+        assert run.metadata_json is not None
+        assert run.metadata_json["terminalFailure"] is True
+
+
+@pytest.mark.asyncio
 async def test_worker_honours_cancel_before_loading_provider(
     session_factory: Any,
 ) -> None:
@@ -1301,3 +1384,150 @@ async def test_job_service_queues_selected_page_and_rejects_duplicate(
                     extraction_run_id=extraction_run_id,
                 )
             )
+
+
+@pytest.mark.asyncio
+async def test_initial_ocr_cannot_bypass_latest_source_with_reocr_permission(
+    session_factory: Any,
+    create_user: Any,
+) -> None:
+    document, revision, document_file, extraction_run, _ = _document_graph()
+    controller = await create_user(
+        email="phase7-ocr-controller@example.com",
+        role=UserRole.DOCUMENT_CONTROLLER,
+        department_id=document.department_id,
+    )
+    async with session_factory() as session:
+        session.add_all(
+            [
+                document,
+                revision,
+                document_file,
+                extraction_run,
+            ]
+        )
+        await session.flush()
+        document_file.latest_extraction_run_id = None
+        await session.commit()
+
+        service = OCRJobService(
+            session,
+            get_settings(),
+            controller,
+            RequestMetadata(ip_address=None, user_agent="pytest"),
+        )
+        with pytest.raises(ApplicationError) as raised:
+            await service.start(
+                OCRStartRequest(
+                    document_file_id=document_file.id,
+                    extraction_run_id=extraction_run.id,
+                )
+            )
+
+        assert raised.value.status_code == 400
+        assert raised.value.errors is not None
+        assert raised.value.errors[0].field == "extractionRunId"
+        assert "latest extraction" in raised.value.errors[0].message
+
+
+@pytest.mark.asyncio
+async def test_initial_or_forced_start_cannot_bypass_reasoned_reocr(
+    session_factory: Any,
+    create_user: Any,
+) -> None:
+    document, revision, document_file, extraction_run, job = _document_graph()
+    controller = await create_user(
+        email="phase7-ocr-existing-controller@example.com",
+        role=UserRole.DOCUMENT_CONTROLLER,
+        department_id=document.department_id,
+    )
+    async with session_factory() as session:
+        session.add_all([document, revision, document_file, job])
+        await session.flush()
+        persistence = OCRPersistenceService(session)
+        run = await persistence.create_or_get_run(
+            job=job,
+            document_file=document_file,
+            provider_version="test",
+            render_dpi=300,
+            started_at=datetime.now(UTC),
+        )
+        await persistence.persist_page(
+            run,
+            OCRPageData(
+                page_number=1,
+                language_profile=OCRLanguageProfile.LATIN,
+                render_width=1200,
+                render_height=1600,
+                render_dpi=300,
+                blocks=[_block()],
+            ),
+        )
+        await persistence.finalize(
+            job=job,
+            run=run,
+            completed_at=datetime.now(UTC),
+        )
+        await session.commit()
+
+        service = OCRJobService(
+            session,
+            get_settings(),
+            controller,
+            RequestMetadata(ip_address=None, user_agent="pytest"),
+        )
+        for force in (False, True):
+            with pytest.raises(ApplicationError) as raised:
+                await service.start(
+                    OCRStartRequest(
+                        document_file_id=document_file.id,
+                        extraction_run_id=extraction_run.id,
+                        page_numbers=[1],
+                        force=force,
+                    )
+                )
+
+            assert raised.value.status_code == 409
+            assert raised.value.errors is not None
+            assert raised.value.errors[0].field == "documentFileId"
+            assert "re-OCR endpoint" in raised.value.errors[0].message
+
+
+@pytest.mark.asyncio
+async def test_reocr_rejects_a_failed_source_run(
+    session_factory: Any,
+    create_user: Any,
+) -> None:
+    document, revision, document_file, _, job = _document_graph()
+    controller = await create_user(
+        email="phase7-ocr-failed-controller@example.com",
+        role=UserRole.DOCUMENT_CONTROLLER,
+        department_id=document.department_id,
+    )
+    async with session_factory() as session:
+        session.add_all([document, revision, document_file, job])
+        await session.flush()
+        run = await OCRPersistenceService(session).create_or_get_run(
+            job=job,
+            document_file=document_file,
+            provider_version="test",
+            render_dpi=300,
+            started_at=datetime.now(UTC),
+        )
+        await session.commit()
+
+        service = OCRJobService(
+            session,
+            get_settings(),
+            controller,
+            RequestMetadata(ip_address=None, user_agent="pytest"),
+        )
+        with pytest.raises(ApplicationError) as raised:
+            await service.reocr(
+                run.id,
+                OCRReprocessRequest(reason="Retry a failed OCR run."),
+            )
+
+        assert raised.value.status_code == 400
+        assert raised.value.errors is not None
+        assert raised.value.errors[0].field == "runId"

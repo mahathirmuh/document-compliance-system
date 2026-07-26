@@ -77,6 +77,10 @@ from app.services.documents.base import (
     document_error,
 )
 from app.services.ocr.ocr_merge_service import OCRMergeService
+from app.services.ocr.ocr_source_chain_service import (
+    OCRSourceChainError,
+    OCRSourceChainService,
+)
 
 
 def extraction_run_not_found() -> Exception:
@@ -357,15 +361,31 @@ class ExtractionContentService(DocumentServiceBase):
 
         ocr_rows: list[tuple[OCRBlock, int]] = []
         if ocr_run is not None:
-            ocr_rows, ocr_total = await self.ocr_blocks.list_by_run(
-                ocr_run.id,
-                limit=max(1, int(ocr_run.total_blocks)),
-            )
-            if len(ocr_rows) < ocr_total:
-                ocr_rows, _ = await self.ocr_blocks.list_by_run(
-                    ocr_run.id,
-                    limit=ocr_total,
+            try:
+                effective_source = await OCRSourceChainService(self.session).resolve(
+                    ocr_run
                 )
+            except OCRSourceChainError as exc:
+                raise document_error(
+                    "The effective OCR result could not be resolved.",
+                    title="OCR result is not available.",
+                ) from exc
+            for source_group in effective_source.pages_by_run:
+                block_limit = sum(page.block_count for page in source_group.pages)
+                if block_limit == 0:
+                    continue
+                source_rows, source_total = await self.ocr_blocks.list_by_run(
+                    source_group.run_id,
+                    page_numbers=source_group.page_numbers,
+                    limit=max(1, block_limit),
+                )
+                if len(source_rows) < source_total:
+                    source_rows, _ = await self.ocr_blocks.list_by_run(
+                        source_group.run_id,
+                        page_numbers=source_group.page_numbers,
+                        limit=source_total,
+                    )
+                ocr_rows.extend(source_rows)
 
         native_by_id = {item.id: item for item in native_blocks}
         ocr_by_id = {item.id: (item, page_number) for item, page_number in ocr_rows}
@@ -453,8 +473,7 @@ class ExtractionContentService(DocumentServiceBase):
             candidates = [
                 candidate
                 for candidate in candidates
-                if _language_result_for(candidate[0], annotations)
-                is not None
+                if _language_result_for(candidate[0], annotations) is not None
             ]
 
         if sort_order.lower() == "desc":
@@ -513,13 +532,10 @@ class ExtractionContentService(DocumentServiceBase):
         self,
         run: ExtractionRun,
     ) -> OCRRun | None:
-        if (
-            run.extractor_type is not ExtractorType.PDF
-            or not has_permission(
-                self.user.role,
-                Permission.DOCUMENTS_VIEW_OCR_RESULTS,
-                is_superuser=self.user.is_superuser,
-            )
+        if run.extractor_type is not ExtractorType.PDF or not has_permission(
+            self.user.role,
+            Permission.DOCUMENTS_VIEW_OCR_RESULTS,
+            is_superuser=self.user.is_superuser,
         ):
             return None
         latest_id = run.document_file.latest_ocr_run_id
@@ -817,14 +833,10 @@ def block_response(
         created_at=block.created_at,
         content_source="NATIVE",
         language_code=(
-            language_result.language_code
-            if language_result is not None
-            else None
+            language_result.language_code if language_result is not None else None
         ),
         language_confidence=(
-            float(language_result.confidence)
-            if language_result is not None
-            else None
+            float(language_result.confidence) if language_result is not None else None
         ),
         ocr_confidence=None,
         provenance=_language_provenance(
@@ -879,14 +891,10 @@ def ocr_content_block_response(
         created_at=block.created_at,
         content_source="OCR",
         language_code=(
-            language_result.language_code
-            if language_result is not None
-            else None
+            language_result.language_code if language_result is not None else None
         ),
         language_confidence=(
-            float(language_result.confidence)
-            if language_result is not None
-            else None
+            float(language_result.confidence) if language_result is not None else None
         ),
         ocr_confidence=float(block.confidence),
         provenance=_language_provenance(provenance, language_result),
@@ -913,16 +921,12 @@ def _language_provenance(
     result: LanguageBlockResult | None,
 ) -> dict[str, object]:
     provenance = {
-        key: value
-        for key, value in source_provenance.items()
-        if value is not None
+        key: value for key, value in source_provenance.items() if value is not None
     }
     if result is not None:
         provenance.update(
             {
-                "languageDetectionRunId": str(
-                    result.language_detection_run_id
-                ),
+                "languageDetectionRunId": str(result.language_detection_run_id),
                 "languageBlockResultId": str(result.id),
             }
         )
@@ -957,8 +961,8 @@ def table_response(
     total_cells: int | None = None,
 ) -> ExtractedTableResponse:
     serialized_cells = (
-        cells if cells is not None else list(table.cells)
-    ) if include_cells else []
+        (cells if cells is not None else list(table.cells)) if include_cells else []
+    )
     metadata = dict(table.metadata_json or {})
     if include_cells and total_cells is not None:
         metadata["totalCells"] = total_cells

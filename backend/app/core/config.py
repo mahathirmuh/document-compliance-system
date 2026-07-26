@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Document Compliance API"
-    app_version: str = "0.7.0"
+    app_version: str = "0.8.0"
     environment: Literal["development", "test", "staging", "production"] = Field(
         default="development",
         validation_alias=AliasChoices("APP_ENV"),
@@ -351,6 +351,92 @@ class Settings(BaseSettings):
         le=86_399,
     )
     language_max_retries: int = Field(default=1, ge=0, le=10)
+    compliance_queue_name: str = Field(
+        default="compliance",
+        min_length=1,
+        max_length=100,
+    )
+    compliance_max_blocks: int = Field(
+        default=2_000_000,
+        ge=1,
+        le=10_000_000,
+    )
+    compliance_max_translation_groups: int = Field(
+        default=500_000,
+        ge=1,
+        le=5_000_000,
+    )
+    compliance_db_batch_size: int = Field(
+        default=1000,
+        ge=1,
+        le=10_000,
+    )
+    compliance_task_time_limit_seconds: int = Field(
+        default=1800,
+        ge=60,
+        le=86_400,
+    )
+    compliance_task_soft_time_limit_seconds: int = Field(
+        default=1500,
+        ge=30,
+        le=86_399,
+    )
+    compliance_max_retries: int = Field(default=1, ge=0, le=10)
+    section_match_min_confidence: float = Field(
+        default=0.80,
+        ge=0,
+        le=1,
+    )
+    section_fuzzy_match_threshold: float = Field(
+        default=0.88,
+        ge=0,
+        le=1,
+    )
+    section_heading_max_characters: int = Field(
+        default=200,
+        ge=1,
+        le=10_000,
+    )
+    section_alias_regex_max_length: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+    )
+    section_alias_regex_timeout_ms: int = Field(
+        default=100,
+        ge=1,
+        le=10_000,
+    )
+    translation_group_max_block_distance: int = Field(
+        default=3,
+        ge=0,
+        le=100,
+    )
+    translation_group_max_vertical_gap: float = Field(
+        default=120,
+        ge=0,
+        le=100_000,
+    )
+    translation_group_min_confidence: float = Field(
+        default=0.65,
+        ge=0,
+        le=1,
+    )
+    finding_export_max_rows: int = Field(
+        default=200_000,
+        ge=1,
+        le=1_000_000,
+    )
+    compliance_export_max_rows: int = Field(
+        default=200_000,
+        ge=1,
+        le=1_000_000,
+    )
+    finding_bulk_action_max_items: int = Field(
+        default=100,
+        ge=1,
+        le=10_000,
+    )
     auto_run_ocr_after_extraction: bool = False
     auto_run_language_detection_after_extraction: bool = False
     auto_run_language_detection_after_ocr: bool = False
@@ -502,6 +588,14 @@ class Settings(BaseSettings):
                 "LANGUAGE_TASK_TIME_LIMIT_SECONDS."
             )
         if (
+            self.compliance_task_soft_time_limit_seconds
+            >= self.compliance_task_time_limit_seconds
+        ):
+            raise ValueError(
+                "COMPLIANCE_TASK_SOFT_TIME_LIMIT_SECONDS must be lower than "
+                "COMPLIANCE_TASK_TIME_LIMIT_SECONDS."
+            )
+        if (
             self.ocr_low_confidence_threshold
             > self.ocr_review_confidence_threshold
         ):
@@ -516,6 +610,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "LANGUAGE_CONFIDENCE_MINIMUM must not exceed "
                 "LANGUAGE_CONFIDENCE_REVIEW_THRESHOLD."
+            )
+        if (
+            self.section_match_min_confidence
+            > self.section_fuzzy_match_threshold
+        ):
+            raise ValueError(
+                "SECTION_MATCH_MIN_CONFIDENCE must not exceed "
+                "SECTION_FUZZY_MATCH_THRESHOLD."
             )
         _ = self.cors_origin_list
         return self

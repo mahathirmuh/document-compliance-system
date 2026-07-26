@@ -32,6 +32,7 @@ from app.services.language.language_aggregation_service import (
 from app.services.language.language_detection_service import (
     LanguageDetectionCancelledError,
     LanguageDetectionService,
+    LanguagePipelineError,
 )
 from app.services.language.language_normalizer import (
     LanguageEligibilityEvaluator,
@@ -62,15 +63,16 @@ class AdaptivePredictor:
             return ["__label__fr", "__label__en"], [0.92, 0.03]
         if "ambiguous" in lowered:
             return ["__label__en", "__label__id"], [0.40, 0.35]
-        if has_han and any(character.isascii() and character.isalpha() for character in text):
+        if has_han and any(
+            character.isascii() and character.isalpha() for character in text
+        ):
             return ["__label__en", "__label__zh"], [0.55, 0.40]
         if has_han:
             return ["__label__zh", "__label__en"], [0.88, 0.04]
         if "shall" in lowered and "untuk" in lowered:
             return ["__label__id", "__label__en"], [0.50, 0.45]
         if any(
-            word in lowered.split()
-            for word in ("yang", "untuk", "dengan", "adalah")
+            word in lowered.split() for word in ("yang", "untuk", "dengan", "adalah")
         ):
             return ["__label__id", "__label__en"], [0.88, 0.06]
         return ["__label__en", "__label__id"], [0.90, 0.04]
@@ -86,9 +88,7 @@ class WeakSecondaryPredictor:
         k: int,
     ) -> tuple[Sequence[str], Sequence[float]]:
         del k
-        has_han = any(
-            "\u3400" <= character <= "\u9fff" for character in text
-        )
+        has_han = any("\u3400" <= character <= "\u9fff" for character in text)
         if has_han:
             return ["__label__zh", "__label__en"], [0.97, 0.01]
         return ["__label__id", "__label__en"], [0.97, 0.01]
@@ -161,9 +161,7 @@ def _source(
     container_index: int = 1,
     block_order: int = 1,
     page_number: int | None = None,
-    source_type: LanguageSourceType = (
-        LanguageSourceType.NATIVE_EXTRACTION
-    ),
+    source_type: LanguageSourceType = (LanguageSourceType.NATIVE_EXTRACTION),
 ) -> LanguageSourceBlockData:
     is_native = source_type is LanguageSourceType.NATIVE_EXTRACTION
     return LanguageSourceBlockData(
@@ -268,19 +266,14 @@ def test_weak_primary_evidence_remains_unknown_after_candidate_normalization(
         runtime_config,
     )
 
-    result = detector.detect(
-        "Alpha omega gamma lambda epsilon zeta."
-    )
+    result = detector.detect("Alpha omega gamma lambda epsilon zeta.")
 
     assert result.language_code is LanguageCode.UNKNOWN
     assert result.primary_language_code is LanguageCode.ENGLISH
     assert result.confidence == pytest.approx(0.10)
     assert result.confidence <= runtime_config.confidence_minimum
     assert len(result.detected_languages) == 1
-    assert (
-        result.detected_languages[0].language_code
-        is LanguageCode.ENGLISH
-    )
+    assert result.detected_languages[0].language_code is LanguageCode.ENGLISH
     assert result.detected_languages[0].score == pytest.approx(1.0)
 
 
@@ -288,15 +281,15 @@ def test_hybrid_detector_finds_latin_han_mixed_language(
     detector: HybridLanguageDetector,
 ) -> None:
     result = detector.detect(
-        "Document control 文件控制程序 procedure applies 文件控制程序 "
-        "to every unit."
+        "Document control 文件控制程序 procedure applies 文件控制程序 to every unit."
     )
 
     assert result.language_code is LanguageCode.MIXED
     assert result.is_mixed is True
-    assert {
-        score.language_code for score in result.detected_languages[:2]
-    } == {LanguageCode.ENGLISH, LanguageCode.CHINESE}
+    assert {score.language_code for score in result.detected_languages[:2]} == {
+        LanguageCode.ENGLISH,
+        LanguageCode.CHINESE,
+    }
 
 
 def test_hybrid_detector_finds_indonesian_english_mixed_language(
@@ -354,12 +347,10 @@ def test_strong_han_latin_evidence_overrides_weak_model_secondary(
     assert result.language_code is LanguageCode.MIXED
     assert result.is_mixed is True
     assert (
-        result.script_statistics.han_ratio
-        >= runtime_config.mixed_min_character_ratio
+        result.script_statistics.han_ratio >= runtime_config.mixed_min_character_ratio
     )
     assert (
-        result.script_statistics.latin_ratio
-        >= runtime_config.mixed_min_character_ratio
+        result.script_statistics.latin_ratio >= runtime_config.mixed_min_character_ratio
     )
 
 
@@ -372,10 +363,7 @@ def test_ineligible_code_never_loads_fasttext(
     result = detector.detect("ISO-9001")
 
     assert result.language_code is LanguageCode.UNKNOWN
-    assert (
-        result.eligibility.reason
-        is LanguageEligibilityReason.CODE_LIKE_TEXT
-    )
+    assert result.eligibility.reason is LanguageEligibilityReason.CODE_LIKE_TEXT
 
 
 def test_eligible_text_fails_closed_when_model_is_missing(
@@ -458,6 +446,33 @@ async def test_pipeline_detects_native_and_ocr_with_injected_model(
     ]
     assert pipeline.aggregate.total_blocks == 2
     assert len(pipeline.containers) == 2
+
+
+def test_pipeline_maps_aggregation_failure_to_stable_error(
+    detector: HybridLanguageDetector,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = LanguageDetectionService(
+        SimpleNamespace(),  # type: ignore[arg-type]
+        detector=detector,
+    )
+
+    def fail_aggregation(_blocks: object) -> object:
+        raise RuntimeError("synthetic aggregation failure")
+
+    monkeypatch.setattr(
+        service.aggregation,
+        "aggregate_containers",
+        fail_aggregation,
+    )
+
+    with pytest.raises(LanguagePipelineError) as raised:
+        service.build_pipeline_result(
+            [],
+            source_content_hash="a" * 64,
+        )
+
+    assert raised.value.code == "LANGUAGE_AGGREGATION_FAILED"
 
 
 @pytest.mark.asyncio
@@ -577,9 +592,7 @@ def test_aggregation_uses_presence_threshold_and_preliminary_coverage(
     assert aggregate.coverage.language_presence.zh.value == "NOT_PRESENT"
     assert aggregate.eligible_blocks == 4
     assert aggregate.unknown_blocks == 1
-    total_coverage = sum(
-        aggregate.coverage.block_coverage.model_dump().values()
-    )
+    total_coverage = sum(aggregate.coverage.block_coverage.model_dump().values())
     assert total_coverage == pytest.approx(100.0, abs=0.05)
 
 

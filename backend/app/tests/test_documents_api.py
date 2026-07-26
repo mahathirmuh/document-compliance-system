@@ -1,8 +1,9 @@
 """Phase 4 Document Register and revision API integration tests."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
@@ -327,12 +328,15 @@ async def test_list_all_filters_sorting_and_pagination(
             == first.json()["data"]["id"]
         )
 
+    application_date = datetime.now(
+        ZoneInfo("Asia/Makassar")
+    ).date().isoformat()
     created_range = await api_client.get(
         "/api/v1/documents",
         headers=headers,
         params={
-            "createdFrom": datetime.now(UTC).date().isoformat(),
-            "createdTo": datetime.now(UTC).date().isoformat(),
+            "createdFrom": application_date,
+            "createdTo": application_date,
         },
     )
     assert created_range.status_code == 200

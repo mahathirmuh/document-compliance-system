@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -68,7 +68,11 @@ class OCRRunRepository:
             statement = (
                 select(OCRRun)
                 .join(DocumentFile, latest_column == OCRRun.id)
-                .where(DocumentFile.id == document_file_id)
+                .where(
+                    DocumentFile.id == document_file_id,
+                    DocumentFile.latest_extraction_run_id
+                    == OCRRun.source_extraction_run_id,
+                )
                 .options(*self._options())
             )
         return await self.session.scalar(statement)
@@ -105,15 +109,21 @@ class OCRRunRepository:
         *,
         document_file_id: UUID,
         ocr_run_id: UUID,
-    ) -> None:
+        source_extraction_run_id: UUID,
+    ) -> bool:
         latest_column = getattr(DocumentFile, "latest_ocr_run_id", None)
         if latest_column is None:
             raise RuntimeError("DocumentFile.latest_ocr_run_id is not integrated.")
-        document_file = await self.session.get(
-            DocumentFile,
-            document_file_id,
+        result = await self.session.execute(
+            update(DocumentFile)
+            .where(
+                DocumentFile.id == document_file_id,
+                DocumentFile.latest_extraction_run_id == source_extraction_run_id,
+            )
+            .values(
+                latest_ocr_run_id=ocr_run_id,
+                latest_language_detection_run_id=None,
+            )
         )
-        if document_file is None:
-            raise ValueError("Latest OCR document file does not exist.")
-        document_file.latest_ocr_run_id = ocr_run_id
         await self.session.flush()
+        return bool(result.rowcount)

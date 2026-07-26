@@ -50,13 +50,14 @@ def document_error(
     message: str,
     *,
     field: str | None = None,
+    code: str | None = None,
     status_code: int = HTTPStatus.BAD_REQUEST,
     title: str = "Document validation failed.",
 ) -> ApplicationError:
     return ApplicationError(
         title,
         status_code=status_code,
-        errors=[ErrorDetail(field=field, message=message)],
+        errors=[ErrorDetail(field=field, message=message, code=code)],
     )
 
 
@@ -80,11 +81,13 @@ def document_conflict(
     message: str,
     *,
     field: str | None = None,
+    code: str | None = None,
     title: str = "Document could not be saved.",
 ) -> ApplicationError:
     return document_error(
         message,
         field=field,
+        code=code,
         status_code=HTTPStatus.CONFLICT,
         title=title,
     )
@@ -109,16 +112,11 @@ class DocumentAccessPolicy:
         return None if self.view_all_departments else self.user.department_id
 
     def ensure_document_access(self, document: Document) -> None:
-        if (
-            not self.view_all_departments
-            and (
-                self.user.department_id is None
-                or document.department_id != self.user.department_id
-            )
+        if not self.view_all_departments and (
+            self.user.department_id is None
+            or document.department_id != self.user.department_id
         ):
-            raise AuthorizationError(
-                "This document is outside your department scope."
-            )
+            raise AuthorizationError("This document is outside your department scope.")
 
     def ensure_create_department(self, department_id: UUID) -> None:
         if self.view_all_departments:
@@ -134,10 +132,7 @@ class DocumentAccessPolicy:
             )
 
     def ensure_department_change(self, department_id: UUID) -> None:
-        if (
-            not self.view_all_departments
-            and department_id != self.user.department_id
-        ):
+        if not self.view_all_departments and department_id != self.user.department_id:
             raise AuthorizationError(
                 "You cannot move a document to another department."
             )
@@ -414,9 +409,7 @@ class DocumentServiceBase:
                     document_type.default_validation_rule_id
                 )
             if rule is None:
-                rule = await self.validation_rules.get_default(
-                    document_type.id
-                )
+                rule = await self.validation_rules.get_default(document_type.id)
             if rule is None:
                 rule = await self.validation_rules.get_default(None)
         if validation_rule_id is not None and rule is None:
@@ -436,4 +429,3 @@ class DocumentServiceBase:
                     field="validationRuleId",
                 )
         return rule
-

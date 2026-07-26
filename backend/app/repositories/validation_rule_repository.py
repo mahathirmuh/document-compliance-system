@@ -27,7 +27,10 @@ class ValidationRuleRepository(BaseMasterDataRepository[ValidationRule]):
     def base_statement(self) -> Select[tuple[ValidationRule]]:
         return (
             select(ValidationRule)
-            .options(selectinload(ValidationRule.document_type))
+            .options(
+                selectinload(ValidationRule.document_type),
+                selectinload(ValidationRule.section_alias_profile),
+            )
             .where(ValidationRule.deleted_at.is_(None))
         )
 

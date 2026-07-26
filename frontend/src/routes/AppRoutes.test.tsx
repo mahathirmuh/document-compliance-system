@@ -129,4 +129,22 @@ describe('application authorization routes', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('403')).not.toBeInTheDocument();
   });
+
+  it.each(['/reports/compliance', '/reports/findings'])(
+    'blocks report route %s without reports:view',
+    async (route) => {
+      useAuthStore.getState().setAuth({
+        ...superAdminSession,
+        permissions: ['compliance:view', 'findings:view'],
+        user: {
+          ...superAdminSession.user,
+          role: 'VIEWER',
+        },
+      });
+
+      renderRoutes(route);
+
+      expect(await screen.findByText('403')).toBeInTheDocument();
+    },
+  );
 });

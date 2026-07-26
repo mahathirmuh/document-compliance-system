@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from openpyxl import load_workbook
 from sqlalchemy import select
 
 from app.core.authorization import AuditAction, UserRole
+from app.core.config import get_settings
+from app.core.exceptions import ApplicationError
 from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.document_file import DocumentFile, DocumentFileStatus
@@ -57,6 +61,7 @@ from app.schemas.language_internal import (
     LanguagePipelineResultData,
     LanguageSourceBlockData,
 )
+from app.services.auth.auth_service import RequestMetadata
 from app.services.language.fasttext_language_detector import (
     FastTextLanguageDetector,
 )
@@ -161,12 +166,8 @@ def _source_graph() -> tuple[
         container_type=ExtractedContainerType.PDF_PAGE,
         container_index=1,
         name="Page 1",
-        raw_text=(
-            "This document shall apply to every department and reviewer."
-        ),
-        normalised_text=(
-            "This document shall apply to every department and reviewer."
-        ),
+        raw_text=("This document shall apply to every department and reviewer."),
+        normalised_text=("This document shall apply to every department and reviewer."),
         character_count=63,
         word_count=10,
     )
@@ -177,9 +178,7 @@ def _source_graph() -> tuple[
         block_order=1,
         source_reference="PDF:page=1:block=1",
         text="This document shall apply to every department and reviewer.",
-        normalised_text=(
-            "This document shall apply to every department and reviewer."
-        ),
+        normalised_text=("This document shall apply to every department and reviewer."),
         character_count=63,
         word_count=10,
     )
@@ -282,6 +281,8 @@ async def test_language_persistence_keeps_history_and_updates_latest(
                 block,
             ]
         )
+        await session.flush()
+        document_file.latest_extraction_run_id = extraction_run.id
         await session.commit()
         first_job = _language_job(
             document,
@@ -307,21 +308,19 @@ async def test_language_persistence_keeps_history_and_updates_latest(
         )
         await session.commit()
 
-        latest = await LanguageDetectionRunRepository(
-            session
-        ).get_latest_by_file(document_file.id)
+        latest = await LanguageDetectionRunRepository(session).get_latest_by_file(
+            document_file.id
+        )
         assert latest is not None
         assert latest.id == first_run.id
         assert first_job.status is LanguageDetectionJobStatus.COMPLETED
-        rows, total = await LanguageBlockResultRepository(session).list(
-            first_run.id
-        )
+        rows, total = await LanguageBlockResultRepository(session).list(first_run.id)
         assert total == 1
         assert rows[0].text.startswith("This document")
         assert rows[0].result.language_code is LanguageCode.ENGLISH
-        summaries, summary_total = await (
-            LanguageContainerSummaryRepository(session).list(first_run.id)
-        )
+        summaries, summary_total = await LanguageContainerSummaryRepository(
+            session
+        ).list(first_run.id)
         assert summary_total == 1
         assert summaries[0].container_index == 1
         assert summaries[0].coverage_json["preliminary"] is True
@@ -353,17 +352,70 @@ async def test_language_persistence_keeps_history_and_updates_latest(
         )
         await session.commit()
 
-        latest = await LanguageDetectionRunRepository(
-            session
-        ).get_latest_by_file(document_file.id)
-        history = await LanguageDetectionRunRepository(
-            session
-        ).list_by_file(document_file.id)
+        latest = await LanguageDetectionRunRepository(session).get_latest_by_file(
+            document_file.id
+        )
+        history = await LanguageDetectionRunRepository(session).list_by_file(
+            document_file.id
+        )
         assert latest is not None and latest.id == second_run.id
         assert {run.id for run in history} == {
             first_run.id,
             second_run.id,
         }
+
+
+@pytest.mark.asyncio
+async def test_language_detection_rejects_a_stale_extraction_source(
+    create_user,
+    session_factory,
+) -> None:
+    user = await create_user(
+        name="Language Source Admin",
+        email="language.source.admin@example.com",
+        role=UserRole.SUPER_ADMIN,
+    )
+    (
+        document,
+        revision,
+        document_file,
+        extraction_job,
+        extraction_run,
+        container,
+        block,
+    ) = _source_graph()
+    async with session_factory() as session:
+        session.add_all(
+            [
+                document,
+                revision,
+                document_file,
+                extraction_job,
+                extraction_run,
+                container,
+                block,
+            ]
+        )
+        await session.commit()
+
+        with pytest.raises(ApplicationError) as raised:
+            await LanguageDetectionJobService(
+                session,
+                get_settings(),
+                user,
+                RequestMetadata(ip_address=None, user_agent="pytest"),
+                model_ready=True,
+            ).start(
+                document_file_id=document_file.id,
+                extraction_run_id=extraction_run.id,
+                ocr_run_id=None,
+                force=False,
+            )
+
+        assert raised.value.status_code == 400
+        assert raised.value.errors is not None
+        assert raised.value.errors[0].field == "extractionRunId"
+        assert "latest source" in raised.value.errors[0].message
 
 
 @pytest.mark.asyncio
@@ -390,6 +442,12 @@ async def test_language_api_queue_results_history_redetect_and_exports(
         block,
     ) = _source_graph()
     document.department_id = department_id
+    unsafe_export_text = (
+        "This document shall apply to every department\x0b and reviewer."
+    )
+    block.text = unsafe_export_text
+    block.normalised_text = unsafe_export_text
+    block.character_count = len(unsafe_export_text)
     async with session_factory() as session:
         session.add_all(
             [
@@ -433,11 +491,7 @@ async def test_language_api_queue_results_history_redetect_and_exports(
         },
     )
     assert login.status_code == 200
-    headers = {
-        "Authorization": (
-            f"Bearer {login.json()['data']['accessToken']}"
-        )
-    }
+    headers = {"Authorization": (f"Bearer {login.json()['data']['accessToken']}")}
     inventory_before_detection = await api_client.get(
         "/api/v1/language-detection/documents",
         params={"status": "NOT_STARTED"},
@@ -470,6 +524,18 @@ async def test_language_api_queue_results_history_redetect_and_exports(
     queued_data = queued.json()["data"]
     assert queued_data["status"] == "QUEUED"
     assert queued_data["reusedExistingResult"] is False
+    duplicate = await api_client.post(
+        "/api/v1/language-detection/jobs",
+        json={
+            "documentFileId": str(document_file.id),
+            "extractionRunId": str(extraction_run.id),
+            "ocrRunId": None,
+            "force": False,
+        },
+        headers=headers,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["errors"][0]["code"] == ("LANGUAGE_ACTIVE_JOB_EXISTS")
     active_inventory = await api_client.get(
         "/api/v1/language-detection/documents",
         headers=headers,
@@ -494,9 +560,7 @@ async def test_language_api_queue_results_history_redetect_and_exports(
             container,
             block,
             config,
-        ).model_copy(
-            update={"source_content_hash": job.source_content_hash}
-        )
+        ).model_copy(update={"source_content_hash": job.source_content_hash})
         run = await LanguagePersistenceService(
             session,
             config,
@@ -506,6 +570,10 @@ async def test_language_api_queue_results_history_redetect_and_exports(
             started_at=datetime.now(UTC),
             completed_at=datetime.now(UTC),
         )
+        run.metadata_json = {
+            **(run.metadata_json or {}),
+            "otherCharacters": 37,
+        }
         await session.commit()
         run_id = run.id
 
@@ -523,9 +591,7 @@ async def test_language_api_queue_results_history_redetect_and_exports(
     assert inventory_item["languageProgress"] == 100
     assert inventory_item["languageDetectionRunId"] == str(run_id)
     assert inventory_item["lastDetected"] is not None
-    assert inventory_item["languagePresence"]["en"] == (
-        "INSUFFICIENT_EVIDENCE"
-    )
+    assert inventory_item["languagePresence"]["en"] == ("INSUFFICIENT_EVIDENCE")
     assert inventory_item["sourceReady"] is True
 
     (
@@ -633,9 +699,13 @@ async def test_language_api_queue_results_history_redetect_and_exports(
         headers=headers,
     )
     assert summary.status_code == 200
-    assert summary.json()["data"]["languagePresence"]["en"] == (
-        "INSUFFICIENT_EVIDENCE"
+    summary_data = summary.json()["data"]
+    assert summary_data["languagePresence"]["en"] == ("INSUFFICIENT_EVIDENCE")
+    assert summary_data["averageConfidenceByLanguage"]["id"] is None
+    assert summary_data["averageConfidenceByLanguage"]["en"] == pytest.approx(
+        summary_data["averageConfidence"]
     )
+    assert summary_data["averageConfidenceByLanguage"]["zh"] is None
 
     blocks = await api_client.get(
         f"/api/v1/language-detection/runs/{run_id}/blocks",
@@ -656,10 +726,7 @@ async def test_language_api_queue_results_history_redetect_and_exports(
     assert containers.json()["data"]["items"][0]["containerIndex"] == 1
 
     history = await api_client.get(
-        (
-            f"/api/v1/document-files/{document_file.id}/"
-            "language-detection-history"
-        ),
+        (f"/api/v1/document-files/{document_file.id}/language-detection-history"),
         headers=headers,
     )
     assert history.status_code == 200
@@ -682,6 +749,26 @@ async def test_language_api_queue_results_history_redetect_and_exports(
     )
     assert xlsx_export.status_code == 200, xlsx_export.text
     assert xlsx_export.content.startswith(b"PK")
+    workbook = load_workbook(BytesIO(xlsx_export.content), read_only=True)
+    summary_rows = list(workbook["Summary"].iter_rows(values_only=True))
+    other_row = next(row for row in summary_rows if row[0] == "other")
+    assert other_row[3] == 37
+    block_rows = list(workbook["Blocks"].iter_rows(values_only=True))
+    assert block_rows[1][3] == unsafe_export_text.replace("\x0b", "")
+    workbook.close()
+
+    forced_without_reason = await api_client.post(
+        "/api/v1/language-detection/jobs",
+        json={
+            "documentFileId": str(document_file.id),
+            "extractionRunId": str(extraction_run.id),
+            "ocrRunId": None,
+            "force": True,
+        },
+        headers=headers,
+    )
+    assert forced_without_reason.status_code == 409
+    assert forced_without_reason.json()["errors"][0]["field"] == "force"
 
     redetected = await api_client.post(
         f"/api/v1/language-detection/runs/{run_id}/redetect",
@@ -734,9 +821,7 @@ async def test_language_api_queue_results_history_redetect_and_exports(
         },
     )
     outsider_headers = {
-        "Authorization": (
-            f"Bearer {outsider_login.json()['data']['accessToken']}"
-        )
+        "Authorization": (f"Bearer {outsider_login.json()['data']['accessToken']}")
     }
     denied = await api_client.get(
         f"/api/v1/language-detection/runs/{run_id}",

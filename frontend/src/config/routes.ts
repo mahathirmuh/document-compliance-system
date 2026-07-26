@@ -12,6 +12,7 @@ const routeTitles: Record<string, string> = {
   '/master-data/document-types': 'Document Types',
   '/master-data/document-statuses': 'Document Statuses',
   '/master-data/validation-rules': 'Validation Rules',
+  '/master-data/section-definitions': 'Section Definitions',
   '/documents': 'Document Register',
   '/documents/new': 'Add Document',
   '/documents/upload': 'Upload Document',
@@ -20,12 +21,28 @@ const routeTitles: Record<string, string> = {
   '/documents/ocr-queue': 'OCR Queue',
   '/documents/ocr-history': 'OCR History',
   '/documents/language-detection': 'Language Detection',
+  '/documents/validation-queue': 'Validation Queue',
   '/documents/extraction-history': 'Extraction History',
   '/documents/upload-history': 'Upload History',
+  '/documents/validation-history': 'Validation History',
   '/documents/archived': 'Archived Documents',
+  '/compliance': 'Compliance Overview',
+  '/compliance/languages': 'Language Compliance',
+  '/compliance/sections': 'Section Compliance',
+  '/compliance/language-order': 'Language Order',
+  '/compliance/findings': 'Findings',
+  '/compliance/findings/review': 'Review Findings',
+  '/reports/compliance': 'Compliance Report',
+  '/reports/findings': 'Findings Report',
 };
 
 const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
+  if (/^\/documents\/[^/]+\/revisions\/[^/]+\/compliance$/.test(pathname)) {
+    return 'Document Compliance';
+  }
+  if (/^\/documents\/[^/]+\/compliance$/.test(pathname)) {
+    return 'Document Compliance';
+  }
   if (/^\/documents\/[^/]+\/revisions\/[^/]+\/ocr-results$/.test(pathname)) {
     return 'OCR Results';
   }
@@ -63,7 +80,10 @@ const getDynamicDocumentRouteTitle = (pathname: string): string | null => {
 };
 
 export const getRouteTitle = (pathname: string): string =>
-  routeTitles[pathname] ?? getDynamicDocumentRouteTitle(pathname) ?? 'Workspace';
+  routeTitles[pathname] ??
+  (/^\/compliance\/findings\/[^/]+$/.test(pathname) ? 'Finding Details' : null) ??
+  getDynamicDocumentRouteTitle(pathname) ??
+  'Workspace';
 
 export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
   if (pathname === '/dashboard') {
@@ -82,7 +102,7 @@ export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
     }
     const fileMatch = /^\/documents\/([^/]+)\/revisions\/([^/]+)\/file$/.exec(pathname);
     const extractionMatch =
-      /^\/documents\/([^/]+)\/revisions\/([^/]+)\/(extracted-content|extraction-history|ocr-results|language-results)$/.exec(
+      /^\/documents\/([^/]+)\/revisions\/([^/]+)\/(extracted-content|extraction-history|ocr-results|language-results|compliance)$/.exec(
         pathname,
       );
     if (extractionMatch) {
@@ -116,6 +136,18 @@ export const getRouteBreadcrumbs = (pathname: string): BreadcrumbItem[] => {
       ];
     }
     return [{ label: 'Documents', path: '/documents' }, { label: currentTitle }];
+  }
+  if (pathname.startsWith('/compliance')) {
+    if (pathname === '/compliance') {
+      return [{ label: 'Compliance' }];
+    }
+    return [
+      { label: 'Compliance', path: '/compliance' },
+      { label: getRouteTitle(pathname) },
+    ];
+  }
+  if (pathname.startsWith('/reports')) {
+    return [{ label: 'Reports' }, { label: getRouteTitle(pathname) }];
   }
   return [{ label: getRouteTitle(pathname) }];
 };

@@ -28,7 +28,7 @@ from app.models.ocr_job import (
     OCRJobType,
     OCRLanguageProfile,
 )
-from app.models.ocr_run import OCRRun
+from app.models.ocr_run import OCRRun, OCRRunStatus
 from app.models.user import User
 from app.repositories.document_file_repository import DocumentFileRepository
 from app.repositories.extraction_run_repository import ExtractionRunRepository
@@ -115,6 +115,15 @@ class OCRJobService(DocumentServiceBase):
         old_run = await self.runs.get_by_id(run_id)
         self._ensure_run_access(old_run)
         assert old_run is not None
+        if old_run.status not in {
+            OCRRunStatus.COMPLETED,
+            OCRRunStatus.PARTIALLY_COMPLETED,
+        }:
+            raise document_error(
+                "Only a completed or partially completed OCR run can be reprocessed.",
+                field="runId",
+                title="The OCR run cannot be reprocessed.",
+            )
         old_pages = list(
             old_run.ocr_job.requested_page_numbers_json
             if old_run.ocr_job is not None
@@ -163,13 +172,8 @@ class OCRJobService(DocumentServiceBase):
                 field="extractionRunId",
                 title="OCR source is not available.",
             )
-        can_reocr = has_permission(
-            self.user.role,
-            Permission.DOCUMENTS_REOCR,
-            is_superuser=self.user.is_superuser,
-        )
         if (
-            not can_reocr
+            re_ocr_source is None
             and document_file.latest_extraction_run_id != extraction_run.id
         ):
             raise document_error(
@@ -186,7 +190,18 @@ class OCRJobService(DocumentServiceBase):
             raise document_conflict(
                 "An active OCR job already exists for this file.",
                 field="documentFileId",
+                code="OCR_ACTIVE_JOB_EXISTS",
                 title="Active OCR job already exists.",
+            )
+        current_ocr_run = await self.runs.get_latest_by_file(document_file.id)
+        if re_ocr_source is None and current_ocr_run is not None:
+            raise document_conflict(
+                (
+                    "A current OCR result already exists. Use the re-OCR "
+                    "endpoint and provide an audit reason."
+                ),
+                field="documentFileId",
+                title="Re-OCR reason is required.",
             )
         await self.jobs.acquire_user_concurrency_lock(self.user.id)
         maximum_user_jobs = int(
@@ -195,6 +210,7 @@ class OCRJobService(DocumentServiceBase):
         if await self.jobs.count_active_by_user(self.user.id) >= maximum_user_jobs:
             raise document_conflict(
                 "You have reached the active OCR job limit.",
+                code="OCR_ACTIVE_JOB_EXISTS",
                 title="OCR concurrency limit reached.",
             )
 
@@ -298,6 +314,7 @@ class OCRJobService(DocumentServiceBase):
             raise document_conflict(
                 "An active OCR job already exists for this file.",
                 field="documentFileId",
+                code="OCR_ACTIVE_JOB_EXISTS",
                 title="Active OCR job already exists.",
             ) from exc
 

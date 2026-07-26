@@ -15,6 +15,7 @@ import {
   Workflow,
   PackageOpen,
   ScanSearch,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -85,6 +86,12 @@ export const navigationItems: readonly NavigationItem[] = [
         permission: 'documents:view_language_results',
       },
       {
+        label: 'Validation Queue',
+        path: '/documents/validation-queue',
+        icon: ShieldCheck,
+        permission: 'compliance:view',
+      },
+      {
         label: 'Extraction History',
         path: '/documents/extraction-history',
         icon: FileSearch,
@@ -95,6 +102,12 @@ export const navigationItems: readonly NavigationItem[] = [
         path: '/documents/ocr-history',
         icon: FileSearch,
         permission: 'documents:view_ocr_history',
+      },
+      {
+        label: 'Validation History',
+        path: '/documents/validation-history',
+        icon: FileClock,
+        permission: 'compliance:view',
       },
       {
         label: 'Archived Documents',
@@ -151,6 +164,76 @@ export const navigationItems: readonly NavigationItem[] = [
         path: '/master-data/validation-rules',
         icon: ShieldCheck,
         permission: 'master_data:view',
+      },
+      {
+        label: 'Section Definitions',
+        path: '/master-data/section-definitions',
+        icon: Layers3,
+        permission: 'master_data:view',
+      },
+    ],
+  },
+  {
+    label: 'Compliance',
+    path: '/compliance',
+    icon: ShieldCheck,
+    permission: 'compliance:view',
+    children: [
+      {
+        label: 'Compliance Overview',
+        path: '/compliance',
+        icon: LayoutDashboard,
+        permission: 'compliance:view',
+      },
+      {
+        label: 'Language Compliance',
+        path: '/compliance/languages',
+        icon: Languages,
+        permission: 'compliance:view',
+      },
+      {
+        label: 'Section Compliance',
+        path: '/compliance/sections',
+        icon: Layers3,
+        permission: 'compliance:view',
+      },
+      {
+        label: 'Language Order',
+        path: '/compliance/language-order',
+        icon: Workflow,
+        permission: 'compliance:view',
+      },
+      {
+        label: 'Findings',
+        path: '/compliance/findings',
+        icon: FileSearch,
+        permission: 'findings:view',
+      },
+      {
+        label: 'Review Findings',
+        path: '/compliance/findings/review',
+        icon: ShieldCheck,
+        permission: 'findings:review',
+      },
+    ],
+  },
+  {
+    label: 'Reports',
+    path: '/reports/compliance',
+    icon: BarChart3,
+    permission: 'reports:view',
+    children: [
+      {
+        label: 'Compliance Report',
+        path: '/reports/compliance',
+        icon: BarChart3,
+        permission: 'reports:view',
+      },
+      {
+        label: 'Findings Report',
+        path: '/reports/findings',
+        icon: FileSearch,
+        permission: 'reports:view',
       },
     ],
   },

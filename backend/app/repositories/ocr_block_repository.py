@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 from sqlalchemy import func, insert, select
@@ -45,12 +45,15 @@ class OCRBlockRepository:
         ocr_run_id: UUID,
         *,
         page_number: int | None = None,
+        page_numbers: Sequence[int] | None = None,
         minimum_confidence: float | None = None,
         maximum_confidence: float | None = None,
         search: str | None = None,
         offset: int = 0,
         limit: int = 100,
     ) -> tuple[list[tuple[OCRBlock, int]], int]:
+        if page_number is not None and page_numbers is not None:
+            raise ValueError("Use either page_number or page_numbers, not both.")
         statement = (
             select(OCRBlock, OCRPageResult.page_number)
             .join(
@@ -61,6 +64,12 @@ class OCRBlockRepository:
         )
         if page_number is not None:
             statement = statement.where(OCRPageResult.page_number == page_number)
+        if page_numbers is not None:
+            if not page_numbers:
+                return [], 0
+            statement = statement.where(
+                OCRPageResult.page_number.in_(tuple(page_numbers))
+            )
         if minimum_confidence is not None:
             statement = statement.where(OCRBlock.confidence >= minimum_confidence)
         if maximum_confidence is not None:
@@ -117,7 +126,4 @@ class OCRBlockRepository:
             )
             .group_by(OCRBlock.ocr_run_id)
         )
-        return {
-            run_id: int(count)
-            for run_id, count in rows.all()
-        }
+        return {run_id: int(count) for run_id, count in rows.all()}

@@ -72,7 +72,15 @@ async def _source_graph(
     *,
     status: ExtractionJobStatus,
     requested_by: UUID | None = None,
+    requires_ocr: bool | None = None,
 ) -> tuple[UUID, UUID, UUID]:
+    source_key = uuid4().hex
+    needs_ocr = (
+        status is ExtractionJobStatus.OCR_REQUIRED
+        if requires_ocr is None
+        else requires_ocr
+    )
+    is_partial_scan = status is ExtractionJobStatus.PARTIALLY_COMPLETED and needs_ocr
     document = Document(
         company_code="MTI",
         department_id=uuid4(),
@@ -99,7 +107,7 @@ async def _source_graph(
         detected_mime_type="application/pdf",
         file_size=128,
         sha256_hash="a" * 64,
-        storage_key="documents/originals/automatic-pipeline.pdf",
+        storage_key=f"documents/originals/{source_key}.pdf",
         file_status=DocumentFileStatus.AVAILABLE,
         is_primary=True,
         is_current=True,
@@ -125,25 +133,15 @@ async def _source_graph(
         source_sha256_hash=document_file.sha256_hash,
         source_file_size=document_file.file_size,
         content_hash="b" * 64,
-        total_pages=1,
-        total_blocks=(
-            0 if status is ExtractionJobStatus.OCR_REQUIRED else 1
-        ),
-        total_characters=(
-            0 if status is ExtractionJobStatus.OCR_REQUIRED else 64
-        ),
-        total_words=(
-            0 if status is ExtractionJobStatus.OCR_REQUIRED else 9
-        ),
-        has_selectable_text=(
-            status is not ExtractionJobStatus.OCR_REQUIRED
-        ),
-        requires_ocr=(status is ExtractionJobStatus.OCR_REQUIRED),
+        total_pages=2 if is_partial_scan else 1,
+        total_blocks=(0 if status is ExtractionJobStatus.OCR_REQUIRED else 1),
+        total_characters=(0 if status is ExtractionJobStatus.OCR_REQUIRED else 64),
+        total_words=(0 if status is ExtractionJobStatus.OCR_REQUIRED else 9),
+        has_selectable_text=(status is not ExtractionJobStatus.OCR_REQUIRED),
+        requires_ocr=needs_ocr,
         warnings_json=[],
         metadata_json=(
-            {"scannedPages": [1]}
-            if status is ExtractionJobStatus.OCR_REQUIRED
-            else {}
+            {"scannedPages": [2 if is_partial_scan else 1]} if needs_ocr else {}
         ),
     )
     text = (
@@ -279,9 +277,7 @@ async def _complete_ocr_job(
                         "height": 20.0,
                     },
                     provider_model="paddleocr-latin",
-                    recognition_profile=(
-                        OCRLanguageProfile.AUTO_MULTILINGUAL.value
-                    ),
+                    recognition_profile=(OCRLanguageProfile.AUTO_MULTILINGUAL.value),
                     orientation=0,
                     character_count=22,
                 )
@@ -314,10 +310,7 @@ async def test_automatic_pipeline_defaults_leave_phase6_result_unchanged(
     assert result is None
     assert dispatched == []
     async with session_factory() as session:
-        assert (
-            await session.scalar(select(func.count(OCRJob.id)))
-            == 0
-        )
+        assert await session.scalar(select(func.count(OCRJob.id))) == 0
 
 
 @pytest.mark.asyncio
@@ -328,12 +321,10 @@ async def test_ocr_required_extraction_queues_once_and_reuses_attribution(
     requester = await create_user(
         email="automatic.ocr@example.com",
     )
-    extraction_job_id, extraction_run_id, document_file_id = (
-        await _source_graph(
-            session_factory,
-            status=ExtractionJobStatus.OCR_REQUIRED,
-            requested_by=requester.id,
-        )
+    extraction_job_id, extraction_run_id, document_file_id = await _source_graph(
+        session_factory,
+        status=ExtractionJobStatus.OCR_REQUIRED,
+        requested_by=requester.id,
     )
     dispatched: list[UUID] = []
 
@@ -362,9 +353,7 @@ async def test_ocr_required_extraction_queues_once_and_reuses_attribution(
         job = await session.get(OCRJob, created)
         audits = list(
             await session.scalars(
-                select(AuditLog).where(
-                    AuditLog.action == AuditAction.QUEUE_OCR
-                )
+                select(AuditLog).where(AuditLog.action == AuditAction.QUEUE_OCR)
             )
         )
         assert job is not None
@@ -390,10 +379,101 @@ async def test_ocr_required_extraction_queues_once_and_reuses_attribution(
     )
     assert completed_duplicate is None
     async with session_factory() as session:
-        assert (
-            await session.scalar(select(func.count(OCRJob.id)))
-            == 1
-        )
+        assert await session.scalar(select(func.count(OCRJob.id))) == 1
+
+
+@pytest.mark.asyncio
+async def test_partial_scan_queues_ocr_before_language_detection(
+    session_factory,
+) -> None:
+    extraction_job_id, extraction_run_id, _ = await _source_graph(
+        session_factory,
+        status=ExtractionJobStatus.PARTIALLY_COMPLETED,
+        requires_ocr=True,
+    )
+    language_dispatched: list[UUID] = []
+    language_only = AutomaticPipelineService(
+        _settings(auto_run_language_detection_after_extraction=True),
+        session_factory=session_factory,
+        language_dispatcher=lambda job_id: (
+            language_dispatched.append(job_id) or "unexpected-language-task"
+        ),
+    )
+
+    skipped_language = await language_only.after_extraction(
+        extraction_job_id,
+        ExtractionJobStatus.PARTIALLY_COMPLETED,
+    )
+
+    assert skipped_language is None
+    assert language_dispatched == []
+
+    ocr_dispatched: list[UUID] = []
+    service = AutomaticPipelineService(
+        _settings(
+            auto_run_ocr_after_extraction=True,
+            auto_run_language_detection_after_extraction=True,
+        ),
+        session_factory=session_factory,
+        ocr_dispatcher=lambda job_id: (
+            ocr_dispatched.append(job_id) or "partial-scan-ocr-task"
+        ),
+    )
+    created = await service.after_extraction(
+        extraction_job_id,
+        ExtractionJobStatus.PARTIALLY_COMPLETED,
+    )
+
+    assert created is not None
+    assert ocr_dispatched == [created]
+    async with session_factory() as session:
+        job = await session.get(OCRJob, created)
+        assert job is not None
+        assert job.extraction_run_id == extraction_run_id
+        assert job.requested_page_numbers_json == [2]
+        assert await session.scalar(select(func.count(LanguageDetectionJob.id))) == 0
+
+
+@pytest.mark.asyncio
+async def test_automatic_ocr_honours_per_user_concurrency_limit(
+    session_factory,
+    create_user,
+) -> None:
+    requester = await create_user(email="automatic.ocr.limit@example.com")
+    first_source, _, _ = await _source_graph(
+        session_factory,
+        status=ExtractionJobStatus.OCR_REQUIRED,
+        requested_by=requester.id,
+    )
+    second_source, _, _ = await _source_graph(
+        session_factory,
+        status=ExtractionJobStatus.OCR_REQUIRED,
+        requested_by=requester.id,
+    )
+    dispatched: list[UUID] = []
+    service = AutomaticPipelineService(
+        _settings(
+            auto_run_ocr_after_extraction=True,
+            ocr_max_concurrent_jobs_per_user=1,
+        ),
+        session_factory=session_factory,
+        ocr_dispatcher=lambda job_id: dispatched.append(job_id) or "limited-ocr-task",
+    )
+
+    first = await service.after_extraction(
+        first_source,
+        ExtractionJobStatus.OCR_REQUIRED,
+    )
+    second = await service.after_extraction(
+        second_source,
+        ExtractionJobStatus.OCR_REQUIRED,
+    )
+
+    assert first is not None
+    assert second is None
+    assert dispatched == [first]
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count(OCRJob.id))) == 1
 
 
 @pytest.mark.asyncio
@@ -423,9 +503,7 @@ async def test_automatic_dispatch_failure_is_audited_without_rewriting_source(
         source = await session.get(ExtractionJob, extraction_job_id)
         downstream = await session.get(OCRJob, downstream_job_id)
         failure_audit = await session.scalar(
-            select(AuditLog).where(
-                AuditLog.action == AuditAction.FAIL_OCR
-            )
+            select(AuditLog).where(AuditLog.action == AuditAction.FAIL_OCR)
         )
         assert source is not None
         assert source.status is ExtractionJobStatus.OCR_REQUIRED
@@ -448,8 +526,8 @@ async def test_extraction_queues_one_native_language_job(
     session_factory,
     status: ExtractionJobStatus,
 ) -> None:
-    extraction_job_id, extraction_run_id, document_file_id = (
-        await _source_graph(session_factory, status=status)
+    extraction_job_id, extraction_run_id, document_file_id = await _source_graph(
+        session_factory, status=status
     )
     dispatched: list[UUID] = []
     service = AutomaticPipelineService(
@@ -480,14 +558,14 @@ async def test_extraction_queues_one_native_language_job(
         assert job.extraction_run_id == extraction_run_id
         assert job.ocr_run_id is None
         assert job.worker_reference == "automatic-language-task"
-        assert job.result_summary_json["automaticPipeline"][
-            "trigger"
-        ] == "EXTRACTION_COMPLETED"
+        assert (
+            job.result_summary_json["automaticPipeline"]["trigger"]
+            == "EXTRACTION_COMPLETED"
+        )
         queue_audits = list(
             await session.scalars(
                 select(AuditLog).where(
-                    AuditLog.action
-                    == AuditAction.QUEUE_LANGUAGE_DETECTION
+                    AuditLog.action == AuditAction.QUEUE_LANGUAGE_DETECTION
                 )
             )
         )
@@ -542,23 +620,16 @@ async def test_extraction_queues_one_native_language_job(
     )
     assert completed_duplicate is None
     async with session_factory() as session:
-        assert (
-            await session.scalar(
-                select(func.count(LanguageDetectionJob.id))
-            )
-            == 1
-        )
+        assert await session.scalar(select(func.count(LanguageDetectionJob.id))) == 1
 
 
 @pytest.mark.asyncio
 async def test_partial_ocr_queues_one_merged_language_job(
     session_factory,
 ) -> None:
-    extraction_job_id, extraction_run_id, document_file_id = (
-        await _source_graph(
-            session_factory,
-            status=ExtractionJobStatus.PARTIALLY_COMPLETED,
-        )
+    extraction_job_id, extraction_run_id, document_file_id = await _source_graph(
+        session_factory,
+        status=ExtractionJobStatus.PARTIALLY_COMPLETED,
     )
     async with session_factory() as session:
         extraction_job = await session.get(
@@ -619,9 +690,9 @@ async def test_partial_ocr_queues_one_merged_language_job(
         assert job is not None
         assert job.ocr_run_id == ocr_run_id
         assert job.extraction_run_id == extraction_run_id
-        assert job.result_summary_json["automaticPipeline"][
-            "trigger"
-        ] == "OCR_COMPLETED"
+        assert (
+            job.result_summary_json["automaticPipeline"]["trigger"] == "OCR_COMPLETED"
+        )
 
 
 def test_worker_hooks_do_not_replace_committed_source_status(
@@ -694,7 +765,5 @@ def test_worker_hooks_do_not_replace_committed_source_status(
 
     assert extraction_result["status"] == ExtractionJobStatus.COMPLETED
     assert ocr_result["status"] == OCRJobStatus.COMPLETED
-    assert extraction_calls == [
-        (extraction_job_id, ExtractionJobStatus.COMPLETED)
-    ]
+    assert extraction_calls == [(extraction_job_id, ExtractionJobStatus.COMPLETED)]
     assert ocr_calls == [(ocr_job_id, OCRJobStatus.COMPLETED)]

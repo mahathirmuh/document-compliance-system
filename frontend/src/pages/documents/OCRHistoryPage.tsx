@@ -180,15 +180,17 @@ export function OCRHistoryPage() {
                             <Eye className="size-3.5" aria-hidden="true" />
                             View
                           </Link>
-                          {hasPermission('documents:reocr') && (
-                            <Link
-                              to={`/documents/${job.document.id}/revisions/${job.revision.id}/ocr-results?runId=${job.runId}&reocr=true`}
-                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-                            >
-                              <RefreshCw className="size-3.5" aria-hidden="true" />
-                              Re-run
-                            </Link>
-                          )}
+                          {hasPermission('documents:reocr') &&
+                            (job.status === 'COMPLETED' ||
+                              job.status === 'PARTIALLY_COMPLETED') && (
+                              <Link
+                                to={`/documents/${job.document.id}/revisions/${job.revision.id}/ocr-results?runId=${job.runId}&reocr=true`}
+                                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                              >
+                                <RefreshCw className="size-3.5" aria-hidden="true" />
+                                Re-run
+                              </Link>
+                            )}
                           {(['json', 'txt'] as const).map((format) => (
                             <button
                               key={format}

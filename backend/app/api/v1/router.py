@@ -4,6 +4,8 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth,
+    compliance,
+    compliance_reports,
     document_export,
     document_file_links,
     document_files,
@@ -12,11 +14,13 @@ from app.api.v1.endpoints import (
     documents,
     extraction_runs,
     extractions,
+    findings,
     health,
     language_detection,
     master_data,
     master_data_transfer,
     ocr,
+    section_definitions,
 )
 
 api_router = APIRouter()
@@ -32,6 +36,16 @@ api_router.include_router(
     tags=["Extracted Content"],
 )
 api_router.include_router(ocr.router, tags=["Document OCR"])
+api_router.include_router(compliance.router, tags=["Compliance"])
+api_router.include_router(
+    compliance_reports.router,
+    tags=["Compliance Reports"],
+)
+api_router.include_router(
+    findings.router,
+    prefix="/findings",
+    tags=["Compliance Findings"],
+)
 api_router.include_router(
     language_detection.router,
     tags=["Language Detection"],
@@ -75,4 +89,9 @@ api_router.include_router(
     master_data_transfer.router,
     prefix="/master-data",
     tags=["Master Data Import/Export"],
+)
+api_router.include_router(
+    section_definitions.router,
+    prefix="/master-data",
+    tags=["Section Definitions"],
 )

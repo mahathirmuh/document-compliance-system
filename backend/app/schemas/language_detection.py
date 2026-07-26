@@ -160,9 +160,7 @@ class LanguageDetectionJobResponse(LanguageDetectionJobListItem):
     error: LanguageDetectionJobError | None = None
 
 
-class LanguageDetectionJobListResponse(
-    PaginationData[LanguageDetectionJobListItem]
-):
+class LanguageDetectionJobListResponse(PaginationData[LanguageDetectionJobListItem]):
     pass
 
 
@@ -188,6 +186,12 @@ class LanguageCoverageResponse(ApiSchema):
     )
 
 
+class LanguageAverageConfidenceResponse(ApiSchema):
+    id: float | None = Field(default=None, ge=0, le=1)
+    en: float | None = Field(default=None, ge=0, le=1)
+    zh: float | None = Field(default=None, ge=0, le=1)
+
+
 class LanguageSummaryResponse(ApiSchema):
     run_id: UUID
     total_blocks: int = Field(ge=0)
@@ -206,6 +210,7 @@ class LanguageSummaryResponse(ApiSchema):
     mixed_characters: int = Field(ge=0)
     unknown_characters: int = Field(ge=0)
     average_confidence: float | None = Field(default=None, ge=0, le=1)
+    average_confidence_by_language: LanguageAverageConfidenceResponse
     language_presence: LanguagePresenceResponse
     coverage: LanguageCoverageResponse
     preliminary_label: str = "Preliminary Coverage"
@@ -273,9 +278,7 @@ class LanguageBlockResultResponse(ApiSchema):
     created_at: datetime
 
 
-class LanguageBlockResultListResponse(
-    PaginationData[LanguageBlockResultResponse]
-):
+class LanguageBlockResultListResponse(PaginationData[LanguageBlockResultResponse]):
     pass
 
 

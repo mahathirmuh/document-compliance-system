@@ -11,7 +11,9 @@ FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME=/home/app \
+    PADDLE_PDX_CACHE_HOME=/tmp/paddlex
 
 WORKDIR /app
 
@@ -25,7 +27,8 @@ RUN apt-get update \
     && pip install --no-cache-dir /wheels/* \
     && addgroup --system app \
     && adduser --system --ingroup app app \
-    && mkdir -p /app/models/ocr /app/models/language
+    && mkdir -p /app/models/ocr /app/models/language /home/app /tmp/paddlex \
+    && chown app:app /home/app /tmp/paddlex
 
 COPY alembic.ini .
 COPY pytest.ini .

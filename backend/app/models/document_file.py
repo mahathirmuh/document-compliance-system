@@ -30,6 +30,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from app.database.base import Base
 
 if TYPE_CHECKING:
+    from app.models.compliance_job import ComplianceJob
+    from app.models.compliance_run import ComplianceRun
     from app.models.document import Document
     from app.models.document_revision import DocumentRevision
     from app.models.extraction_job import ExtractionJob
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
     from app.models.language_detection_run import LanguageDetectionRun
     from app.models.ocr_run import OCRRun
     from app.models.user import User
+    from app.models.validation_finding import ValidationFinding
 
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -91,6 +94,10 @@ class DocumentFile(Base):
         Index(
             "ix_document_files_latest_language_detection_run_id",
             "latest_language_detection_run_id",
+        ),
+        Index(
+            "ix_document_files_latest_compliance_run_id",
+            "latest_compliance_run_id",
         ),
         Index(
             "uq_document_files_one_current_primary",
@@ -244,6 +251,19 @@ class DocumentFile(Base):
         ),
         nullable=True,
     )
+    latest_compliance_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "compliance_runs.id",
+            name=(
+                "fk_document_files_latest_compliance_run_id_"
+                "compliance_runs"
+            ),
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -288,6 +308,24 @@ class DocumentFile(Base):
         passive_deletes=True,
         order_by="ExtractionRun.created_at",
     )
+    compliance_jobs: Mapped[list[ComplianceJob]] = relationship(
+        back_populates="document_file",
+        foreign_keys="ComplianceJob.document_file_id",
+        passive_deletes=True,
+        order_by="ComplianceJob.requested_at",
+    )
+    compliance_runs: Mapped[list[ComplianceRun]] = relationship(
+        back_populates="document_file",
+        foreign_keys="ComplianceRun.document_file_id",
+        passive_deletes=True,
+        order_by="ComplianceRun.created_at",
+    )
+    validation_findings: Mapped[list[ValidationFinding]] = relationship(
+        back_populates="document_file",
+        foreign_keys="ValidationFinding.document_file_id",
+        passive_deletes=True,
+        order_by="ValidationFinding.created_at",
+    )
     latest_extraction_run: Mapped[ExtractionRun | None] = relationship(
         foreign_keys=[latest_extraction_run_id],
         post_update=True,
@@ -300,6 +338,10 @@ class DocumentFile(Base):
         LanguageDetectionRun | None
     ] = relationship(
         foreign_keys=[latest_language_detection_run_id],
+        post_update=True,
+    )
+    latest_compliance_run: Mapped[ComplianceRun | None] = relationship(
+        foreign_keys=[latest_compliance_run_id],
         post_update=True,
     )
 

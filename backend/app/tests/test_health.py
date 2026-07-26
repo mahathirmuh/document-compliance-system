@@ -16,6 +16,7 @@ class _ReadyHealthService:
             extraction_worker="healthy",
             ocr_worker="healthy",
             language_worker="healthy",
+            compliance_worker="healthy",
             ocr_provider="healthy",
             language_model="healthy",
         )
@@ -29,7 +30,7 @@ async def test_health_endpoint_returns_exact_contract() -> None:
         "data": {
             "status": "healthy",
             "service": "document-compliance-api",
-            "version": "0.7.0",
+            "version": "0.8.0",
         },
         "errors": None,
     }
@@ -77,6 +78,7 @@ async def test_dependency_health_is_camel_case_and_does_not_expose_paths(
             "extractionWorker": "healthy",
             "ocrWorker": "healthy",
             "languageWorker": "healthy",
+            "complianceWorker": "healthy",
             "ocrProvider": "healthy",
             "languageModel": "healthy",
         },

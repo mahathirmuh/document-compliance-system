@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
     environment: &backend_environment
       APP_NAME: ${APP_NAME:-Document Compliance API}
-      APP_VERSION: ${APP_VERSION:-0.7.0}
+      APP_VERSION: ${APP_VERSION:-0.8.0}
       APP_ENV: ${APP_ENV:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Makassar}
       BACKEND_DEBUG: ${BACKEND_DEBUG:-false}
@@ -107,8 +107,10 @@ services:
       EXTRACTION_SEARCH_MAX_RESULTS: ${EXTRACTION_SEARCH_MAX_RESULTS:-500}
       OCR_QUEUE_NAME: ${OCR_QUEUE_NAME:-ocr}
       LANGUAGE_QUEUE_NAME: ${LANGUAGE_QUEUE_NAME:-language}
+      COMPLIANCE_QUEUE_NAME: ${COMPLIANCE_QUEUE_NAME:-compliance}
       OCR_WORKER_CONCURRENCY: ${OCR_WORKER_CONCURRENCY:-1}
       LANGUAGE_WORKER_CONCURRENCY: ${LANGUAGE_WORKER_CONCURRENCY:-2}
+      COMPLIANCE_WORKER_CONCURRENCY: ${COMPLIANCE_WORKER_CONCURRENCY:-2}
       OCR_PROVIDER: ${OCR_PROVIDER:-paddleocr}
       OCR_MODEL_ROOT: ${OCR_MODEL_ROOT:-/app/models/ocr}
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: ${PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK:-True}
@@ -151,6 +153,23 @@ services:
       LANGUAGE_TASK_TIME_LIMIT_SECONDS: ${LANGUAGE_TASK_TIME_LIMIT_SECONDS:-1800}
       LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS: ${LANGUAGE_TASK_SOFT_TIME_LIMIT_SECONDS:-1500}
       LANGUAGE_MAX_RETRIES: ${LANGUAGE_MAX_RETRIES:-1}
+      COMPLIANCE_MAX_BLOCKS: ${COMPLIANCE_MAX_BLOCKS:-2000000}
+      COMPLIANCE_MAX_TRANSLATION_GROUPS: ${COMPLIANCE_MAX_TRANSLATION_GROUPS:-500000}
+      COMPLIANCE_DB_BATCH_SIZE: ${COMPLIANCE_DB_BATCH_SIZE:-1000}
+      COMPLIANCE_TASK_TIME_LIMIT_SECONDS: ${COMPLIANCE_TASK_TIME_LIMIT_SECONDS:-1800}
+      COMPLIANCE_TASK_SOFT_TIME_LIMIT_SECONDS: ${COMPLIANCE_TASK_SOFT_TIME_LIMIT_SECONDS:-1500}
+      COMPLIANCE_MAX_RETRIES: ${COMPLIANCE_MAX_RETRIES:-1}
+      SECTION_MATCH_MIN_CONFIDENCE: ${SECTION_MATCH_MIN_CONFIDENCE:-0.80}
+      SECTION_FUZZY_MATCH_THRESHOLD: ${SECTION_FUZZY_MATCH_THRESHOLD:-0.88}
+      SECTION_HEADING_MAX_CHARACTERS: ${SECTION_HEADING_MAX_CHARACTERS:-200}
+      SECTION_ALIAS_REGEX_MAX_LENGTH: ${SECTION_ALIAS_REGEX_MAX_LENGTH:-500}
+      SECTION_ALIAS_REGEX_TIMEOUT_MS: ${SECTION_ALIAS_REGEX_TIMEOUT_MS:-100}
+      TRANSLATION_GROUP_MAX_BLOCK_DISTANCE: ${TRANSLATION_GROUP_MAX_BLOCK_DISTANCE:-3}
+      TRANSLATION_GROUP_MAX_VERTICAL_GAP: ${TRANSLATION_GROUP_MAX_VERTICAL_GAP:-120}
+      TRANSLATION_GROUP_MIN_CONFIDENCE: ${TRANSLATION_GROUP_MIN_CONFIDENCE:-0.65}
+      FINDING_EXPORT_MAX_ROWS: ${FINDING_EXPORT_MAX_ROWS:-200000}
+      COMPLIANCE_EXPORT_MAX_ROWS: ${COMPLIANCE_EXPORT_MAX_ROWS:-200000}
+      FINDING_BULK_ACTION_MAX_ITEMS: ${FINDING_BULK_ACTION_MAX_ITEMS:-100}
       AUTO_RUN_OCR_AFTER_EXTRACTION: ${AUTO_RUN_OCR_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_EXTRACTION:-false}
       AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR: ${AUTO_RUN_LANGUAGE_DETECTION_AFTER_OCR:-false}
@@ -303,6 +322,46 @@ services:
     networks:
       - compliance_network
 
+  worker-compliance:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command:
+      [
+        "celery",
+        "-A",
+        "app.workers.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=${COMPLIANCE_QUEUE_NAME:-compliance}",
+        "--concurrency=${COMPLIANCE_WORKER_CONCURRENCY:-2}",
+        "--hostname=compliance@%h",
+        "--max-tasks-per-child=100",
+      ]
+    environment:
+      <<: *backend_environment
+    volumes:
+      - ./storage:/app/storage
+      - ./models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app inspect ping --destination=compliance@$${HOSTNAME} --timeout=15 | grep -q pong",
+        ]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 45s
+    networks:
+      - compliance_network
+
   frontend:
     build:
       context: ./frontend
@@ -310,7 +369,7 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_API_URL: ${VITE_API_URL:-/api/v1}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.7.0}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-0.8.0}
         VITE_DEFAULT_COMPANY_CODE: ${DEFAULT_COMPANY_CODE:-MTI}
         VITE_DOCUMENT_MAX_FILE_SIZE_MB: ${DOCUMENT_MAX_FILE_SIZE_MB:-50}
         VITE_DOCUMENT_BATCH_MAX_FILES: ${DOCUMENT_BATCH_MAX_FILES:-50}

@@ -65,9 +65,22 @@ class Permission(str, Enum):
     DOCUMENTS_DELETE = "documents:delete"
     DOCUMENTS_VALIDATE = "documents:validate"
     DOCUMENTS_ASSIGN_REVIEWER = "documents:assign_reviewer"
+    COMPLIANCE_VIEW = "compliance:view"
+    COMPLIANCE_VALIDATE = "compliance:validate"
+    COMPLIANCE_REVALIDATE = "compliance:revalidate"
+    COMPLIANCE_VIEW_ALL_DEPARTMENTS = (
+        "compliance:view_all_departments"
+    )
+    COMPLIANCE_EXPORT = "compliance:export"
+    COMPLIANCE_CONFIGURE_RULES = "compliance:configure_rules"
     FINDINGS_VIEW = "findings:view"
+    FINDINGS_CREATE_MANUAL = "findings:create_manual"
     FINDINGS_UPDATE = "findings:update"
+    FINDINGS_REVIEW = "findings:review"
     FINDINGS_RESOLVE = "findings:resolve"
+    FINDINGS_REOPEN = "findings:reopen"
+    FINDINGS_FALSE_POSITIVE = "findings:false_positive"
+    FINDINGS_EXPORT = "findings:export"
     MASTER_DATA_VIEW = "master_data:view"
     MASTER_DATA_CREATE = "master_data:create"
     MASTER_DATA_UPDATE = "master_data:update"
@@ -170,6 +183,30 @@ class AuditAction(str, Enum):
     REDETECT_LANGUAGE = "REDETECT_LANGUAGE"
     EXPORT_LANGUAGE_RESULT = "EXPORT_LANGUAGE_RESULT"
     REVIEW_LANGUAGE_RESULT = "REVIEW_LANGUAGE_RESULT"
+    QUEUE_COMPLIANCE_VALIDATION = "QUEUE_COMPLIANCE_VALIDATION"
+    START_COMPLIANCE_VALIDATION = "START_COMPLIANCE_VALIDATION"
+    COMPLETE_COMPLIANCE_VALIDATION = "COMPLETE_COMPLIANCE_VALIDATION"
+    PARTIAL_COMPLIANCE_VALIDATION = "PARTIAL_COMPLIANCE_VALIDATION"
+    FAIL_COMPLIANCE_VALIDATION = "FAIL_COMPLIANCE_VALIDATION"
+    CANCEL_COMPLIANCE_VALIDATION = "CANCEL_COMPLIANCE_VALIDATION"
+    REVALIDATE_COMPLIANCE = "REVALIDATE_COMPLIANCE"
+    EXPORT_COMPLIANCE_RESULT = "EXPORT_COMPLIANCE_RESULT"
+    CREATE_FINDING = "CREATE_FINDING"
+    CREATE_MANUAL_FINDING = "CREATE_MANUAL_FINDING"
+    UPDATE_FINDING = "UPDATE_FINDING"
+    REVIEW_FINDING = "REVIEW_FINDING"
+    RESOLVE_FINDING = "RESOLVE_FINDING"
+    REOPEN_FINDING = "REOPEN_FINDING"
+    MARK_FINDING_FALSE_POSITIVE = "MARK_FINDING_FALSE_POSITIVE"
+    ACCEPT_FINDING_RISK = "ACCEPT_FINDING_RISK"
+    ASSIGN_FINDING = "ASSIGN_FINDING"
+    EXPORT_FINDINGS = "EXPORT_FINDINGS"
+    CREATE_SECTION_DEFINITION = "CREATE_SECTION_DEFINITION"
+    UPDATE_SECTION_DEFINITION = "UPDATE_SECTION_DEFINITION"
+    CREATE_SECTION_ALIAS = "CREATE_SECTION_ALIAS"
+    UPDATE_SECTION_ALIAS = "UPDATE_SECTION_ALIAS"
+    IMPORT_SECTION_ALIASES = "IMPORT_SECTION_ALIASES"
+    EXPORT_SECTION_ALIASES = "EXPORT_SECTION_ALIASES"
 
 ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
     MappingProxyType(
@@ -211,9 +248,19 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_REVIEW_LANGUAGE_RESULT,
                     Permission.DOCUMENTS_VALIDATE,
                     Permission.DOCUMENTS_ASSIGN_REVIEWER,
+                    Permission.COMPLIANCE_VIEW,
+                    Permission.COMPLIANCE_VALIDATE,
+                    Permission.COMPLIANCE_REVALIDATE,
+                    Permission.COMPLIANCE_VIEW_ALL_DEPARTMENTS,
+                    Permission.COMPLIANCE_EXPORT,
                     Permission.FINDINGS_VIEW,
+                    Permission.FINDINGS_CREATE_MANUAL,
                     Permission.FINDINGS_UPDATE,
+                    Permission.FINDINGS_REVIEW,
                     Permission.FINDINGS_RESOLVE,
+                    Permission.FINDINGS_REOPEN,
+                    Permission.FINDINGS_FALSE_POSITIVE,
+                    Permission.FINDINGS_EXPORT,
                     Permission.MASTER_DATA_VIEW,
                     Permission.REPORTS_VIEW,
                     Permission.REPORTS_EXPORT,
@@ -231,9 +278,12 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_OCR_HISTORY,
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.DOCUMENTS_REVIEW_LANGUAGE_RESULT,
+                    Permission.COMPLIANCE_VIEW,
                     Permission.FINDINGS_VIEW,
-                    Permission.FINDINGS_UPDATE,
+                    Permission.FINDINGS_REVIEW,
                     Permission.FINDINGS_RESOLVE,
+                    Permission.FINDINGS_REOPEN,
+                    Permission.FINDINGS_FALSE_POSITIVE,
                     Permission.REPORTS_VIEW,
                 }
             ),
@@ -254,7 +304,10 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_OCR_HISTORY,
                     Permission.DOCUMENTS_DETECT_LANGUAGE,
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
+                    Permission.COMPLIANCE_VIEW,
+                    Permission.COMPLIANCE_VALIDATE,
                     Permission.FINDINGS_VIEW,
+                    Permission.FINDINGS_UPDATE,
                 }
             ),
             UserRole.AUDITOR: frozenset(
@@ -272,7 +325,11 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_OCR_HISTORY,
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
                     Permission.DOCUMENTS_EXPORT_LANGUAGE_RESULTS,
+                    Permission.COMPLIANCE_VIEW,
+                    Permission.COMPLIANCE_VIEW_ALL_DEPARTMENTS,
+                    Permission.COMPLIANCE_EXPORT,
                     Permission.FINDINGS_VIEW,
+                    Permission.FINDINGS_EXPORT,
                     Permission.REPORTS_VIEW,
                     Permission.REPORTS_EXPORT,
                     Permission.AUDIT_LOGS_VIEW,
@@ -286,6 +343,8 @@ ROLE_PERMISSIONS: Final[Mapping[UserRole, frozenset[Permission]]] = (
                     Permission.DOCUMENTS_VIEW_EXTRACTED_CONTENT,
                     Permission.DOCUMENTS_VIEW_OCR_RESULTS,
                     Permission.DOCUMENTS_VIEW_LANGUAGE_RESULTS,
+                    Permission.COMPLIANCE_VIEW,
+                    Permission.FINDINGS_VIEW,
                 }
             ),
         }

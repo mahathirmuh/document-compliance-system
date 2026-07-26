@@ -344,6 +344,134 @@ describe('ExtractedContentPage', () => {
     );
   });
 
+  it('finds and focuses an immutable extracted block beyond its original result page', () => {
+    const remoteBlock: ExtractedBlock = {
+      ...extractedBlocks[0]!,
+      blockOrder: 201,
+      sourceReference: 'PDF:page=1:block=201',
+      text: 'Remote controlled source block',
+    };
+    runHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: extractionRun,
+    });
+    blocksHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([remoteBlock]),
+    });
+
+    renderPage(
+      `?runId=${extractionIds.run}&containerId=${extractionIds.container}&blockId=${extractionIds.block}&sourceReference=PDF%3Apage%3D1%3Ablock%3D201`,
+    );
+
+    expect(runHook).toHaveBeenLastCalledWith(extractionIds.run, true);
+    expect(blocksHook).toHaveBeenLastCalledWith(
+      extractionIds.run,
+      expect.objectContaining({
+        containerId: extractionIds.container,
+        search: 'PDF:page=1:block=201',
+        page: 1,
+        pageSize: 100,
+      }),
+      true,
+    );
+    expect(
+      globalThis.document.getElementById(`block-${extractionIds.block}`),
+    ).toHaveClass('bg-amber-50');
+    expect(screen.getByRole('status')).toHaveTextContent('immutable extraction run');
+  });
+
+  it('navigates to and focuses an OCR block on its PDF page', () => {
+    const ocrBlockId = 'aaaaaaaa-2222-4222-8222-222222222222';
+    const ocrBlock: ExtractedBlock = {
+      ...extractedBlocks[0]!,
+      id: ocrBlockId,
+      containerId: extractionIds.secondContainer,
+      blockType: 'TEXT',
+      blockOrder: 4,
+      sourceReference: 'OCR:page=2:block=4',
+      text: 'OCR source block',
+      contentSource: 'OCR',
+      ocrConfidence: 0.93,
+    };
+    runHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: extractionRun,
+    });
+    blocksHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([ocrBlock]),
+    });
+
+    renderPage(
+      `?runId=${extractionIds.run}&ocrBlockId=${ocrBlockId}&page=2&sourceReference=OCR%3Apage%3D2%3Ablock%3D4`,
+    );
+
+    expect(blocksHook).toHaveBeenLastCalledWith(
+      extractionIds.run,
+      expect.objectContaining({
+        containerId: extractionIds.secondContainer,
+        contentSource: 'OCR',
+        search: 'OCR:page=2:block=4',
+      }),
+      true,
+    );
+    expect(globalThis.document.getElementById(`block-${ocrBlockId}`)).toHaveClass(
+      'bg-amber-50',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('page 2');
+  });
+
+  it('uses a DOCX container and source reference to focus the exact block', () => {
+    const docxContainer: ExtractedContainer = {
+      ...pdfContainers[0]!,
+      containerType: 'DOCX_BODY',
+      name: 'Document Body',
+      title: 'Body',
+    };
+    const docxBlock: ExtractedBlock = {
+      ...extractedBlocks[0]!,
+      containerId: docxContainer.id,
+      sourceReference: 'DOCX:body:p=205',
+      text: 'Late document paragraph',
+    };
+    runHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: { ...extractionRun, extractorType: 'DOCX' } satisfies ExtractionRun,
+    });
+    containersHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([docxContainer]),
+    });
+    blocksHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([docxBlock]),
+    });
+
+    renderPage(
+      `?runId=${extractionIds.run}&containerId=${docxContainer.id}&blockId=${docxBlock.id}&sourceReference=DOCX%3Abody%3Ap%3D205`,
+    );
+
+    expect(blocksHook).toHaveBeenLastCalledWith(
+      extractionIds.run,
+      expect.objectContaining({
+        containerId: docxContainer.id,
+        search: 'DOCX:body:p=205',
+      }),
+      true,
+    );
+    expect(globalThis.document.getElementById(`block-${docxBlock.id}`)).toHaveClass(
+      'bg-amber-50',
+    );
+  });
+
   it('rejects a requested run that is not bound to the route document', () => {
     runHook.mockReturnValue({
       isLoading: false,
@@ -512,6 +640,71 @@ describe('ExtractedContentPage', () => {
       extractionIds.run,
       expect.objectContaining({ page: 2, pageSize: 200 }),
       true,
+    );
+  });
+
+  it('navigates to an XLSX worksheet and focuses the requested cell', () => {
+    const xlsxContainer: ExtractedContainer = {
+      ...pdfContainers[0]!,
+      containerType: 'XLSX_WORKSHEET',
+      name: 'Register',
+      title: 'Register',
+    };
+    const xlsxCell: ExtractedBlock = {
+      ...extractedBlocks[0]!,
+      containerId: xlsxContainer.id,
+      blockType: 'CELL',
+      sourceReference: 'XLSX:sheet=Register:cell=Z205',
+      text: 'Target cell',
+      styleName: null,
+      headingLevel: null,
+      metadata: { coordinate: 'Z205' },
+    };
+    latestHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: {
+        ...extractionRun,
+        extractorType: 'XLSX',
+        totalPages: 0,
+        totalSheets: 1,
+      } satisfies ExtractionRun,
+    });
+    containersHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([xlsxContainer]),
+    });
+    blocksHook.mockReturnValue({
+      isLoading: false,
+      error: null,
+      data: paginated([xlsxCell]),
+    });
+
+    renderPage(
+      '?worksheet=Register&cell=Z205&sourceReference=XLSX%3Asheet%3DRegister%3Acell%3DZ205',
+    );
+
+    expect(containersHook).toHaveBeenLastCalledWith(
+      extractionIds.run,
+      expect.objectContaining({ search: 'Register', page: 1, pageSize: 100 }),
+      true,
+    );
+    expect(blocksHook).toHaveBeenLastCalledWith(
+      extractionIds.run,
+      expect.objectContaining({
+        containerId: xlsxContainer.id,
+        search: 'XLSX:sheet=Register:cell=Z205',
+        page: 1,
+        pageSize: 200,
+      }),
+      true,
+    );
+    expect(globalThis.document.getElementById(`block-${xlsxCell.id}`)).toHaveClass(
+      'bg-amber-50',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'worksheet Register, cell Z205',
     );
   });
 

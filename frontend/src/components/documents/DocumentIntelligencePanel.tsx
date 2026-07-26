@@ -84,15 +84,22 @@ export function DocumentIntelligencePanel({
   const canMutate =
     file.isCurrent && file.fileStatus === 'AVAILABLE' && !documentArchived;
   const canForceOCR = hasPermission('documents:reocr');
+  const hasUsableOCR =
+    extraction !== null &&
+    latestOCR !== null &&
+    latestOCR.sourceExtractionRunId === extraction.runId &&
+    (latestOCR.status === 'COMPLETED' || latestOCR.status === 'PARTIALLY_COMPLETED');
   const canStartOCR =
     file.fileExtension === 'pdf' &&
     canMutate &&
     extraction !== null &&
     !activeOCR &&
+    !hasUsableOCR &&
     hasPermission('documents:ocr') &&
     (extraction.requiresOcr || canForceOCR);
   const hasLanguageSource =
-    extraction !== null && (extraction.status !== 'OCR_REQUIRED' || latestOCR !== null);
+    extraction !== null &&
+    (!(extraction.requiresOcr || extraction.status === 'OCR_REQUIRED') || hasUsableOCR);
   const canStartLanguage =
     canMutate &&
     hasLanguageSource &&

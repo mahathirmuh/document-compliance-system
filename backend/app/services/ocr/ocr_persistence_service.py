@@ -21,6 +21,7 @@ from app.repositories.ocr_page_result_repository import (
 )
 from app.repositories.ocr_run_repository import OCRRunRepository
 from app.schemas.ocr_internal import OCRPageResult as OCRPageData
+from app.services.ocr.ocr_source_chain_service import OCRSourceChainService
 
 
 class OCRPersistenceService:
@@ -55,6 +56,7 @@ class OCRPersistenceService:
         existing = await self.runs.get_by_job_id(job.id)
         if existing is not None:
             return existing
+        request_metadata = dict(job.result_summary_json or {})
         run = OCRRun(
             ocr_job_id=job.id,
             document_id=job.document_id,
@@ -75,8 +77,8 @@ class OCRPersistenceService:
             preprocessing_profile=job.preprocessing_profile,
             warnings_json=[],
             metadata_json={
+                **request_metadata,
                 "requestedPageNumbers": job.requested_page_numbers_json,
-                "pageSelection": ((job.result_summary_json or {}).get("pageSelection")),
             },
             started_at=started_at,
         )
@@ -201,7 +203,7 @@ class OCRPersistenceService:
         else:
             run_status = OCRRunStatus.COMPLETED
 
-        combined_text = "\n".join(
+        current_run_text = "\n".join(
             f"[PAGE {page.page_number}]\n{page.normalised_text}" for page in page_rows
         )
         run.status = run_status
@@ -217,7 +219,24 @@ class OCRPersistenceService:
         low_confidence_blocks = sum(
             confidence < self.low_confidence_threshold for confidence in confidence_rows
         )
-        run.content_hash = hashlib.sha256(combined_text.encode("utf-8")).hexdigest()
+        effective_page_numbers = list(processed_pages)
+        effective_block_count = run.total_blocks
+        effective_run_ids = [str(run.id)]
+        if run_status in {
+            OCRRunStatus.COMPLETED,
+            OCRRunStatus.PARTIALLY_COMPLETED,
+        }:
+            effective_source = await OCRSourceChainService(self.session).resolve(run)
+            run.content_hash = effective_source.content_hash
+            effective_page_numbers = [
+                page.page_number for page in effective_source.pages
+            ]
+            effective_block_count = effective_source.block_count
+            effective_run_ids = [str(run_id) for run_id in effective_source.run_ids]
+        else:
+            run.content_hash = hashlib.sha256(
+                current_run_text.encode("utf-8")
+            ).hexdigest()
         run.warnings_json = list(
             dict.fromkeys(
                 warning for page in page_rows for warning in page.warning_codes_json
@@ -231,11 +250,15 @@ class OCRPersistenceService:
             "reviewConfidenceThreshold": self.review_confidence_threshold,
             "terminalFailure": terminal_failure,
             "unpersistedPageNumbers": unpersisted_pages,
+            "effectivePageNumbers": effective_page_numbers,
+            "effectiveBlockCount": effective_block_count,
+            "effectiveOcrRunIds": effective_run_ids,
         }
         job.processed_page_numbers_json = processed_pages
         job.failed_page_numbers_json = failed_pages
 
         summary: dict[str, object] = {
+            **dict(job.result_summary_json or {}),
             "runId": str(run.id),
             "provider": run.provider,
             "providerVersion": run.provider_version,
@@ -251,6 +274,11 @@ class OCRPersistenceService:
             "lowConfidenceBlocks": low_confidence_blocks,
             "lowConfidenceThreshold": self.low_confidence_threshold,
             "reviewConfidenceThreshold": self.review_confidence_threshold,
+            "terminalFailure": terminal_failure,
+            "unpersistedPageNumbers": unpersisted_pages,
+            "effectivePageNumbers": effective_page_numbers,
+            "effectiveBlockCount": effective_block_count,
+            "effectiveOcrRunIds": effective_run_ids,
             "warnings": list(run.warnings_json),
         }
         if terminal_failure:
@@ -288,10 +316,15 @@ class OCRPersistenceService:
             OCRRunStatus.COMPLETED,
             OCRRunStatus.PARTIALLY_COMPLETED,
         }:
-            await self.runs.set_latest_by_ids(
+            latest_pointer_updated = await self.runs.set_latest_by_ids(
                 document_file_id=job.document_file_id,
                 ocr_run_id=run.id,
+                source_extraction_run_id=run.source_extraction_run_id,
             )
+            run.metadata_json = {
+                **(run.metadata_json or {}),
+                "latestPointerUpdated": latest_pointer_updated,
+            }
         await self.session.flush()
         return run
 

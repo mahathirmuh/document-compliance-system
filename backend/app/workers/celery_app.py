@@ -1,4 +1,4 @@
-"""Celery application for private extraction, OCR, and language tasks."""
+"""Celery application for private document-intelligence tasks."""
 
 from celery import Celery
 
@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.workers.extraction_tasks",
         "app.workers.ocr_tasks",
         "app.workers.language_detection_tasks",
+        "app.workers.compliance_tasks",
     ),
 )
 celery_app.conf.update(
@@ -37,6 +38,12 @@ celery_app.conf.update(
             ),
             "time_limit": settings.language_task_time_limit_seconds,
         },
+        "app.workers.compliance_tasks.process_compliance_job": {
+            "soft_time_limit": (
+                settings.compliance_task_soft_time_limit_seconds
+            ),
+            "time_limit": settings.compliance_task_time_limit_seconds,
+        },
     },
     task_default_queue=settings.extraction_queue_name,
     task_reject_on_worker_lost=True,
@@ -52,6 +59,9 @@ celery_app.conf.update(
             "process_language_detection_job"
         ): {
             "queue": settings.language_queue_name,
+        },
+        "app.workers.compliance_tasks.process_compliance_job": {
+            "queue": settings.compliance_queue_name,
         },
     },
     task_serializer="json",

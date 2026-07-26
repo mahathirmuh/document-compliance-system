@@ -79,6 +79,12 @@ _EXTRACTION_LANGUAGE_STATUSES = frozenset(
         ExtractionJobStatus.PARTIALLY_COMPLETED,
     }
 )
+_EXTRACTION_OCR_STATUSES = frozenset(
+    {
+        ExtractionJobStatus.OCR_REQUIRED,
+        ExtractionJobStatus.PARTIALLY_COMPLETED,
+    }
+)
 _OCR_LANGUAGE_STATUSES = frozenset(
     {
         OCRJobStatus.COMPLETED,
@@ -115,17 +121,17 @@ class AutomaticPipelineService:
     ) -> UUID | None:
         """Queue at most one configured downstream job after extraction."""
         if (
-            status is ExtractionJobStatus.OCR_REQUIRED
+            status in _EXTRACTION_OCR_STATUSES
             and self.settings.auto_run_ocr_after_extraction
         ):
-            return await self._queue_ocr(extraction_job_id)
+            queued_ocr = await self._queue_ocr(extraction_job_id)
+            if queued_ocr is not None:
+                return queued_ocr
         if (
             status in _EXTRACTION_LANGUAGE_STATUSES
             and self.settings.auto_run_language_detection_after_extraction
         ):
-            return await self._queue_language_from_extraction(
-                extraction_job_id
-            )
+            return await self._queue_language_from_extraction(extraction_job_id)
         return None
 
     async def after_ocr(
@@ -154,7 +160,7 @@ class AutomaticPipelineService:
                 )
                 if (
                     source is None
-                    or source.status is not ExtractionJobStatus.OCR_REQUIRED
+                    or source.status not in _EXTRACTION_OCR_STATUSES
                     or source.extraction_run is None
                 ):
                     return None
@@ -175,12 +181,18 @@ class AutomaticPipelineService:
                     is not None
                 ):
                     return None
+                if source.requested_by is not None:
+                    await jobs.acquire_user_concurrency_lock(source.requested_by)
+                    if (
+                        await jobs.count_active_by_user(source.requested_by)
+                        >= self.settings.ocr_max_concurrent_jobs_per_user
+                    ):
+                        return None
                 completed = await session.scalar(
                     select(OCRRun.id)
                     .where(
                         OCRRun.document_file_id == document_file.id,
-                        OCRRun.source_extraction_run_id
-                        == extraction_run.id,
+                        OCRRun.source_extraction_run_id == extraction_run.id,
                         OCRRun.status.in_(
                             {
                                 OCRRunStatus.COMPLETED,
@@ -197,8 +209,7 @@ class AutomaticPipelineService:
                     await session.scalars(
                         select(ExtractedContainer)
                         .where(
-                            ExtractedContainer.extraction_run_id
-                            == extraction_run.id
+                            ExtractedContainer.extraction_run_id == extraction_run.id
                         )
                         .order_by(ExtractedContainer.container_index)
                     )
@@ -212,9 +223,7 @@ class AutomaticPipelineService:
                 if not selection.selected_page_numbers:
                     return None
 
-                provider_info = get_ocr_provider(
-                    self.settings
-                ).get_provider_info()
+                provider_info = get_ocr_provider(self.settings).get_provider_info()
                 job = OCRJob(
                     document_id=source.document_id,
                     document_revision_id=source.document_revision_id,
@@ -228,16 +237,12 @@ class AutomaticPipelineService:
                     preprocessing_profile=OCRPreprocessingProfile(
                         self.settings.ocr_default_preprocessing_profile
                     ),
-                    requested_page_numbers_json=(
-                        selection.selected_page_numbers
-                    ),
+                    requested_page_numbers_json=(selection.selected_page_numbers),
                     processed_page_numbers_json=[],
                     failed_page_numbers_json=[],
                     requested_by=source.requested_by,
                     maximum_attempts=self.settings.ocr_max_retries + 1,
-                    provider=str(
-                        provider_info.get("name") or "paddleocr"
-                    ),
+                    provider=str(provider_info.get("name") or "paddleocr"),
                     provider_version=(
                         str(provider_info["version"])
                         if provider_info.get("version")
@@ -262,8 +267,7 @@ class AutomaticPipelineService:
                         entity_type="OCRJob",
                         entity_id=job.id,
                         description=(
-                            "Document OCR queued automatically after "
-                            "extraction."
+                            "Document OCR queued automatically after extraction."
                         ),
                         new_values={
                             "automatic": True,
@@ -274,9 +278,7 @@ class AutomaticPipelineService:
                             "languageProfile": (
                                 OCRLanguageProfile.AUTO_MULTILINGUAL.value
                             ),
-                            "pageNumbers": (
-                                selection.selected_page_numbers
-                            ),
+                            "pageNumbers": (selection.selected_page_numbers),
                         },
                     )
                     await session.commit()
@@ -313,6 +315,7 @@ class AutomaticPipelineService:
                     ExtractionRunStatus.COMPLETED,
                     ExtractionRunStatus.PARTIALLY_COMPLETED,
                 }
+                or source.extraction_run.requires_ocr
             ):
                 return None
             return await self._queue_language(
@@ -368,14 +371,15 @@ class AutomaticPipelineService:
             document_file.file_status is not DocumentFileStatus.AVAILABLE
             or not document_file.is_current
             or document_file.document.is_archived
+            or document_file.latest_extraction_run_id != extraction_run.id
         ):
             return None
-        if (
-            ocr_run is not None
-            and (
-                ocr_run.document_file_id != extraction_run.document_file_id
-                or ocr_run.source_extraction_run_id != extraction_run.id
-            )
+        if ocr_run is None and extraction_run.requires_ocr:
+            return None
+        if ocr_run is not None and (
+            ocr_run.document_file_id != extraction_run.document_file_id
+            or ocr_run.source_extraction_run_id != extraction_run.id
+            or document_file.latest_ocr_run_id != ocr_run.id
         ):
             return None
 
@@ -403,9 +407,7 @@ class AutomaticPipelineService:
         if (
             block_count == 0
             or block_count
-            > LanguageRuntimeConfig.from_settings(
-                self.settings
-            ).maximum_blocks
+            > LanguageRuntimeConfig.from_settings(self.settings).maximum_blocks
         ):
             return None
 
@@ -424,8 +426,7 @@ class AutomaticPipelineService:
             ocr_run.content_hash if ocr_run is not None else None,
         )
         completed_query = select(LanguageDetectionRun.id).where(
-            LanguageDetectionRun.document_file_id
-            == extraction_run.document_file_id,
+            LanguageDetectionRun.document_file_id == extraction_run.document_file_id,
             LanguageDetectionRun.extraction_run_id == extraction_run.id,
             LanguageDetectionRun.source_content_hash == source_hash,
             LanguageDetectionRun.status.in_(
@@ -482,13 +483,9 @@ class AutomaticPipelineService:
                     "automatic": True,
                     "trigger": trigger,
                     "sourceJobId": str(source_job_id),
-                    "documentFileId": str(
-                        extraction_run.document_file_id
-                    ),
+                    "documentFileId": str(extraction_run.document_file_id),
                     "extractionRunId": str(extraction_run.id),
-                    "ocrRunId": (
-                        str(ocr_run.id) if ocr_run is not None else None
-                    ),
+                    "ocrRunId": (str(ocr_run.id) if ocr_run is not None else None),
                     "sourceContentHash": source_hash,
                 },
             )
@@ -523,8 +520,7 @@ class AutomaticPipelineService:
     async def _dispatch_language(self, job_id: UUID) -> None:
         try:
             worker_reference = await self._invoke_dispatcher(
-                self.language_dispatcher
-                or self._default_language_dispatcher,
+                self.language_dispatcher or self._default_language_dispatcher,
                 job_id,
             )
         except Exception:
@@ -555,18 +551,13 @@ class AutomaticPipelineService:
                     job_id,
                     for_update=True,
                 )
-                is_queued = (
-                    job is not None
-                    and job.status is OCRJobStatus.QUEUED
-                )
+                is_queued = job is not None and job.status is OCRJobStatus.QUEUED
             else:
-                job = await LanguageDetectionJobRepository(
-                    session
-                ).get_by_id(job_id, for_update=True)
+                job = await LanguageDetectionJobRepository(session).get_by_id(
+                    job_id, for_update=True
+                )
                 is_queued = (
-                    job is not None
-                    and job.status
-                    is LanguageDetectionJobStatus.QUEUED
+                    job is not None and job.status is LanguageDetectionJobStatus.QUEUED
                 )
             if job is not None and is_queued:
                 job.worker_reference = worker_reference[:255]
@@ -602,18 +593,13 @@ class AutomaticPipelineService:
         async with self.session_factory() as session:
             jobs = LanguageDetectionJobRepository(session)
             job = await jobs.get_by_id(job_id, for_update=True)
-            if (
-                job is None
-                or job.status is not LanguageDetectionJobStatus.QUEUED
-            ):
+            if job is None or job.status is not LanguageDetectionJobStatus.QUEUED:
                 return
             await jobs.mark_failed(
                 job,
                 failed_at=utc_now(),
                 error_code="LANGUAGE_DETECTION_FAILED",
-                error_message=(
-                    "The language worker could not accept this job."
-                ),
+                error_message=("The language worker could not accept this job."),
             )
             await AuditLogRepository(session).create(
                 user_id=job.requested_by,
@@ -639,17 +625,13 @@ class AutomaticPipelineService:
                 maximum_height=self.settings.ocr_max_render_height,
             ),
             OCRPreprocessingService(),
-            selectable_text_minimum=(
-                self.settings.ocr_selectable_text_min_characters
-            ),
+            selectable_text_minimum=(self.settings.ocr_selectable_text_min_characters),
             skip_pages_with_selectable_text=(
                 self.settings.ocr_skip_pages_with_selectable_text
             ),
             maximum_pages=self.settings.ocr_max_pages_per_job,
             maximum_page_retries=self.settings.ocr_max_retries,
-            low_confidence_threshold=(
-                self.settings.ocr_low_confidence_threshold
-            ),
+            low_confidence_threshold=(self.settings.ocr_low_confidence_threshold),
         )
 
     @staticmethod
@@ -659,14 +641,17 @@ class AutomaticPipelineService:
     ) -> bool:
         return bool(
             extraction_run.extractor_type is ExtractorType.PDF
-            and extraction_run.status is ExtractionRunStatus.OCR_REQUIRED
+            and extraction_run.status
+            in {
+                ExtractionRunStatus.OCR_REQUIRED,
+                ExtractionRunStatus.PARTIALLY_COMPLETED,
+            }
             and extraction_run.requires_ocr
             and document_file.file_extension.lower() == "pdf"
             and document_file.file_status is DocumentFileStatus.AVAILABLE
             and document_file.is_current
             and not document_file.document.is_archived
-            and document_file.latest_extraction_run_id
-            == extraction_run.id
+            and document_file.latest_extraction_run_id == extraction_run.id
         )
 
     @staticmethod

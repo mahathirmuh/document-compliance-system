@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -51,9 +51,7 @@ class LanguageDetectionRunRepository:
             .options(*self._options())
         )
         if for_update:
-            statement = statement.with_for_update(
-                of=LanguageDetectionRun
-            )
+            statement = statement.with_for_update(of=LanguageDetectionRun)
         return await self.session.scalar(statement)
 
     async def get_latest_by_file(
@@ -67,7 +65,18 @@ class LanguageDetectionRunRepository:
                 DocumentFile,
                 latest_column == LanguageDetectionRun.id,
             )
-            .where(DocumentFile.id == document_file_id)
+            .where(
+                DocumentFile.id == document_file_id,
+                LanguageDetectionRun.extraction_run_id
+                == DocumentFile.latest_extraction_run_id,
+                or_(
+                    (
+                        LanguageDetectionRun.ocr_run_id.is_(None)
+                        & DocumentFile.latest_ocr_run_id.is_(None)
+                    ),
+                    LanguageDetectionRun.ocr_run_id == DocumentFile.latest_ocr_run_id,
+                ),
+            )
             .options(*self._options())
         )
         return await self.session.scalar(statement)
@@ -81,9 +90,7 @@ class LanguageDetectionRunRepository:
     ) -> list[LanguageDetectionRun]:
         statement = (
             select(LanguageDetectionRun)
-            .where(
-                LanguageDetectionRun.document_file_id == document_file_id
-            )
+            .where(LanguageDetectionRun.document_file_id == document_file_id)
             .options(*self._options())
             .order_by(
                 LanguageDetectionRun.created_at.desc(),
@@ -92,16 +99,13 @@ class LanguageDetectionRunRepository:
             .offset(offset)
             .limit(limit)
         )
-        return list(
-            (await self.session.scalars(statement)).unique().all()
-        )
+        return list((await self.session.scalars(statement)).unique().all())
 
     async def count_by_file(self, document_file_id: UUID) -> int:
         return int(
             await self.session.scalar(
                 select(func.count(LanguageDetectionRun.id)).where(
-                    LanguageDetectionRun.document_file_id
-                    == document_file_id
+                    LanguageDetectionRun.document_file_id == document_file_id
                 )
             )
             or 0
@@ -122,13 +126,9 @@ class LanguageDetectionRunRepository:
             == source_content_hash.strip().lower(),
         )
         if ocr_run_id is None:
-            statement = statement.where(
-                LanguageDetectionRun.ocr_run_id.is_(None)
-            )
+            statement = statement.where(LanguageDetectionRun.ocr_run_id.is_(None))
         else:
-            statement = statement.where(
-                LanguageDetectionRun.ocr_run_id == ocr_run_id
-            )
+            statement = statement.where(LanguageDetectionRun.ocr_run_id == ocr_run_id)
         statement = (
             statement.options(*self._options())
             .order_by(
@@ -145,10 +145,26 @@ class LanguageDetectionRunRepository:
         document_file_id: UUID,
         language_detection_run_id: UUID,
     ) -> None:
+        run = await self.session.get(
+            LanguageDetectionRun,
+            language_detection_run_id,
+        )
+        if run is None or run.document_file_id != document_file_id:
+            raise ValueError("Latest language run must belong to the document file.")
         latest_column = DocumentFile.latest_language_detection_run_id
-        await self.session.execute(
+        conditions = [
+            DocumentFile.id == document_file_id,
+            DocumentFile.latest_extraction_run_id == run.extraction_run_id,
+        ]
+        if run.ocr_run_id is not None:
+            conditions.append(DocumentFile.latest_ocr_run_id == run.ocr_run_id)
+        else:
+            conditions.append(DocumentFile.latest_ocr_run_id.is_(None))
+        result = await self.session.execute(
             update(DocumentFile)
-            .where(DocumentFile.id == document_file_id)
+            .where(*conditions)
             .values({latest_column: language_detection_run_id})
         )
+        if result.rowcount != 1:
+            raise ValueError("Language detection source is no longer current.")
         await self.session.flush()

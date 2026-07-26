@@ -12,6 +12,9 @@ from app.core.authorization import AuditAction
 from app.models.user import User
 from app.models.validation_rule import ValidationRule
 from app.repositories.document_type_repository import DocumentTypeRepository
+from app.repositories.section_alias_profile_repository import (
+    SectionAliasProfileRepository,
+)
 from app.repositories.validation_rule_repository import ValidationRuleRepository
 from app.schemas.master_data import MasterDataOption
 from app.schemas.validation_rule import (
@@ -44,12 +47,18 @@ class ValidationRuleService(MasterDataServiceBase):
         super().__init__(session, user, metadata)
         self.repository = ValidationRuleRepository(session)
         self.document_types = DocumentTypeRepository(session)
+        self.section_alias_profiles = SectionAliasProfileRepository(session)
 
     @staticmethod
     def response(entity: ValidationRule) -> ValidationRuleResponse:
         document_type = (
             MasterDataOption.model_validate(entity.document_type)
             if entity.document_type is not None
+            else None
+        )
+        section_alias_profile = (
+            MasterDataOption.model_validate(entity.section_alias_profile)
+            if entity.section_alias_profile is not None
             else None
         )
         return ValidationRuleResponse(
@@ -62,6 +71,12 @@ class ValidationRuleService(MasterDataServiceBase):
             required_indonesian=entity.required_indonesian,
             required_english=entity.required_english,
             required_chinese=entity.required_chinese,
+            validate_document_code=entity.validate_document_code,
+            validate_language_presence=entity.validate_language_presence,
+            validate_language_coverage=entity.validate_language_coverage,
+            validate_container_completeness=(
+                entity.validate_container_completeness
+            ),
             minimum_indonesian_coverage=entity.minimum_indonesian_coverage,
             minimum_english_coverage=entity.minimum_english_coverage,
             minimum_chinese_coverage=entity.minimum_chinese_coverage,
@@ -70,6 +85,60 @@ class ValidationRuleService(MasterDataServiceBase):
             validate_sections=entity.validate_sections,
             required_sections=list(entity.required_sections_json),
             validate_tables=entity.validate_tables,
+            validate_translation_groups=(
+                entity.validate_translation_groups
+            ),
+            validate_cells=entity.validate_cells,
+            required_languages=list(entity.required_languages_json),
+            section_alias_profile_id=entity.section_alias_profile_id,
+            section_alias_profile=section_alias_profile,
+            minimum_language_block_coverage=dict(
+                entity.minimum_language_block_coverage_json
+            ),
+            minimum_language_character_coverage=dict(
+                entity.minimum_language_character_coverage_json
+            ),
+            maximum_unknown_block_percentage=float(
+                entity.maximum_unknown_block_percentage
+            ),
+            maximum_mixed_block_percentage=float(
+                entity.maximum_mixed_block_percentage
+            ),
+            document_code_weight=float(entity.document_code_weight),
+            language_presence_weight=float(
+                entity.language_presence_weight
+            ),
+            language_coverage_weight=float(
+                entity.language_coverage_weight
+            ),
+            section_completeness_weight=float(
+                entity.section_completeness_weight
+            ),
+            language_order_weight=float(entity.language_order_weight),
+            translation_group_weight=float(
+                entity.translation_group_weight
+            ),
+            table_completeness_weight=float(
+                entity.table_completeness_weight
+            ),
+            critical_finding_score_cap=float(
+                entity.critical_finding_score_cap
+            ),
+            major_finding_penalty=float(entity.major_finding_penalty),
+            minor_finding_penalty=float(entity.minor_finding_penalty),
+            compliant_score=float(entity.compliant_score),
+            partially_compliant_score=float(
+                entity.partially_compliant_score
+            ),
+            needs_review_score=float(entity.needs_review_score),
+            fail_on_missing_required_language=(
+                entity.fail_on_missing_required_language
+            ),
+            fail_on_missing_required_section=(
+                entity.fail_on_missing_required_section
+            ),
+            fail_on_critical_finding=entity.fail_on_critical_finding,
+            validation_options=dict(entity.validation_options_json),
             minimum_compliance_score=entity.minimum_compliance_score,
             partial_compliance_score=entity.partial_compliance_score,
             is_default=entity.is_default,
@@ -90,6 +159,12 @@ class ValidationRuleService(MasterDataServiceBase):
             "required_indonesian": entity.required_indonesian,
             "required_english": entity.required_english,
             "required_chinese": entity.required_chinese,
+            "validate_document_code": entity.validate_document_code,
+            "validate_language_presence": entity.validate_language_presence,
+            "validate_language_coverage": entity.validate_language_coverage,
+            "validate_container_completeness": (
+                entity.validate_container_completeness
+            ),
             "minimum_indonesian_coverage": entity.minimum_indonesian_coverage,
             "minimum_english_coverage": entity.minimum_english_coverage,
             "minimum_chinese_coverage": entity.minimum_chinese_coverage,
@@ -98,6 +173,63 @@ class ValidationRuleService(MasterDataServiceBase):
             "validate_sections": entity.validate_sections,
             "required_sections": list(entity.required_sections_json),
             "validate_tables": entity.validate_tables,
+            "validate_translation_groups": (
+                entity.validate_translation_groups
+            ),
+            "validate_cells": entity.validate_cells,
+            "required_languages": list(entity.required_languages_json),
+            "section_alias_profile_id": entity.section_alias_profile_id,
+            "minimum_language_block_coverage": dict(
+                entity.minimum_language_block_coverage_json
+            ),
+            "minimum_language_character_coverage": dict(
+                entity.minimum_language_character_coverage_json
+            ),
+            "maximum_unknown_block_percentage": float(
+                entity.maximum_unknown_block_percentage
+            ),
+            "maximum_mixed_block_percentage": float(
+                entity.maximum_mixed_block_percentage
+            ),
+            "document_code_weight": float(entity.document_code_weight),
+            "language_presence_weight": float(
+                entity.language_presence_weight
+            ),
+            "language_coverage_weight": float(
+                entity.language_coverage_weight
+            ),
+            "section_completeness_weight": float(
+                entity.section_completeness_weight
+            ),
+            "language_order_weight": float(entity.language_order_weight),
+            "translation_group_weight": float(
+                entity.translation_group_weight
+            ),
+            "table_completeness_weight": float(
+                entity.table_completeness_weight
+            ),
+            "critical_finding_score_cap": float(
+                entity.critical_finding_score_cap
+            ),
+            "major_finding_penalty": float(
+                entity.major_finding_penalty
+            ),
+            "minor_finding_penalty": float(
+                entity.minor_finding_penalty
+            ),
+            "compliant_score": float(entity.compliant_score),
+            "partially_compliant_score": float(
+                entity.partially_compliant_score
+            ),
+            "needs_review_score": float(entity.needs_review_score),
+            "fail_on_missing_required_language": (
+                entity.fail_on_missing_required_language
+            ),
+            "fail_on_missing_required_section": (
+                entity.fail_on_missing_required_section
+            ),
+            "fail_on_critical_finding": entity.fail_on_critical_finding,
+            "validation_options": dict(entity.validation_options_json),
             "minimum_compliance_score": entity.minimum_compliance_score,
             "partial_compliance_score": entity.partial_compliance_score,
             "is_default": entity.is_default,
@@ -118,6 +250,20 @@ class ValidationRuleService(MasterDataServiceBase):
                 raise business_error(
                     "Document type was not found.",
                     field="documentTypeId",
+                )
+        if values.section_alias_profile_id is not None:
+            profile = await self.section_alias_profiles.get_by_id(
+                values.section_alias_profile_id
+            )
+            if profile is None:
+                raise business_error(
+                    "Section alias profile was not found.",
+                    field="sectionAliasProfileId",
+                )
+            if not profile.is_active:
+                raise business_error(
+                    "Section alias profile must be active.",
+                    field="sectionAliasProfileId",
                 )
         if values.is_default:
             existing = await self.repository.get_default(
@@ -142,6 +288,14 @@ class ValidationRuleService(MasterDataServiceBase):
         data = values.model_dump(by_alias=False)
         data["language_order_json"] = data.pop("language_order")
         data["required_sections_json"] = data.pop("required_sections")
+        data["required_languages_json"] = data.pop("required_languages")
+        data["minimum_language_block_coverage_json"] = data.pop(
+            "minimum_language_block_coverage"
+        )
+        data["minimum_language_character_coverage_json"] = data.pop(
+            "minimum_language_character_coverage"
+        )
+        data["validation_options_json"] = data.pop("validation_options")
         return data
 
     async def _sync_document_type_default(
@@ -225,9 +379,10 @@ class ValidationRuleService(MasterDataServiceBase):
                 field="code",
                 title="Validation Rule could not be created.",
             )
-        values = ValidationRuleValues.model_validate(
-            payload.model_dump(by_alias=False)
-        )
+        # The request schema has already synchronized Phase 3 and Phase 8
+        # mirrors using the fields actually supplied by the client. Rebuilding
+        # it from a full dump would erase that field provenance.
+        values = payload
         await self._validate_scope(values)
         entity = ValidationRule(
             **self.entity_values(values),
@@ -289,7 +444,12 @@ class ValidationRuleService(MasterDataServiceBase):
                 field="isDefault",
             )
         merged.update(changes)
-        values = ValidationRuleValues.model_validate(merged)
+        values = ValidationRuleValues.model_validate(
+            merged,
+            context={
+                "validation_rule_explicit_fields": frozenset(changes),
+            },
+        )
         if values.code != entity.code:
             duplicate = await self.repository.get_by_code(values.code)
             if duplicate is not None and duplicate.id != entity.id:

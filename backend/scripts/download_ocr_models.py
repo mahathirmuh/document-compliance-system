@@ -105,7 +105,7 @@ def _download_archive(
 
     request = urllib.request.Request(
         source_url,
-        headers={"User-Agent": "document-compliance-model-setup/0.7.0"},
+        headers={"User-Agent": "document-compliance-model-setup/0.8.0"},
         method="GET",
     )
     digest = hashlib.sha256()

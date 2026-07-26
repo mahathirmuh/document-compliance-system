@@ -31,7 +31,6 @@ from app.models.language_detection_job import (
     LanguageDetectionJobType,
 )
 from app.models.language_detection_run import LanguageDetectionRun
-from app.models.ocr_block import OCRBlock
 from app.models.ocr_run import OCRRun, OCRRunStatus
 from app.models.user import User
 from app.repositories.document_file_repository import DocumentFileRepository
@@ -52,6 +51,7 @@ from app.repositories.language_detection_run_repository import (
 from app.repositories.ocr_run_repository import OCRRunRepository
 from app.schemas.common import PaginationData
 from app.schemas.language_detection import (
+    LanguageAverageConfidenceResponse,
     LanguageBlockResultListResponse,
     LanguageBlockResultResponse,
     LanguageContainerSummaryListResponse,
@@ -87,6 +87,10 @@ from app.services.language.language_normalizer import (
 )
 from app.services.language.language_runtime_config import (
     LanguageRuntimeConfig,
+)
+from app.services.ocr.ocr_source_chain_service import (
+    OCRSourceChainError,
+    OCRSourceChainService,
 )
 from app.utils.datetime import utc_now
 
@@ -157,11 +161,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
             ocr_run_id=ocr_run_id,
             force=force,
             reason=None,
-            job_type=(
-                LanguageDetectionJobType.RE_DETECTION
-                if force
-                else LanguageDetectionJobType.INITIAL_DETECTION
-            ),
+            job_type=LanguageDetectionJobType.INITIAL_DETECTION,
         )
 
     async def redetect(
@@ -182,13 +182,10 @@ class LanguageDetectionJobService(DocumentServiceBase):
                 "The current extraction source is unavailable.",
                 title="Language re-detection could not be queued.",
             )
-        latest_ocr = await self.ocr_runs.get_latest_by_file(
-            old_run.document_file_id
-        )
+        latest_ocr = await self.ocr_runs.get_latest_by_file(old_run.document_file_id)
         if (
             latest_ocr is not None
-            and latest_ocr.source_extraction_run_id
-            != latest_extraction.id
+            and latest_ocr.source_extraction_run_id != latest_extraction.id
         ):
             latest_ocr = None
         return await self._queue(
@@ -210,14 +207,21 @@ class LanguageDetectionJobService(DocumentServiceBase):
         reason: str | None,
         job_type: LanguageDetectionJobType,
     ) -> LanguageDetectionQueuedResponse:
+        if (
+            job_type is LanguageDetectionJobType.RE_DETECTION
+            and not (reason or "").strip()
+        ):
+            raise document_error(
+                "An audit reason is required for language re-detection.",
+                field="reason",
+                title="Language re-detection reason is required.",
+            )
         self._ensure_model_ready()
         document_file = await self._available_file(
             document_file_id,
             for_update=True,
         )
-        extraction_run = await self.extraction_runs.get_by_id(
-            extraction_run_id
-        )
+        extraction_run = await self.extraction_runs.get_by_id(extraction_run_id)
         if (
             extraction_run is None
             or extraction_run.document_file_id != document_file.id
@@ -257,12 +261,9 @@ class LanguageDetectionJobService(DocumentServiceBase):
                     field="ocrRunId",
                     title="Language source is not available.",
                 )
-        if (
-            extraction_run.status is ExtractionRunStatus.OCR_REQUIRED
-            and ocr_run is None
-        ):
+        if extraction_run.requires_ocr and ocr_run is None:
             raise document_error(
-                "A completed OCR run is required for this scanned extraction.",
+                "A completed OCR run is required for this extraction.",
                 field="ocrRunId",
                 title="Language source is not available.",
             )
@@ -274,18 +275,25 @@ class LanguageDetectionJobService(DocumentServiceBase):
             )
             or 0
         )
-        ocr_count = (
-            int(
-                await self.session.scalar(
-                    select(func.count(OCRBlock.id)).where(
-                        OCRBlock.ocr_run_id == ocr_run.id
-                    )
+        ocr_count = 0
+        if ocr_run is not None:
+            try:
+                effective_ocr = await OCRSourceChainService(self.session).resolve(
+                    ocr_run
                 )
-                or 0
+            except OCRSourceChainError as exc:
+                raise document_error(
+                    "The effective OCR source is not available.",
+                    field="ocrRunId",
+                    title="Language source is not available.",
+                ) from exc
+            ocr_count = effective_ocr.block_count
+        if extraction_run.requires_ocr and ocr_count == 0:
+            raise document_error(
+                "The required OCR run has no usable text blocks.",
+                field="ocrRunId",
+                title="Language source is not available.",
             )
-            if ocr_run is not None
-            else 0
-        )
         if native_count + ocr_count == 0:
             raise document_error(
                 "No extracted or OCR text is available for detection.",
@@ -304,6 +312,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
             raise document_conflict(
                 "An active language detection job already exists.",
                 field="documentFileId",
+                code="LANGUAGE_ACTIVE_JOB_EXISTS",
                 title="Active language detection already exists.",
             )
         source_hash = calculate_source_snapshot_hash(
@@ -316,20 +325,28 @@ class LanguageDetectionJobService(DocumentServiceBase):
             ocr_run_id=ocr_run.id if ocr_run is not None else None,
             source_content_hash=source_hash,
         )
-        if existing is not None and not force:
-            return LanguageDetectionQueuedResponse(
-                job_id=existing.job_id,
-                status=existing.job.status,
-                progress=existing.job.progress,
-                document_file_id=document_file.id,
-                extraction_run_id=extraction_run.id,
-                ocr_run_id=ocr_run.id if ocr_run is not None else None,
-                reused_existing_result=True,
-                run_id=existing.id,
-            )
-        maximum_retries = int(
-            getattr(self.settings, "language_max_retries", 1)
-        )
+        if existing is not None:
+            if force and reason is None:
+                raise document_conflict(
+                    (
+                        "A current language result already exists. Use the "
+                        "re-detection endpoint and provide an audit reason."
+                    ),
+                    field="force",
+                    title="Language re-detection reason is required.",
+                )
+            if not force:
+                return LanguageDetectionQueuedResponse(
+                    job_id=existing.job_id,
+                    status=existing.job.status,
+                    progress=existing.job.progress,
+                    document_file_id=document_file.id,
+                    extraction_run_id=extraction_run.id,
+                    ocr_run_id=ocr_run.id if ocr_run is not None else None,
+                    reused_existing_result=True,
+                    run_id=existing.id,
+                )
+        maximum_retries = int(getattr(self.settings, "language_max_retries", 1))
         job = LanguageDetectionJob(
             document_id=document_file.document_id,
             document_revision_id=document_file.document_revision_id,
@@ -364,9 +381,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
                 new_values={
                     "documentFileId": str(document_file.id),
                     "extractionRunId": str(extraction_run.id),
-                    "ocrRunId": (
-                        str(ocr_run.id) if ocr_run is not None else None
-                    ),
+                    "ocrRunId": (str(ocr_run.id) if ocr_run is not None else None),
                     "sourceContentHash": source_hash,
                     "reason": reason,
                 },
@@ -377,6 +392,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
             raise document_conflict(
                 "An active language detection job already exists.",
                 field="documentFileId",
+                code="LANGUAGE_ACTIVE_JOB_EXISTS",
                 title="Active language detection already exists.",
             ) from exc
         await self._dispatch(job)
@@ -452,10 +468,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
                 "Only an active language detection job can be cancelled.",
                 title="Language detection cannot be cancelled.",
             )
-        if (
-            job.status
-            is not LanguageDetectionJobStatus.CANCEL_REQUESTED
-        ):
+        if job.status is not LanguageDetectionJobStatus.CANCEL_REQUESTED:
             await self.jobs.mark_cancel_requested(job)
             await self.audit(
                 action=AuditAction.CANCEL_LANGUAGE_DETECTION,
@@ -464,9 +477,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
                 description="Language detection cancellation requested.",
                 new_values={
                     "documentFileId": str(job.document_file_id),
-                    "status": (
-                        LanguageDetectionJobStatus.CANCEL_REQUESTED.value
-                    ),
+                    "status": (LanguageDetectionJobStatus.CANCEL_REQUESTED.value),
                 },
             )
             await self.session.commit()
@@ -527,9 +538,7 @@ class LanguageDetectionJobService(DocumentServiceBase):
                     fresh,
                     failed_at=utc_now(),
                     error_code="LANGUAGE_DETECTION_FAILED",
-                    error_message=(
-                        "The language worker could not accept this job."
-                    ),
+                    error_message=("The language worker could not accept this job."),
                 )
                 await self.audit(
                     action=AuditAction.FAIL_LANGUAGE_DETECTION,
@@ -554,14 +563,10 @@ class LanguageDetectionJobService(DocumentServiceBase):
             detector = LanguageDetectorFactory.create(self.settings)
             info = detector.get_detector_info()
             fasttext_info = info.get("fastText")
-            ready = bool(
-                isinstance(fasttext_info, dict)
-                and fasttext_info.get("ready")
-            )
+            ready = bool(isinstance(fasttext_info, dict) and fasttext_info.get("ready"))
         if not ready:
             raise document_error(
-                "[LANGUAGE_MODEL_NOT_AVAILABLE] The local language model "
-                "is not ready.",
+                "[LANGUAGE_MODEL_NOT_AVAILABLE] The local language model is not ready.",
                 status_code=HTTPStatus.SERVICE_UNAVAILABLE,
                 title="Language detection is unavailable.",
             )
@@ -743,9 +748,7 @@ class LanguageResultService(DocumentServiceBase):
             page_size=page_size,
         )
         return LanguageContainerSummaryListResponse(
-            items=[
-                language_container_response(item) for item in items
-            ],
+            items=[language_container_response(item) for item in items],
             page=page,
             pageSize=page_size,
             totalItems=total,
@@ -769,11 +772,15 @@ class LanguageResultService(DocumentServiceBase):
         is_latest: bool | None = None,
     ) -> LanguageDetectionRunResponse:
         if is_latest is None:
-            latest = await self.runs.get_latest_by_file(
-                run.document_file_id
-            )
+            latest = await self.runs.get_latest_by_file(run.document_file_id)
             is_latest = latest is not None and latest.id == run.id
-        summary = language_summary_response(run)
+        average_confidence_by_language = (
+            await self.blocks.average_confidence_by_target_language(run.id)
+        )
+        summary = language_summary_response(
+            run,
+            average_confidence_by_language=(average_confidence_by_language),
+        )
         return LanguageDetectionRunResponse(
             **summary.model_dump(),
             document_file_id=run.document_file_id,
@@ -873,11 +880,7 @@ def language_job_item(
         started_at=job.started_at,
         completed_at=job.completed_at,
         cancelled_at=job.cancelled_at,
-        run_id=(
-            job.detection_run.id
-            if job.detection_run is not None
-            else None
-        ),
+        run_id=(job.detection_run.id if job.detection_run is not None else None),
         result_summary=job.result_summary_json,
     )
 
@@ -894,8 +897,7 @@ def language_job_detail(
         error=(
             LanguageDetectionJobError(
                 code=job.error_code,
-                message=job.error_message
-                or "Language detection failed.",
+                message=job.error_message or "Language detection failed.",
             )
             if job.error_code is not None
             else None
@@ -905,6 +907,11 @@ def language_job_detail(
 
 def language_summary_response(
     run: LanguageDetectionRun,
+    *,
+    average_confidence_by_language: dict[
+        LanguageCode,
+        float | None,
+    ],
 ) -> LanguageSummaryResponse:
     metadata = run.metadata_json or {}
     raw_coverage = metadata.get("coverage")
@@ -942,6 +949,13 @@ def language_summary_response(
             if run.average_confidence is not None
             else None
         ),
+        average_confidence_by_language=(
+            LanguageAverageConfidenceResponse(
+                id=average_confidence_by_language[LanguageCode.INDONESIAN],
+                en=average_confidence_by_language[LanguageCode.ENGLISH],
+                zh=average_confidence_by_language[LanguageCode.CHINESE],
+            )
+        ),
         language_presence=LanguagePresenceResponse.model_validate(
             presence
             if isinstance(presence, dict)
@@ -953,9 +967,7 @@ def language_summary_response(
         ),
         coverage=LanguageCoverageResponse(
             block_coverage=CoverageBreakdownData.model_validate(
-                block_coverage
-                if isinstance(block_coverage, dict)
-                else zero_coverage
+                block_coverage if isinstance(block_coverage, dict) else zero_coverage
             ),
             character_coverage=CoverageBreakdownData.model_validate(
                 character_coverage

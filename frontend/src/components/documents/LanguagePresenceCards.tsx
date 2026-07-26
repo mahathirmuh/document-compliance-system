@@ -39,7 +39,7 @@ export function LanguagePresenceCards({ summary }: { summary: LanguageSummary })
     characterCount,
     blockCoverage: summary.coverage.blockCoverage[languageCode],
     characterCoverage: summary.coverage.characterCoverage[languageCode],
-    averageConfidence: summary.averageConfidence,
+    averageConfidence: summary.averageConfidenceByLanguage[languageCode],
   }));
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -92,7 +92,7 @@ function PresenceCard({
           label="Average Confidence"
           value={
             presence.averageConfidence === null
-              ? '—'
+              ? 'Not available'
               : `${Math.round(presence.averageConfidence * 100)}%`
           }
         />
